@@ -886,6 +886,31 @@
   }
   #back-to-home-fab:hover .fab-tooltip { opacity: 1; }
 
+  /* ── SETTINGS THEME COLOR ROWS ── */
+  .theme-color-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 5px;
+  }
+  .theme-color-row label {
+    font-size: 12px; color: var(--text-body); flex: 1;
+  }
+  .theme-color-row input[type="color"] {
+    width: 38px; height: 28px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: none; cursor: pointer; padding: 1px;
+  }
+
+  /* Inline ✎ rename pencil next to sidebar category labels (admin only) */
+  .sb-cat-rename {
+    display: none; background: none; border: none; cursor: pointer;
+    color: var(--mid); font-size: 11px; padding: 1px 4px; border-radius: 3px;
+    flex-shrink: 0; line-height: 1; opacity: 0.6;
+    transition: color 0.12s, background 0.12s, opacity 0.12s;
+  }
+  body.admin-mode .sb-cat-rename { display: inline-block; }
+  .sb-cat-label:hover .sb-cat-rename { opacity: 1; }
+  .sb-cat-rename:hover { color: var(--admin-accent); background: var(--hover-bg); }
+
   /* ── FIREBASE STATUS DOT ── */
   #fb-status-dot {
     position: absolute; top: 4px; right: 4px;
@@ -1185,6 +1210,7 @@
 
   <div id="admin-toolbar" class="sidebar-collapsible">
     <button class="admin-tool-btn btn-admin" onclick="showDocView()" style="color:#fff;border-color:var(--admin-accent);background:var(--admin-accent)">📑 Documentation View</button>
+    <button class="admin-tool-btn" onclick="openSiteSettings()" title="Edit dashboard name, department, and category labels">⚙ Site Settings</button>
     <button class="admin-tool-btn" onclick="openSynonymsEditor()" title="Manage search synonyms">🧠 Manage Synonyms</button>
     <div class="admin-tool-row">
       <button class="admin-tool-btn" onclick="exportData()" title="Download backup">↓ Export</button>
@@ -1564,6 +1590,88 @@
   </div>
 </div>
 
+<!-- ── SITE SETTINGS MODAL (admin) ── -->
+<div id="settings-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSettings(event)">
+  <div class="admin-modal" style="max-width:580px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">⚙ Site Settings <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSettingsModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div style="background:var(--admin-accent-light);padding:10px 14px;border-radius:5px;font-size:12px;color:var(--text-body);margin-bottom:6px">
+        Changes apply across the whole dashboard and sync to everyone via Firebase.
+      </div>
+      <div class="form-field">
+        <label class="form-label">Dashboard Name</label>
+        <input class="form-input" id="set-siteName" type="text" placeholder="VL Dashboard" />
+        <span class="form-hint">Shown in the sidebar logo, home page hero, browser tab title, and breadcrumb.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Studio Name</label>
+        <input class="form-input" id="set-studioName" type="text" placeholder="Mega Cat Studios" />
+        <span class="form-hint">Shown under the dashboard name in the sidebar and home hero.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Department Name</label>
+        <input class="form-input" id="set-departmentName" type="text" placeholder="Visual Leads Department" />
+        <span class="form-hint">Prefixes the studio name above the home page title.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Home Page Subtitle</label>
+        <textarea class="form-textarea" id="set-heroSub" rows="2" placeholder="Browse the handbook from the sidebar, or search for anything below." style="min-height:60px"></textarea>
+        <span class="form-hint">The grey description text under the home page title.</span>
+      </div>
+      <div style="font-size:11px;color:var(--mid);font-style:italic;padding:4px 2px">
+        💡 To rename a sidebar category (Handbook, Quick Links, Projects, custom), click the ✎ pencil that appears next to its label in the sidebar.
+      </div>
+
+      <!-- Favicon -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Favicon</div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="favicon-preview" style="width:48px;height:48px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--bg-form-input);overflow:hidden">
+            <span style="color:var(--mid);font-size:10px">none</span>
+          </div>
+          <div style="flex:1">
+            <button type="button" class="btn btn-secondary" onclick="uploadFavicon()">📁 Upload favicon</button>
+            <button type="button" class="btn btn-secondary" id="favicon-clear-btn" onclick="clearFavicon()" style="display:none;margin-left:6px">Remove</button>
+            <div class="form-hint" style="margin-top:4px">.ico file, max 64 KB. Appears as the browser tab icon.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Theme colors -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Theme Colors</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--black);margin-bottom:6px;display:flex;align-items:center;gap:5px">☀️ Light Mode</div>
+            <div class="theme-color-row"><label>Accent</label><input type="color" id="theme-light-accent" /></div>
+            <div class="theme-color-row"><label>Background</label><input type="color" id="theme-light-bg" /></div>
+            <div class="theme-color-row"><label>Text</label><input type="color" id="theme-light-text" /></div>
+            <div class="theme-color-row"><label>Sidebar BG</label><input type="color" id="theme-light-sidebar" /></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--black);margin-bottom:6px;display:flex;align-items:center;gap:5px">🌙 Dark Mode</div>
+            <div class="theme-color-row"><label>Accent</label><input type="color" id="theme-dark-accent" /></div>
+            <div class="theme-color-row"><label>Background</label><input type="color" id="theme-dark-bg" /></div>
+            <div class="theme-color-row"><label>Text</label><input type="color" id="theme-dark-text" /></div>
+            <div class="theme-color-row"><label>Sidebar BG</label><input type="color" id="theme-dark-sidebar" /></div>
+          </div>
+        </div>
+        <div class="form-hint" style="margin-top:8px">Changes preview live in the open tab. Save to apply for everyone (via Firestore).</div>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-secondary" onclick="resetSiteSettings()">↺ Reset to Defaults</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSiteSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── CATEGORY EDITOR MODAL (admin) ── -->
 <div id="cat-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseCat(event)">
   <div class="admin-modal" style="max-width:480px">
@@ -1811,8 +1919,14 @@ const DEFAULT_SITE_SETTINGS = {
   heroSub:         'Browse the handbook from the sidebar, or search for anything below.',
   handbookLabel:   'Handbook',
   quicklinksLabel: 'Quick Links',
-  projectsLabel:   'Projects'
+  projectsLabel:   'Projects',
+  favicon:         '',  // data URL of an .ico file (empty = use browser default)
+  theme: {
+    light: { accent: '#b87c00', bg: '#f5f5f3', text: '#0d0d0d', sidebarBg: '#fafaf8' },
+    dark:  { accent: '#d4a843', bg: '#161616', text: '#ededeb', sidebarBg: '#111111' }
+  }
 };
+const FAVICON_MAX_BYTES = 64 * 1024; // 64 KB cap
 
 const DEFAULT_SYNONYMS = [
   ['frequency','cadence','often','schedule','when','recurrence','pace','rhythm','timing','how often','how frequent','how frequently'],
@@ -2282,7 +2396,7 @@ function getCategoryLabel(catId) {
   return sec ? sec.label : catId;
 }
 
-// Apply all SITE_SETTINGS values to the live DOM (title, logo, hero).
+// Apply all SITE_SETTINGS values to the live DOM (title, logo, hero, favicon, theme).
 // Called once on init and after each Save in the settings modal.
 function applyAllSettings() {
   const s = SITE_SETTINGS || DEFAULT_SITE_SETTINGS;
@@ -2300,6 +2414,10 @@ function applyAllSettings() {
   if (heroLbl)   heroLbl.textContent   = `${s.departmentName} · ${s.studioName}`;
   if (heroTitle) heroTitle.textContent = s.siteName;
   if (heroSub)   heroSub.textContent   = s.heroSub;
+  // Favicon
+  applyFavicon(s.favicon || '');
+  // Theme
+  applyTheme(s.theme);
 }
 
 /* ══════════════════════════════════════════
@@ -2342,14 +2460,10 @@ function setView(name) {
 function updateBreadcrumb() {
   const bc = document.getElementById('breadcrumb');
   let parts = [`<span class="bc-item" onclick="showHome()">${escapeHtml(SITE_SETTINGS.siteName || 'Dashboard')}</span>`];
-  const baseLabel = currentBase === 'projects' ? 'Projects' : (currentBase === 'handbook' ? 'Handbook' : (lookupCustomCategoryLabel(currentBase) || 'Handbook'));
+  const baseLabel = getCategoryLabel(currentBase);
   if (currentView === 'category' && currentCategoryId) {
     let catLabel = 'Category';
-    if (currentCategoryType === 'kb') catLabel = currentCategoryId === 'handbook' ? 'Handbook' : currentCategoryId === 'projects' ? 'Projects' : (lookupCustomCategoryLabel(currentCategoryId) || currentCategoryId);
-    else if (currentCategoryType === 'links') {
-      const sec = SIDEBAR_CFG.find(s => s.id === currentCategoryId);
-      catLabel = sec ? sec.label : currentCategoryId;
-    }
+    catLabel = getCategoryLabel(currentCategoryId);
     parts.push(`<span class="bc-sep">/</span><span class="bc-item active">${escapeHtml(catLabel)}</span>`);
   } else if (currentView === 'section' && currentSectionNum) {
     const sec = findSection(currentSectionNum, currentBase);
@@ -2485,7 +2599,7 @@ function showCategoryOverview(catId, catType) {
   if (catType === 'kb') {
     const sectionsArr = sectionsOf(catId);
     const isCustom = (catId !== 'handbook' && catId !== 'projects');
-    const friendlyLabel = catId === 'handbook' ? 'Handbook' : catId === 'projects' ? 'Projects' : (lookupCustomCategoryLabel(catId) || catId);
+    const friendlyLabel = getCategoryLabel(catId);
     labelEl.textContent = friendlyLabel;
     titleEl.textContent = `${friendlyLabel} — Overview`;
     descEl.innerHTML = `<span style="color:var(--mid)">All ${escapeHtml(friendlyLabel.toLowerCase())} sections at a glance. Click a card to dive in.</span>`
@@ -2513,8 +2627,9 @@ function showCategoryOverview(catId, catType) {
     // Quick Links — show each link as a card
     const sec = SIDEBAR_CFG.find(s => s.id === catId);
     if (!sec) { showHome(); return; }
-    labelEl.textContent = sec.label;
-    titleEl.textContent = `${sec.label} — Overview`;
+    const qlLabel = getCategoryLabel(catId);
+    labelEl.textContent = qlLabel;
+    titleEl.textContent = `${qlLabel} — Overview`;
     descEl.innerHTML = `<span style="color:var(--mid)">All quick links at a glance. Click a card to open the link.</span>`;
 
     const items = sec.items.filter(i => i && i.id && (i.visible || isAdminMode));
@@ -2548,6 +2663,202 @@ function lookupCustomCategoryLabel(catId) {
   if (typeof CUSTOM_CATEGORIES === 'undefined' || !Array.isArray(CUSTOM_CATEGORIES)) return null;
   const cc = CUSTOM_CATEGORIES.find(c => c.id === catId);
   return cc ? cc.label : null;
+}
+
+/* ══════════════════════════════════════════
+   SITE SETTINGS (admin)
+   ══════════════════════════════════════════ */
+function openSiteSettings() {
+  if (!isAdminMode) return;
+  const s = SITE_SETTINGS || DEFAULT_SITE_SETTINGS;
+  document.getElementById('set-siteName').value        = s.siteName        || '';
+  document.getElementById('set-studioName').value      = s.studioName      || '';
+  document.getElementById('set-departmentName').value  = s.departmentName  || '';
+  document.getElementById('set-heroSub').value         = s.heroSub         || '';
+
+  // Favicon preview + clear button
+  _settingsFaviconDraft = s.favicon || '';
+  _renderFaviconPreview();
+
+  // Theme color pickers
+  const t = (s.theme && s.theme.light) ? s.theme : DEFAULT_SITE_SETTINGS.theme;
+  document.getElementById('theme-light-accent').value  = t.light.accent;
+  document.getElementById('theme-light-bg').value      = t.light.bg;
+  document.getElementById('theme-light-text').value    = t.light.text;
+  document.getElementById('theme-light-sidebar').value = t.light.sidebarBg;
+  document.getElementById('theme-dark-accent').value   = t.dark.accent;
+  document.getElementById('theme-dark-bg').value       = t.dark.bg;
+  document.getElementById('theme-dark-text').value     = t.dark.text;
+  document.getElementById('theme-dark-sidebar').value  = t.dark.sidebarBg;
+
+  // Live preview on color change
+  _settingsThemeDraft = JSON.parse(JSON.stringify(t));
+  ['theme-light-accent','theme-light-bg','theme-light-text','theme-light-sidebar',
+   'theme-dark-accent','theme-dark-bg','theme-dark-text','theme-dark-sidebar'
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    el.oninput = () => {
+      const mode = id.indexOf('light') > -1 ? 'light' : 'dark';
+      const key  = id.split('-').pop(); // accent / bg / text / sidebar
+      const slot = key === 'sidebar' ? 'sidebarBg' : key;
+      _settingsThemeDraft[mode][slot] = el.value;
+      applyTheme(_settingsThemeDraft);
+    };
+  });
+
+  document.getElementById('settings-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('set-siteName').focus(), 60);
+}
+function closeSettingsModal() {
+  document.getElementById('settings-modal-overlay').classList.remove('open');
+  // Revert any live preview to what's actually saved
+  applyTheme(SITE_SETTINGS.theme);
+  _settingsFaviconDraft = null;
+  _settingsThemeDraft = null;
+}
+function maybeCloseSettings(e) { if (_shouldCloseOverlay(e, 'settings-modal-overlay')) closeSettingsModal(); }
+
+let _settingsFaviconDraft = null;
+let _settingsThemeDraft = null;
+
+function saveSiteSettings() {
+  const next = Object.assign({}, SITE_SETTINGS, {
+    siteName:        document.getElementById('set-siteName').value.trim()        || DEFAULT_SITE_SETTINGS.siteName,
+    studioName:      document.getElementById('set-studioName').value.trim()      || DEFAULT_SITE_SETTINGS.studioName,
+    departmentName:  document.getElementById('set-departmentName').value.trim()  || DEFAULT_SITE_SETTINGS.departmentName,
+    heroSub:         document.getElementById('set-heroSub').value.trim()         || DEFAULT_SITE_SETTINGS.heroSub,
+    favicon:         _settingsFaviconDraft != null ? _settingsFaviconDraft : (SITE_SETTINGS.favicon || ''),
+    theme:           _settingsThemeDraft || SITE_SETTINGS.theme || DEFAULT_SITE_SETTINGS.theme
+  });
+  SITE_SETTINGS = next;
+  // Close before calling functions that might trigger renders
+  document.getElementById('settings-modal-overlay').classList.remove('open');
+  saveAll('Site settings saved');
+  applyAllSettings();
+  renderSidebar();
+  updateBreadcrumb();
+  if (currentView === 'category' && currentCategoryId) showCategoryOverview(currentCategoryId, currentCategoryType);
+}
+function resetSiteSettings() {
+  if (!confirm('Reset all site settings (including theme + favicon) to defaults? Your customizations will be lost.')) return;
+  SITE_SETTINGS = clone(DEFAULT_SITE_SETTINGS);
+  closeSettingsModal();
+  saveAll('Reset to defaults');
+  applyAllSettings();
+  renderSidebar();
+  // Reopen with refreshed values
+  setTimeout(openSiteSettings, 30);
+}
+
+// ── Favicon upload ──
+function uploadFavicon() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.ico,image/x-icon,image/vnd.microsoft.icon';
+  inp.onchange = ev => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const isIco = /\.ico$/i.test(file.name) || file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon';
+    if (!isIco) {
+      alert('Please upload a .ico file (standard favicon format).');
+      return;
+    }
+    if (file.size > FAVICON_MAX_BYTES) {
+      alert(`Favicon is too large (${(file.size/1024).toFixed(1)} KB). Maximum ${FAVICON_MAX_BYTES/1024} KB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      _settingsFaviconDraft = e.target.result;
+      _renderFaviconPreview();
+      applyFavicon(_settingsFaviconDraft); // live preview
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+function clearFavicon() {
+  _settingsFaviconDraft = '';
+  _renderFaviconPreview();
+  applyFavicon('');
+}
+function _renderFaviconPreview() {
+  const wrap = document.getElementById('favicon-preview');
+  const clearBtn = document.getElementById('favicon-clear-btn');
+  if (!wrap) return;
+  const url = _settingsFaviconDraft != null ? _settingsFaviconDraft : (SITE_SETTINGS.favicon || '');
+  if (url) {
+    wrap.innerHTML = `<img src="${escAttr(url)}" alt="favicon" style="width:32px;height:32px;object-fit:contain">`;
+    if (clearBtn) clearBtn.style.display = '';
+  } else {
+    wrap.innerHTML = `<span style="color:var(--mid);font-size:10px">none</span>`;
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+// ── Inline category rename (admin only) ──
+function renameCategoryInline(catId) {
+  if (!isAdminMode) return;
+  const currentLabel = getCategoryLabel(catId);
+  const next = prompt(`Rename "${currentLabel}" to:`, currentLabel);
+  if (next === null) return;
+  const trimmed = next.trim();
+  if (!trimmed) { alert('Category name cannot be empty.'); return; }
+  if (catId === 'handbook')        SITE_SETTINGS.handbookLabel = trimmed;
+  else if (catId === 'projects')   SITE_SETTINGS.projectsLabel = trimmed;
+  else if (catId === 'quicklinks') SITE_SETTINGS.quicklinksLabel = trimmed;
+  else {
+    const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === catId);
+    if (cc) cc.label = trimmed;
+    else { alert('Unknown category.'); return; }
+  }
+  saveAll('Category renamed');
+  applyAllSettings();
+  renderSidebar();
+  updateBreadcrumb();
+  if (currentView === 'category' && currentCategoryId === catId) showCategoryOverview(catId, currentCategoryType);
+}
+
+// ── Favicon application ──
+function applyFavicon(dataUrl) {
+  const url = (dataUrl == null) ? (SITE_SETTINGS.favicon || '') : dataUrl;
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
+  }
+  if (url) { link.type = 'image/x-icon'; link.href = url; }
+  else { link.removeAttribute('href'); }
+}
+
+// ── Theme application ──
+// Injects a <style id="theme-overrides"> block that overrides CSS variables.
+function applyTheme(theme) {
+  const t = theme || SITE_SETTINGS.theme || DEFAULT_SITE_SETTINGS.theme;
+  const l = t.light || DEFAULT_SITE_SETTINGS.theme.light;
+  const d = t.dark  || DEFAULT_SITE_SETTINGS.theme.dark;
+  const css = `
+:root {
+  --admin-accent: ${l.accent};
+  --white: ${l.bg};
+  --black: ${l.text};
+  --bg-sidebar: ${l.sidebarBg};
+}
+body.dark {
+  --admin-accent: ${d.accent};
+  --white: ${d.bg};
+  --black: ${d.text};
+  --bg-sidebar: ${d.sidebarBg};
+}
+  `;
+  let styleEl = document.getElementById('theme-overrides');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'theme-overrides';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = css;
 }
 
 /* ══════════════════════════════════════════
@@ -2636,6 +2947,7 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
     <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(catId)}','kb')">
       <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(catId)}')">▶</span>
       <span class="sb-cat-text">${escapeHtml(label)}</span>
+      <button class="sb-cat-rename" onclick="event.stopPropagation();renameCategoryInline('${escAttr(catId)}')" title="Rename this category">✎</button>
     </div>
     <div class="sb-cat-body${collapsed?' collapsed':''}">`;
   if (sectionsArr.length === 0 && !isAdminMode) {
@@ -2703,6 +3015,7 @@ function _renderSidebarUnsafe() {
       <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(section.id)}','links')">
         <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(section.id)}')">▶</span>
         <span class="sb-cat-text">${escapeHtml(getCategoryLabel(section.id) || section.label || '')}</span>
+        <button class="sb-cat-rename" onclick="event.stopPropagation();renameCategoryInline('${escAttr(section.id)}')" title="Rename this category">✎</button>
       </div>
       <div class="sb-cat-body${collapsed?' collapsed':''}">`;
     for (const item of section.items) {
@@ -3201,12 +3514,7 @@ function toggleOthers() {
 function resultCardHtml(entry, tokens) {
   const idDisplay = entry.id;
   const base = entry.__base || 'handbook';
-  let baseLabel = 'HANDBOOK';
-  if (base === 'projects') baseLabel = 'PROJECT';
-  else if (base !== 'handbook') {
-    const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === base);
-    baseLabel = (cc ? cc.label : base).toUpperCase();
-  }
+  let baseLabel = getCategoryLabel(base).toUpperCase();
   if (entry.__section) {
     return `<div class="result-card">
       <div class="result-card-header">
@@ -4102,6 +4410,7 @@ function exportData() {
     sections: SECTIONS, handbook: HANDBOOK,
     projects: PROJECTS, projectEntries: PROJECT_ENTRIES,
     customCategories: CUSTOM_CATEGORIES,
+    settings: SITE_SETTINGS,
     sidebar: SIDEBAR_CFG,
     announcements: ANNOUNCEMENTS, synonyms: SYNONYMS, team: TEAM_DIRECTORY,
     exportedAt: new Date().toISOString()
@@ -4126,13 +4435,14 @@ function importData(e) {
       PROJECTS = data.projects || [];
       PROJECT_ENTRIES = data.projectEntries || [];
       CUSTOM_CATEGORIES = data.customCategories || [];
+      SITE_SETTINGS = data.settings ? Object.assign({}, DEFAULT_SITE_SETTINGS, data.settings) : clone(DEFAULT_SITE_SETTINGS);
       SIDEBAR_CFG = data.sidebar || clone(DEFAULT_SIDEBAR_CFG);
       ANNOUNCEMENTS = data.announcements || [];
       SYNONYMS = data.synonyms || clone(DEFAULT_SYNONYMS);
       TEAM_DIRECTORY = data.team || [];
       dismissedAnns = new Set();
       saveAll('Import complete');
-      renderSidebar(); renderAnnouncements(); showHome();
+      applyAllSettings(); renderSidebar(); renderAnnouncements(); showHome();
     } catch(err) { alert('Could not parse file: ' + err.message); }
   };
   r.readAsText(file); e.target.value = '';
@@ -4651,17 +4961,12 @@ function renderDocView() {
   const content = document.getElementById('docview-content');
   const base = docViewBase || 'handbook';
   const sectionsArr = sectionsOf(base);
-  let baseLabel = 'Handbook';
-  let itemLabel = 'Section';
-  if (base === 'projects') { baseLabel = 'Projects'; itemLabel = 'Project'; }
-  else if (base !== 'handbook') {
-    const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === base);
-    baseLabel = cc ? cc.label : base;
-  }
+  let baseLabel = getCategoryLabel(base);
+  let itemLabel = base === 'projects' ? 'Project' : 'Section';
 
   // Outline with base tabs for ALL kb categories
-  let tabsHtml = `<button class="dv-tab${base==='handbook'?' active':''}" onclick="dvSetBase('handbook')">📘 Handbook</button>
-    <button class="dv-tab${base==='projects'?' active':''}" onclick="dvSetBase('projects')">🗂 Projects</button>`;
+  let tabsHtml = `<button class="dv-tab${base==='handbook'?' active':''}" onclick="dvSetBase('handbook')">📘 ${escapeHtml(getCategoryLabel('handbook'))}</button>
+    <button class="dv-tab${base==='projects'?' active':''}" onclick="dvSetBase('projects')">🗂 ${escapeHtml(getCategoryLabel('projects'))}</button>`;
   for (const cc of (CUSTOM_CATEGORIES || [])) {
     if (!cc || !cc.id) continue;
     tabsHtml += `<button class="dv-tab${base===cc.id?' active':''}" onclick="dvSetBase('${escAttr(cc.id)}')">📂 ${escapeHtml(cc.label)}</button>`;
@@ -4785,7 +5090,7 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.key === 'Escape') {
-    for (const id of ['tm-detail-overlay','team-modal-overlay','syn-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay']) {
+    for (const id of ['tm-detail-overlay','team-modal-overlay','syn-modal-overlay','settings-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay','cat-modal-overlay']) {
       const m = document.getElementById(id);
       if (m && m.classList.contains('open')) { m.classList.remove('open'); return; }
     }
@@ -4803,6 +5108,7 @@ document.addEventListener('keydown', e => {
 loadFromStorage();
 if (sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');
 applyDark(isDark);
+applyAllSettings();
 renderSidebar();
 renderAnnouncements();
 showHome();
