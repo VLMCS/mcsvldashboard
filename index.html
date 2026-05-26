@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>VL Dashboard — Mega Cat Studios</title>
+<title>VL Dashboard — MCS</title>
 <style>
   :root {
     --black: #0d0d0d; --white: #f5f5f3; --mid: #888; --border: #d0d0cc;
@@ -70,6 +70,26 @@
     font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
     color: var(--mid); margin-bottom: 4px; font-weight: 600; padding: 0 8px;
   }
+  .sb-cat-label {
+    display: flex; align-items: center; gap: 4px;
+    cursor: pointer; user-select: none;
+    padding: 3px 6px; margin: 0 2px 4px;
+    border-radius: 4px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .sb-cat-label:hover { background: var(--hover-bg); color: var(--black); }
+  .sb-cat-chevron {
+    flex-shrink: 0; width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; transition: transform 0.15s;
+  }
+  .sb-cat-chevron.expanded { transform: rotate(90deg); }
+  .sb-cat-text { flex: 1; }
+  .sb-cat-body {
+    overflow: hidden;
+    transition: max-height 0.22s ease;
+  }
+  .sb-cat-body.collapsed { display: none; }
 
   /* Parent items (hierarchical) */
   .sb-parent {
@@ -127,6 +147,16 @@
   body.dark .drag-handle { color: #444; }
   body.admin-mode .drag-handle { display: block; }
   .drag-handle:active { cursor: grabbing; }
+
+  /* Lock/unlock button (visible to non-admin on project parents) */
+  .sb-lock-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 12px; padding: 1px 4px; border-radius: 3px;
+    flex-shrink: 0; line-height: 1; color: var(--mid);
+    transition: color 0.12s, background 0.12s;
+  }
+  .sb-lock-btn:hover { background: var(--hover-bg); color: var(--admin-accent); }
+  .sb-lock-btn.unlocked { color: var(--admin-accent); }
 
   /* Edit icons */
   .sb-edit-btn, .sb-add-btn {
@@ -242,6 +272,17 @@
   }
   #search-trigger:hover { border-color: var(--black); color: var(--black); }
   #search-trigger svg { width: 14px; height: 14px; }
+  #admin-btn {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    width: 28px; height: 28px; padding: 0; cursor: pointer; color: var(--mid);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+    margin-left: 4px; flex-shrink: 0;
+  }
+  #admin-btn svg { width: 14px; height: 14px; display: block; }
+  #admin-btn:hover { border-color: var(--black); color: var(--black); }
+  body.admin-mode #admin-btn { background: var(--admin-accent); color: #fff; border-color: var(--admin-accent); }
+  body.admin-mode #admin-btn:hover { opacity: 0.88; }
   .search-shortcut { color: #aaa; font-size: 11px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; }
   body.dark .search-shortcut { color: #555; }
 
@@ -321,9 +362,25 @@
   .section-num-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--mid); margin-bottom: 6px; font-weight: 600; }
   .section-title { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: var(--black); margin-bottom: 14px; }
   .section-desc { font-size: 15px; color: var(--text-body); line-height: 1.65; margin-bottom: 28px; max-width: 720px; }
-  .section-actions { display: flex; gap: 8px; margin-bottom: 18px; }
-  .section-actions .btn { display: none; }
-  body.admin-mode .section-actions .btn { display: inline-flex; align-items: center; gap: 4px; }
+  .section-actions { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+  .section-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+
+  /* Edit-mode CTA for project sections */
+  .btn-cta-edit {
+    background: var(--admin-accent); color: #fff; border-color: var(--admin-accent);
+    padding: 9px 18px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 2px 8px rgba(184,124,0,0.25);
+  }
+  .btn-cta-edit:hover { opacity: 0.92; transform: translateY(-1px); }
+  .edit-mode-active {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 5px;
+    background: var(--admin-accent-light); color: var(--admin-accent);
+    border: 1.5px solid var(--admin-accent); font-weight: 600; font-size: 12.5px;
+  }
+  .edit-mode-active::before {
+    content: '🔓'; font-size: 14px;
+  }
   .section-card-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px; margin-bottom: 24px;
@@ -1132,13 +1189,6 @@
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
   </div>
 
-  <div id="sidebar-bottom" class="sidebar-collapsible">
-    <button id="admin-btn" onclick="openAdminAuth()">
-      <span id="admin-btn-icon">🔒</span>
-      <span id="admin-btn-text">Admin Mode</span>
-      <span class="admin-badge">Active</span>
-    </button>
-  </div>
 </aside>
 
 <!-- ── MAIN ── -->
@@ -1151,6 +1201,16 @@
       </svg>
       Search
       <span class="search-shortcut">/</span>
+    </button>
+    <button id="admin-btn" onclick="openAdminAuth()" title="Admin Mode">
+      <svg id="admin-icon-locked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <svg id="admin-icon-unlocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+      </svg>
     </button>
   </div>
 
@@ -1175,15 +1235,23 @@
 
   </div>
 
+  <!-- CATEGORY OVERVIEW VIEW -->
+  <div id="view-category" class="view">
+    <div class="section-inner">
+      <div class="section-num-label" id="cv-label">Category</div>
+      <h1 class="section-title" id="cv-title">Title</h1>
+      <div class="section-desc" id="cv-desc"></div>
+      <div class="section-card-grid" id="cv-grid"></div>
+    </div>
+  </div>
+
   <!-- SECTION VIEW -->
   <div id="view-section" class="view">
     <div class="section-inner">
       <div class="section-num-label" id="sv-num">Section</div>
       <h1 class="section-title" id="sv-title">Title</h1>
-      <p class="section-desc" id="sv-desc"></p>
-      <div class="section-actions">
-        <button class="btn btn-secondary" onclick="openSectionEditor(currentSectionNum)">⚙ Edit Section Info</button>
-      </div>
+      <div class="section-desc" id="sv-desc"></div>
+      <div class="section-actions" id="sv-actions"></div>
       <div class="section-card-grid" id="sv-grid"></div>
     </div>
   </div>
@@ -1321,7 +1389,20 @@
       </div>
       <div class="form-field">
         <label class="form-label">Description</label>
-        <textarea class="form-textarea" id="sef-desc" rows="4" placeholder="Brief description shown on the section page."></textarea>
+        <div class="rt-wrap">
+          <div class="rt-toolbar" id="sef-rt-toolbar"></div>
+          <div class="rt-editor" id="sef-desc-editor" contenteditable="true" data-placeholder="Brief description shown on the section page. Use the toolbar to format."></div>
+        </div>
+        <span class="form-hint">Supports formatting, links, and images — same toolbar as entry editor.</span>
+      </div>
+      <div class="form-field" id="sef-passkey-row" style="display:none">
+        <label class="form-label">Edit Passkey <span style="font-weight:400;text-transform:none;letter-spacing:0">(share with users who can edit this section)</span></label>
+        <div style="display:flex;gap:6px">
+          <input class="form-input" id="sef-passkey" type="text" readonly style="flex:1;font-family:'Consolas','Courier New',monospace;letter-spacing:0.08em" />
+          <button type="button" class="btn btn-secondary" onclick="copySectionPasskey()" title="Copy">📋</button>
+          <button type="button" class="btn btn-secondary" onclick="regenerateSectionPasskey()" title="Generate a new passkey (invalidates the old one)">🔄</button>
+        </div>
+        <span class="form-hint">Anyone with this passkey can add/edit/delete entries within this project section. They cannot edit other sections.</span>
       </div>
     </div>
     <div class="admin-modal-footer">
@@ -1479,12 +1560,36 @@
   </div>
 </div>
 
+<!-- ── CATEGORY EDITOR MODAL (admin) ── -->
+<div id="cat-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseCat(event)">
+  <div class="admin-modal" style="max-width:480px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="cat-modal-title-text">New Category</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeCatModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Category Label</label>
+        <input class="form-input" id="cat-label-input" type="text" placeholder="e.g. Onboarding, Tech Stack, Pipeline Specs" />
+        <span class="form-hint">Shown in the sidebar as a top-level group, like Handbook or Projects.</span>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-cat-btn" onclick="deleteCurrentCategory()" style="display:none">Delete Category</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-secondary" onclick="closeCatModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveCategory()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── BACK-TO-HOME FAB ── -->
-<button id="back-to-home-fab" onclick="showHome()" title="Back to search (Home)">
-  <span class="fab-tooltip">Back to search</span>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="11" cy="11" r="7"/>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+<button id="back-to-home-fab" onclick="showHome()" title="Back to home">
+  <span class="fab-tooltip">Back to home</span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 12 L12 3 L21 12"/>
+    <path d="M5 10 V20 a1 1 0 0 0 1 1 H10 V14 H14 V21 H18 a1 1 0 0 0 1 -1 V10"/>
   </svg>
 </button>
 
@@ -1759,12 +1864,15 @@ let SECTIONS = [];          // Handbook section definitions
 let HANDBOOK = [];          // Handbook entries
 let PROJECTS = [];          // Project "section" definitions (parallel to SECTIONS)
 let PROJECT_ENTRIES = [];   // Project entries (parallel to HANDBOOK)
+let CUSTOM_CATEGORIES = []; // [{ id, label, sections: [{num,title,description}], entries: [...] }]
 let SIDEBAR_CFG = [];
 let ANNOUNCEMENTS = [];
 let SYNONYMS = [];
 let TEAM_DIRECTORY = [];
 let dismissedAnns = new Set();
 let expandedSections = new Set();  // tracks expanded sidebar groups — keys are "handbook:1" / "projects:1"
+let collapsedCategories = new Set();  // main category IDs the user has collapsed in the sidebar
+let unlockedProjects = new Set();     // project section nums where user entered the correct passkey this session
 
 let isAdminMode = false;
 let sidebarCollapsed = false;
@@ -1866,6 +1974,7 @@ async function initFirebase() {
       if (remote.handbook)       HANDBOOK        = decodeFromFirestore('handbook', remote.handbook);
       if (remote.projects)       PROJECTS        = decodeFromFirestore('projects', remote.projects);
       if (remote.projectEntries) PROJECT_ENTRIES = decodeFromFirestore('projectEntries', remote.projectEntries);
+      if (remote.customCategories) CUSTOM_CATEGORIES = decodeFromFirestore('customCategories', remote.customCategories);
       if (remote.sidebar)        SIDEBAR_CFG     = decodeFromFirestore('sidebar', remote.sidebar);
       if (remote.announcements)  ANNOUNCEMENTS   = decodeFromFirestore('announcements', remote.announcements);
       if (remote.synonyms)       SYNONYMS        = decodeFromFirestore('synonyms', remote.synonyms);
@@ -1876,6 +1985,7 @@ async function initFirebase() {
         localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
         localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
         localStorage.setItem('vl_pe',       JSON.stringify(PROJECT_ENTRIES));
+        localStorage.setItem('vl_cats',     JSON.stringify(CUSTOM_CATEGORIES));
         localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
         localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
         localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
@@ -1884,14 +1994,15 @@ async function initFirebase() {
     } else {
       // First-time: seed Firestore from local
       await setDoc(_fbDoc, {
-        sections:       encodeForFirestore('sections',       SECTIONS),
-        handbook:       encodeForFirestore('handbook',       HANDBOOK),
-        projects:       encodeForFirestore('projects',       PROJECTS),
-        projectEntries: encodeForFirestore('projectEntries', PROJECT_ENTRIES),
-        sidebar:        encodeForFirestore('sidebar',        SIDEBAR_CFG),
-        announcements:  encodeForFirestore('announcements',  ANNOUNCEMENTS),
-        synonyms:       encodeForFirestore('synonyms',       SYNONYMS),
-        team:           encodeForFirestore('team',           TEAM_DIRECTORY),
+        sections:         encodeForFirestore('sections',         SECTIONS),
+        handbook:         encodeForFirestore('handbook',         HANDBOOK),
+        projects:         encodeForFirestore('projects',         PROJECTS),
+        projectEntries:   encodeForFirestore('projectEntries',   PROJECT_ENTRIES),
+        customCategories: encodeForFirestore('customCategories', CUSTOM_CATEGORIES),
+        sidebar:          encodeForFirestore('sidebar',          SIDEBAR_CFG),
+        announcements:    encodeForFirestore('announcements',    ANNOUNCEMENTS),
+        synonyms:         encodeForFirestore('synonyms',         SYNONYMS),
+        team:             encodeForFirestore('team',             TEAM_DIRECTORY),
         _updatedAt: Date.now()
       });
     }
@@ -1902,24 +2013,26 @@ async function initFirebase() {
       const raw = snap.data();
       if (!raw) return;
       const remote = {
-        sections:       raw.sections       ? decodeFromFirestore('sections', raw.sections) : null,
-        handbook:       raw.handbook       ? decodeFromFirestore('handbook', raw.handbook) : null,
-        projects:       raw.projects       ? decodeFromFirestore('projects', raw.projects) : null,
-        projectEntries: raw.projectEntries ? decodeFromFirestore('projectEntries', raw.projectEntries) : null,
-        sidebar:        raw.sidebar        ? decodeFromFirestore('sidebar', raw.sidebar) : null,
-        announcements:  raw.announcements  ? decodeFromFirestore('announcements', raw.announcements) : null,
-        synonyms:       raw.synonyms       ? decodeFromFirestore('synonyms', raw.synonyms) : null,
-        team:           raw.team           ? decodeFromFirestore('team', raw.team) : null
+        sections:         raw.sections         ? decodeFromFirestore('sections', raw.sections) : null,
+        handbook:         raw.handbook         ? decodeFromFirestore('handbook', raw.handbook) : null,
+        projects:         raw.projects         ? decodeFromFirestore('projects', raw.projects) : null,
+        projectEntries:   raw.projectEntries   ? decodeFromFirestore('projectEntries', raw.projectEntries) : null,
+        customCategories: raw.customCategories ? decodeFromFirestore('customCategories', raw.customCategories) : null,
+        sidebar:          raw.sidebar          ? decodeFromFirestore('sidebar', raw.sidebar) : null,
+        announcements:    raw.announcements    ? decodeFromFirestore('announcements', raw.announcements) : null,
+        synonyms:          raw.synonyms        ? decodeFromFirestore('synonyms', raw.synonyms) : null,
+        team:             raw.team             ? decodeFromFirestore('team', raw.team) : null
       };
       let changed = false;
-      if (remote.sections       && JSON.stringify(remote.sections)       !== JSON.stringify(SECTIONS))        { SECTIONS = remote.sections; changed = true; }
-      if (remote.handbook       && JSON.stringify(remote.handbook)       !== JSON.stringify(HANDBOOK))        { HANDBOOK = remote.handbook; changed = true; }
-      if (remote.projects       && JSON.stringify(remote.projects)       !== JSON.stringify(PROJECTS))        { PROJECTS = remote.projects; changed = true; }
-      if (remote.projectEntries && JSON.stringify(remote.projectEntries) !== JSON.stringify(PROJECT_ENTRIES)) { PROJECT_ENTRIES = remote.projectEntries; changed = true; }
-      if (remote.sidebar        && JSON.stringify(remote.sidebar)        !== JSON.stringify(SIDEBAR_CFG))     { SIDEBAR_CFG = remote.sidebar; changed = true; }
-      if (remote.announcements  && JSON.stringify(remote.announcements)  !== JSON.stringify(ANNOUNCEMENTS))   { ANNOUNCEMENTS = remote.announcements; changed = true; }
-      if (remote.synonyms       && JSON.stringify(remote.synonyms)       !== JSON.stringify(SYNONYMS))        { SYNONYMS = remote.synonyms; changed = true; }
-      if (remote.team           && JSON.stringify(remote.team)           !== JSON.stringify(TEAM_DIRECTORY))  { TEAM_DIRECTORY = remote.team; changed = true; }
+      if (remote.sections         && JSON.stringify(remote.sections)         !== JSON.stringify(SECTIONS))          { SECTIONS = remote.sections; changed = true; }
+      if (remote.handbook         && JSON.stringify(remote.handbook)         !== JSON.stringify(HANDBOOK))          { HANDBOOK = remote.handbook; changed = true; }
+      if (remote.projects         && JSON.stringify(remote.projects)         !== JSON.stringify(PROJECTS))          { PROJECTS = remote.projects; changed = true; }
+      if (remote.projectEntries   && JSON.stringify(remote.projectEntries)   !== JSON.stringify(PROJECT_ENTRIES))   { PROJECT_ENTRIES = remote.projectEntries; changed = true; }
+      if (remote.customCategories && JSON.stringify(remote.customCategories) !== JSON.stringify(CUSTOM_CATEGORIES)) { CUSTOM_CATEGORIES = remote.customCategories; changed = true; }
+      if (remote.sidebar          && JSON.stringify(remote.sidebar)          !== JSON.stringify(SIDEBAR_CFG))       { SIDEBAR_CFG = remote.sidebar; changed = true; }
+      if (remote.announcements    && JSON.stringify(remote.announcements)    !== JSON.stringify(ANNOUNCEMENTS))     { ANNOUNCEMENTS = remote.announcements; changed = true; }
+      if (remote.synonyms         && JSON.stringify(remote.synonyms)         !== JSON.stringify(SYNONYMS))          { SYNONYMS = remote.synonyms; changed = true; }
+      if (remote.team             && JSON.stringify(remote.team)             !== JSON.stringify(TEAM_DIRECTORY))    { TEAM_DIRECTORY = remote.team; changed = true; }
       if (changed) {
         renderSidebar();
         renderAnnouncements();
@@ -1945,6 +2058,7 @@ function fbSync() {
   fbSyncKey('handbook', HANDBOOK);
   fbSyncKey('projects', PROJECTS);
   fbSyncKey('projectEntries', PROJECT_ENTRIES);
+  fbSyncKey('customCategories', CUSTOM_CATEGORIES);
   fbSyncKey('sidebar', SIDEBAR_CFG);
   fbSyncKey('announcements', ANNOUNCEMENTS);
   fbSyncKey('synonyms', SYNONYMS);
@@ -1979,12 +2093,16 @@ function loadFromStorage() {
   try { const v=localStorage.getItem('vl_hb');       HANDBOOK = v ? JSON.parse(v) : clone(DEFAULT_HANDBOOK); } catch(e){ HANDBOOK=clone(DEFAULT_HANDBOOK); }
   try { const v=localStorage.getItem('vl_projects'); PROJECTS = v ? JSON.parse(v) : []; } catch(e){ PROJECTS=[]; }
   try { const v=localStorage.getItem('vl_pe');       PROJECT_ENTRIES = v ? JSON.parse(v) : []; } catch(e){ PROJECT_ENTRIES=[]; }
+  try { const v=localStorage.getItem('vl_cats');     CUSTOM_CATEGORIES = v ? JSON.parse(v) : []; } catch(e){ CUSTOM_CATEGORIES=[]; }
   try { const v=localStorage.getItem('vl_sb');       SIDEBAR_CFG = v ? JSON.parse(v) : clone(DEFAULT_SIDEBAR_CFG); } catch(e){ SIDEBAR_CFG=clone(DEFAULT_SIDEBAR_CFG); }
   try { const v=localStorage.getItem('vl_ann');      ANNOUNCEMENTS = v ? JSON.parse(v) : []; } catch(e){ ANNOUNCEMENTS=[]; }
   try { const v=localStorage.getItem('vl_syn');      SYNONYMS = v ? JSON.parse(v) : clone(DEFAULT_SYNONYMS); } catch(e){ SYNONYMS=clone(DEFAULT_SYNONYMS); }
   try { const v=localStorage.getItem('vl_team');     TEAM_DIRECTORY = v ? JSON.parse(v) : []; } catch(e){ TEAM_DIRECTORY=[]; }
   try { const v=localStorage.getItem('vl_dis');      dismissedAnns = new Set(v ? JSON.parse(v) : []); } catch(e){ dismissedAnns=new Set(); }
   try { const v=localStorage.getItem('vl_exp');      expandedSections = new Set(v ? JSON.parse(v) : []); } catch(e){ expandedSections=new Set(); }
+  try { const v=localStorage.getItem('vl_cc');       collapsedCategories = new Set(v ? JSON.parse(v) : []); } catch(e){ collapsedCategories=new Set(); }
+  // Project unlocks persist for THIS browser session via sessionStorage (cleared on browser close).
+  try { const v=sessionStorage.getItem('vl_unlocked'); unlockedProjects = new Set(v ? JSON.parse(v) : []); } catch(e){ unlockedProjects=new Set(); }
   try { sidebarCollapsed = localStorage.getItem('vl_sc') === '1'; } catch(e){}
   try { isDark = localStorage.getItem('vl_dark') === '1'; } catch(e){}
 
@@ -2018,6 +2136,7 @@ function saveAll(label) {
   localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
   localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
   localStorage.setItem('vl_pe',       JSON.stringify(PROJECT_ENTRIES));
+  localStorage.setItem('vl_cats',     JSON.stringify(CUSTOM_CATEGORIES));
   localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
   localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
   localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
@@ -2059,6 +2178,21 @@ function saveAnnsOnly() {
 function saveExpandedOnly() {
   localStorage.setItem('vl_exp', JSON.stringify([...expandedSections]));
 }
+function saveCollapsedCategories() {
+  localStorage.setItem('vl_cc', JSON.stringify([...collapsedCategories]));
+}
+function toggleCategoryCollapsed(catId) {
+  if (collapsedCategories.has(catId)) collapsedCategories.delete(catId);
+  else collapsedCategories.add(catId);
+  saveCollapsedCategories();
+  renderSidebar();
+}
+
+// Called when the user clicks a main category label (Handbook, Projects, custom, Quick Links).
+// Shows a thumbnail grid of all its top-level entries in the main area.
+function navigateCategory(catId, type) {
+  showCategoryOverview(catId, type);
+}
 
 /* ══════════════════════════════════════════
    UTILITIES
@@ -2067,19 +2201,36 @@ function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&l
 function escAttr(s)    { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function stripHtml(h)  { const d=document.createElement('div'); d.innerHTML=h; return (d.textContent||d.innerText||'').replace(/\s+/g,' ').trim(); }
 function sectionNumOf(entryId) { return String(entryId).split('.')[0]; }
-// Generalized helpers — accept an optional `base` of 'handbook' or 'projects'.
-// Default base is 'handbook' so existing callers keep working unchanged.
-function sectionsOf(base) { return (base || 'handbook') === 'projects' ? PROJECTS : SECTIONS; }
-function entriesOf(base)  { return (base || 'handbook') === 'projects' ? PROJECT_ENTRIES : HANDBOOK; }
+// Generalized helpers — accept an optional `base` ID:
+//   'handbook' (default), 'projects', or a custom category id (e.g. 'cat-1701234567').
+function sectionsOf(base) {
+  base = base || 'handbook';
+  if (base === 'handbook') return SECTIONS;
+  if (base === 'projects') return PROJECTS;
+  const cc = (Array.isArray(CUSTOM_CATEGORIES) ? CUSTOM_CATEGORIES : []).find(c => c.id === base);
+  return cc ? cc.sections : SECTIONS; // safe fallback
+}
+function entriesOf(base) {
+  base = base || 'handbook';
+  if (base === 'handbook') return HANDBOOK;
+  if (base === 'projects') return PROJECT_ENTRIES;
+  const cc = (Array.isArray(CUSTOM_CATEGORIES) ? CUSTOM_CATEGORIES : []).find(c => c.id === base);
+  return cc ? cc.entries : HANDBOOK;
+}
 function findSection(num, base) { return sectionsOf(base).find(s => s.num === String(num)); }
 function findEntry(id, base) { return entriesOf(base).find(e => e.id === id); }
 function entriesInSection(num, base) { return entriesOf(base).filter(e => sectionNumOf(e.id) === String(num)); }
-// Lookup an entry by id across BOTH bases — returns { entry, base } or null.
+function allBaseIds() {
+  const out = ['handbook', 'projects'];
+  for (const c of (CUSTOM_CATEGORIES || [])) if (c && c.id) out.push(c.id);
+  return out;
+}
+// Lookup an entry by id across all bases — returns { entry, base } or null.
 function findEntryAnywhere(id) {
-  let e = HANDBOOK.find(x => x.id === id);
-  if (e) return { entry: e, base: 'handbook' };
-  e = PROJECT_ENTRIES.find(x => x.id === id);
-  if (e) return { entry: e, base: 'projects' };
+  for (const base of allBaseIds()) {
+    const e = entriesOf(base).find(x => x.id === id);
+    if (e) return { entry: e, base };
+  }
   return null;
 }
 function showToast(msg) {
@@ -2123,14 +2274,22 @@ function setView(name) {
   window.scrollTo(0, 0);
   // Show back-to-home FAB only when reading content (not on home or doc view)
   const fab = document.getElementById('back-to-home-fab');
-  if (fab) fab.classList.toggle('visible', name === 'section' || name === 'entry');
+  if (fab) fab.classList.toggle('visible', name === 'section' || name === 'entry' || name === 'category');
 }
 
 function updateBreadcrumb() {
   const bc = document.getElementById('breadcrumb');
   let parts = [`<span class="bc-item" onclick="showHome()">VL Dashboard</span>`];
-  const baseLabel = currentBase === 'projects' ? 'Projects' : 'Handbook';
-  if (currentView === 'section' && currentSectionNum) {
+  const baseLabel = currentBase === 'projects' ? 'Projects' : (currentBase === 'handbook' ? 'Handbook' : (lookupCustomCategoryLabel(currentBase) || 'Handbook'));
+  if (currentView === 'category' && currentCategoryId) {
+    let catLabel = 'Category';
+    if (currentCategoryType === 'kb') catLabel = currentCategoryId === 'handbook' ? 'Handbook' : currentCategoryId === 'projects' ? 'Projects' : (lookupCustomCategoryLabel(currentCategoryId) || currentCategoryId);
+    else if (currentCategoryType === 'links') {
+      const sec = SIDEBAR_CFG.find(s => s.id === currentCategoryId);
+      catLabel = sec ? sec.label : currentCategoryId;
+    }
+    parts.push(`<span class="bc-sep">/</span><span class="bc-item active">${escapeHtml(catLabel)}</span>`);
+  } else if (currentView === 'section' && currentSectionNum) {
     const sec = findSection(currentSectionNum, currentBase);
     if (sec) {
       parts.push(`<span class="bc-sep">/</span><span class="bc-item">${escapeHtml(baseLabel)}</span>`);
@@ -2168,18 +2327,42 @@ function showSection(num, base) {
   if (!sec) { showHome(); return; }
   document.getElementById('sv-num').textContent = base === 'projects' ? `Project ${sec.num}` : `Section ${sec.num}`;
   document.getElementById('sv-title').textContent = `${sec.num}. ${sec.title}`;
-  document.getElementById('sv-desc').textContent = sec.description || '';
+  const svDesc = document.getElementById('sv-desc');
+  svDesc.innerHTML = sec.description || '';
+  svDesc.querySelectorAll('img').forEach(img => img.classList.add('entry-img'));
   const entries = entriesInSection(num, base);
+  const canEdit = canEditSection(base, num);
   const grid = document.getElementById('sv-grid');
   grid.innerHTML = entries.map(e => `
     <div class="section-card" data-entry-id="${escAttr(e.id)}" onclick="showEntry('${escAttr(e.id)}','${escAttr(base)}')">
       <div class="section-card-id">${escapeHtml(e.id)}</div>
       <div class="section-card-title">${escapeHtml(e.title)}</div>
-      <div class="section-card-actions">
+      ${canEdit ? `<div class="section-card-actions">
         <button onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit">✎</button>
-      </div>
+      </div>` : ''}
     </div>
-  `).join('') + `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}','${escAttr(base)}')">＋ Add Entry</div>`;
+  `).join('') + (canEdit ? `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}','${escAttr(base)}')">＋ Add Entry</div>` : '');
+
+  // ── Render the section-actions row based on access level ──
+  // Admin: shows "Edit Section Info" (rename/desc/passkey)
+  // Project section + passkey unlocked: shows "Edit Mode Active" badge + "Exit Edit Mode"
+  // Project section + locked: shows the call-to-action "Enter Edit Mode" (prompts passkey)
+  // Handbook + non-admin: shows nothing
+  const actionsEl = document.getElementById('sv-actions');
+  let actionsHtml = '';
+  if (isAdminMode) {
+    actionsHtml = `<button class="btn btn-secondary" onclick="openSectionEditor('${escAttr(num)}','${escAttr(base)}')">⚙ Edit Section Info</button>`;
+  } else if (base === 'projects') {
+    if (unlockedProjects.has(String(num))) {
+      actionsHtml = `
+        <span class="edit-mode-active">Edit Mode Active for this section</span>
+        <button class="btn btn-secondary" onclick="lockProjectSection('${escAttr(num)}')">🔒 Exit Edit Mode</button>
+      `;
+    } else {
+      actionsHtml = `<button class="btn btn-cta-edit" onclick="promptUnlockProjectSection('${escAttr(num)}')">🔑 Enter Edit Mode</button>`;
+    }
+  }
+  actionsEl.innerHTML = actionsHtml;
 
   expandedSections.add(expandKey(base, num)); saveExpandedOnly();
   setView('section'); updateBreadcrumb(); renderSidebar();
@@ -2204,6 +2387,11 @@ function showEntry(id, base) {
   // Mark images for lightbox
   content.querySelectorAll('img').forEach(img => img.classList.add('entry-img'));
 
+  // Show/hide "Edit Entry" button based on access level for this section
+  const canEdit = canEditSection(base, currentSectionNum);
+  const editBtn = document.querySelector('#view-entry .entry-actions .btn');
+  if (editBtn) editBtn.style.display = canEdit ? 'inline-flex' : 'none';
+
   expandedSections.add(expandKey(base, currentSectionNum)); saveExpandedOnly();
   setView('entry'); updateBreadcrumb(); renderSidebar();
 }
@@ -2211,6 +2399,150 @@ function showEntry(id, base) {
 function backToSection() {
   if (currentSectionNum) showSection(currentSectionNum, currentBase);
   else showHome();
+}
+
+let currentCategoryId = null;     // id of category currently in overview view
+let currentCategoryType = null;   // 'kb' or 'links'
+
+// Show the category overview: a thumbnail card grid of all top-level entries
+// in the given category. catType is 'kb' for sectioned KBs, 'links' for Quick-Links.
+function showCategoryOverview(catId, catType) {
+  currentCategoryId = catId;
+  currentCategoryType = catType;
+  currentSectionNum = null; currentEntryId = null;
+  if (catType === 'kb') currentBase = catId; // handbook/projects/custom id
+
+  const labelEl = document.getElementById('cv-label');
+  const titleEl = document.getElementById('cv-title');
+  const descEl  = document.getElementById('cv-desc');
+  const grid    = document.getElementById('cv-grid');
+
+  if (catType === 'kb') {
+    const sectionsArr = sectionsOf(catId);
+    const isCustom = (catId !== 'handbook' && catId !== 'projects');
+    const friendlyLabel = catId === 'handbook' ? 'Handbook' : catId === 'projects' ? 'Projects' : (lookupCustomCategoryLabel(catId) || catId);
+    labelEl.textContent = friendlyLabel;
+    titleEl.textContent = `${friendlyLabel} — Overview`;
+    descEl.innerHTML = `<span style="color:var(--mid)">All ${escapeHtml(friendlyLabel.toLowerCase())} sections at a glance. Click a card to dive in.</span>`
+      + (isCustom && isAdminMode ? `<div style="margin-top:10px"><button class="btn btn-secondary" onclick="openEditCategoryModal('${escAttr(catId)}')">⚙ Rename / Delete Category</button></div>` : '');
+
+    let cards = sectionsArr.map(sec => {
+      const childCount = entriesInSection(sec.num, catId).length;
+      const descText = stripHtml(sec.description || '');
+      const excerpt = descText.length > 130 ? descText.substring(0, 130) + '…' : descText;
+      return `<div class="section-card" onclick="showSection('${escAttr(sec.num)}','${escAttr(catId)}')">
+        <div class="section-card-id">${escapeHtml(sec.num)} · ${childCount} ${childCount === 1 ? 'entry' : 'entries'}</div>
+        <div class="section-card-title">${escapeHtml(sec.title)}</div>
+        ${excerpt ? `<div style="font-size:12px;color:var(--mid);margin-top:6px;line-height:1.45">${escapeHtml(excerpt)}</div>` : ''}
+        ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSectionEditor('${escAttr(sec.num)}','${escAttr(catId)}')" title="Edit">✎</button></div>` : ''}
+      </div>`;
+    }).join('');
+    if (sectionsArr.length === 0) {
+      cards = `<div style="grid-column:1/-1;text-align:center;color:var(--mid);padding:30px 0;font-style:italic">No ${escapeHtml(friendlyLabel.toLowerCase())} sections yet.</div>`;
+    }
+    if (isAdminMode) {
+      cards += `<div class="add-card" onclick="openNewSectionEditor('${escAttr(catId)}')">＋ Add ${escapeHtml(friendlyLabel === 'Projects' ? 'Project' : 'Section')}</div>`;
+    }
+    grid.innerHTML = cards;
+  } else if (catType === 'links') {
+    // Quick Links — show each link as a card
+    const sec = SIDEBAR_CFG.find(s => s.id === catId);
+    if (!sec) { showHome(); return; }
+    labelEl.textContent = sec.label;
+    titleEl.textContent = `${sec.label} — Overview`;
+    descEl.innerHTML = `<span style="color:var(--mid)">All quick links at a glance. Click a card to open the link.</span>`;
+
+    const items = sec.items.filter(i => i && i.id && (i.visible || isAdminMode));
+    let cards = items.map(item => {
+      const isPlaceholder = !item.href;
+      const onclick = item.href
+        ? `window.open('${escAttr(item.href)}', '_blank', 'noopener')`
+        : '';
+      return `<div class="section-card${isPlaceholder?' add-card':''}" ${onclick?`onclick="${onclick}"`:''} style="${isPlaceholder?'cursor:default':''}">
+        <div class="section-card-id">${isPlaceholder ? 'placeholder' : '🔗 link'}</div>
+        <div class="section-card-title">${escapeHtml(item.text)}</div>
+        ${item.href ? `<div style="font-size:11px;color:var(--mid);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.href)}</div>` : ''}
+        ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSIEditor('${escAttr(catId)}','${escAttr(item.id)}')" title="Edit">✎</button></div>` : ''}
+      </div>`;
+    }).join('');
+    if (items.length === 0) {
+      cards = `<div style="grid-column:1/-1;text-align:center;color:var(--mid);padding:30px 0;font-style:italic">No links yet.</div>`;
+    }
+    if (isAdminMode) {
+      cards += `<div class="add-card" onclick="openNewSIEditor('${escAttr(catId)}')">＋ Add Link</div>`;
+    }
+    grid.innerHTML = cards;
+  }
+
+  setView('category');
+  updateBreadcrumb();
+  renderSidebar();
+}
+
+function lookupCustomCategoryLabel(catId) {
+  if (typeof CUSTOM_CATEGORIES === 'undefined' || !Array.isArray(CUSTOM_CATEGORIES)) return null;
+  const cc = CUSTOM_CATEGORIES.find(c => c.id === catId);
+  return cc ? cc.label : null;
+}
+
+/* ══════════════════════════════════════════
+   CUSTOM CATEGORIES (admin)
+   ══════════════════════════════════════════ */
+let _editingCategoryId = null;
+
+function openNewCategoryModal() {
+  if (!isAdminMode) return;
+  _editingCategoryId = null;
+  document.getElementById('cat-modal-title-text').textContent = 'New Category';
+  document.getElementById('cat-label-input').value = '';
+  document.getElementById('delete-cat-btn').style.display = 'none';
+  document.getElementById('cat-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cat-label-input').focus(), 60);
+}
+function openEditCategoryModal(catId) {
+  if (!isAdminMode) return;
+  const cc = CUSTOM_CATEGORIES.find(c => c.id === catId);
+  if (!cc) return;
+  _editingCategoryId = catId;
+  document.getElementById('cat-modal-title-text').textContent = 'Edit Category';
+  document.getElementById('cat-label-input').value = cc.label || '';
+  document.getElementById('delete-cat-btn').style.display = '';
+  document.getElementById('cat-modal-overlay').classList.add('open');
+}
+function closeCatModal() { document.getElementById('cat-modal-overlay').classList.remove('open'); }
+function maybeCloseCat(e) { if (_shouldCloseOverlay(e, 'cat-modal-overlay')) closeCatModal(); }
+function saveCategory() {
+  const label = document.getElementById('cat-label-input').value.trim();
+  if (!label) { alert('Category label is required.'); return; }
+  if (_editingCategoryId) {
+    const cc = CUSTOM_CATEGORIES.find(c => c.id === _editingCategoryId);
+    if (cc) cc.label = label;
+  } else {
+    CUSTOM_CATEGORIES.push({
+      id: 'cat-' + Date.now(),
+      label,
+      sections: [],
+      entries: []
+    });
+  }
+  closeCatModal();
+  saveAll('Category saved');
+  renderSidebar();
+}
+function deleteCurrentCategory() {
+  if (!_editingCategoryId) return;
+  const cc = CUSTOM_CATEGORIES.find(c => c.id === _editingCategoryId);
+  if (!cc) return;
+  const hasContent = (cc.sections && cc.sections.length) || (cc.entries && cc.entries.length);
+  const msg = hasContent
+    ? `Category "${cc.label}" contains ${cc.sections.length} section(s) and ${cc.entries.length} entries. Delete EVERYTHING in this category permanently?`
+    : `Delete category "${cc.label}"?`;
+  if (!confirm(msg)) return;
+  CUSTOM_CATEGORIES = CUSTOM_CATEGORIES.filter(c => c.id !== _editingCategoryId);
+  if (currentBase === _editingCategoryId) showHome();
+  closeCatModal();
+  saveAll('Category deleted');
+  renderSidebar();
 }
 
 /* ══════════════════════════════════════════
@@ -2232,8 +2564,15 @@ function renderSidebar() {
 }
 
 function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
+  // The 'base' value IS the category ID for KB-type sections (handbook/projects/custom).
+  const catId = base;
+  const collapsed = collapsedCategories.has(catId);
   let html = `<div class="sidebar-section">
-    <div class="sidebar-section-label">${escapeHtml(label)}</div>`;
+    <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(catId)}','kb')">
+      <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(catId)}')">▶</span>
+      <span class="sb-cat-text">${escapeHtml(label)}</span>
+    </div>
+    <div class="sb-cat-body${collapsed?' collapsed':''}">`;
   if (sectionsArr.length === 0 && !isAdminMode) {
     html += `<div style="font-size:12px;color:var(--mid);font-style:italic;padding:2px 8px 4px">${escapeHtml(emptyHint)}</div>`;
   }
@@ -2242,26 +2581,43 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
     const key = expandKey(base, sec.num);
     const isExpanded = expandedSections.has(key);
     const isActiveParent = currentView === 'section' && currentBase === base && currentSectionNum === sec.num;
+    const canEdit = canEditSection(base, sec.num);
+    const isProjectsNonAdmin = base === 'projects' && !isAdminMode;
+    const lockBtn = isProjectsNonAdmin
+      ? (unlockedProjects.has(String(sec.num))
+          ? `<button class="sb-lock-btn unlocked" onclick="event.stopPropagation();lockProjectSection('${escAttr(sec.num)}')" title="Click to lock this section's edit access">🔓</button>`
+          : `<button class="sb-lock-btn" onclick="event.stopPropagation();promptUnlockProjectSection('${escAttr(sec.num)}')" title="Enter passkey to edit this section">🔒</button>`)
+      : '';
+    const sectionEditBtn = isAdminMode
+      ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openSectionEditor('${escAttr(sec.num)}','${escAttr(base)}')" title="Edit section info (admin only)">⚙</button>`
+      : '';
+    const addEntryBtn = canEdit
+      ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')" title="Add entry">＋</button>`
+      : '';
     html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}">
       <span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escAttr(sec.num)}','${escAttr(base)}')">▶</span>
       <span class="sb-parent-text" onclick="showSection('${escAttr(sec.num)}','${escAttr(base)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>
-      <button class="sb-edit-btn" onclick="event.stopPropagation();openSectionEditor('${escAttr(sec.num)}','${escAttr(base)}')" title="Edit">⚙</button>
-      <button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')" title="Add entry">＋</button>
+      ${lockBtn}
+      ${sectionEditBtn}
+      ${addEntryBtn}
     </div>
     <div class="sb-children${isExpanded?' expanded':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}">`;
     for (const e of entries) {
       const isActiveChild = currentView === 'entry' && currentBase === base && currentEntryId === e.id;
-      html += `<div class="sb-child${isActiveChild?' active':''}" data-entry-id="${escAttr(e.id)}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}" draggable="true">
-        <span class="drag-handle" title="Drag to reorder">⠿</span>
+      const childEditBtn = canEdit
+        ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit entry">✎</button>`
+        : '';
+      html += `<div class="sb-child${isActiveChild?' active':''}" data-entry-id="${escAttr(e.id)}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}" ${canEdit?'draggable="true"':''}>
+        ${canEdit ? `<span class="drag-handle" title="Drag to reorder">⠿</span>` : ''}
         <span class="sb-child-text" onclick="showEntry('${escAttr(e.id)}','${escAttr(base)}')">${escapeHtml(e.id + ' ' + e.title)}</span>
-        <button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit entry">✎</button>
+        ${childEditBtn}
       </div>`;
     }
-    html += `<button class="admin-add-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry</button>`;
+    if (canEdit) html += `<button class="admin-add-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry</button>`;
     html += `</div>`;
   }
   html += `<button class="admin-add-btn" onclick="openNewSectionEditor('${escAttr(base)}')">＋ ${escapeHtml(addLabel)}</button>`;
-  html += `</div><div class="sb-divider"></div>`;
+  html += `</div></div><div class="sb-divider"></div>`;
   return html;
 }
 
@@ -2276,8 +2632,13 @@ function _renderSidebarUnsafe() {
   // SIDEBAR_CFG sections (Quick Links)
   for (const section of SIDEBAR_CFG) {
     if (!section || !Array.isArray(section.items) || !section.id) continue;
+    const collapsed = collapsedCategories.has(section.id);
     html += `<div class="sidebar-section">
-      <div class="sidebar-section-label">${escapeHtml(section.label || '')}</div>`;
+      <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(section.id)}','links')">
+        <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(section.id)}')">▶</span>
+        <span class="sb-cat-text">${escapeHtml(section.label || '')}</span>
+      </div>
+      <div class="sb-cat-body${collapsed?' collapsed':''}">`;
     for (const item of section.items) {
       if (!item || !item.id) continue;
       if (!item.visible && !isAdminMode) continue;
@@ -2291,12 +2652,28 @@ function _renderSidebarUnsafe() {
       </div>`;
     }
     html += `<button class="admin-add-btn" onclick="openNewSIEditor('${escAttr(section.id)}')">＋ Add Link</button>`;
-    html += `</div><div class="sb-divider"></div>`;
+    html += `</div></div><div class="sb-divider"></div>`;
   }
 
   // PROJECTS (after Quick Links)
   html += _renderKbSection('projects', 'Projects', PROJECTS,
     'No projects yet. Sign in as admin to add one.', 'Add New Project');
+
+  // Custom categories (admin can add) — render each one with the same KB UX
+  for (const cat of (CUSTOM_CATEGORIES || [])) {
+    if (!cat || !cat.id) continue;
+    if (!Array.isArray(cat.sections)) cat.sections = [];
+    if (!Array.isArray(cat.entries)) cat.entries = [];
+    html += _renderKbSection(cat.id, cat.label || 'Untitled Category', cat.sections,
+      `No sections yet in ${cat.label || 'this category'}.`, 'Add New Section');
+  }
+
+  // Admin-only: "Add Category" at the very bottom
+  if (isAdminMode) {
+    html += `<div class="sidebar-section">
+      <button class="admin-add-btn" style="margin-top:4px" onclick="openNewCategoryModal()">＋ Add New Category</button>
+    </div>`;
+  }
 
   c.innerHTML = html;
   attachSidebarDnD();
@@ -2614,17 +2991,17 @@ function scoreEntry(entry, q) {
 function search(query) {
   if (!query || !query.trim()) return [];
   const q = buildQuery(query);
-  // Search BOTH knowledge bases. Tag results with __base so the renderer
-  // knows where to navigate when the user clicks "Open →".
-  const scoredHb = HANDBOOK
-    .map(e => ({ entry: { ...e, __base: 'handbook' }, score: scoreEntry(e, q) }))
-    .filter(r => r.score >= 4);
-  const scoredPr = PROJECT_ENTRIES
-    .map(e => ({ entry: { ...e, __base: 'projects' }, score: scoreEntry(e, q) }))
-    .filter(r => r.score >= 4);
-  const scored = scoredHb.concat(scoredPr);
-  scored.sort((a, b) => b.score - a.score);
-  let results = scored.map(r => r.entry);
+  // Search across all knowledge bases. Tag results with __base.
+  const scoredAll = [];
+  for (const base of allBaseIds()) {
+    const arr = entriesOf(base);
+    for (const e of arr) {
+      const score = scoreEntry(e, q);
+      if (score >= 4) scoredAll.push({ entry: { ...e, __base: base }, score });
+    }
+  }
+  scoredAll.sort((a, b) => b.score - a.score);
+  let results = scoredAll.map(r => r.entry);
 
   // ─── SECTION-LEVEL FALLBACK ───
   if (results.length < 2) {
@@ -2642,6 +3019,9 @@ function search(query) {
     };
     scanSections(SECTIONS, 'handbook');
     scanSections(PROJECTS, 'projects');
+    for (const cc of (CUSTOM_CATEGORIES || [])) {
+      if (cc && Array.isArray(cc.sections)) scanSections(cc.sections, cc.id);
+    }
     sectionResults.sort((a, b) => b.score - a.score);
     const haveIds = new Set(results.map(r => r.id + '|' + (r.__base||'handbook')));
     for (const r of sectionResults) {
@@ -2661,7 +3041,36 @@ function openSearchModal(initialQ) {
   setTimeout(() => inp.focus(), 50);
 }
 function closeSearchModal() { document.getElementById('search-modal-overlay').classList.remove('open'); }
-function maybeCloseSearchModal(e) { if (e.target === document.getElementById('search-modal-overlay')) closeSearchModal(); }
+
+/* ── MODAL DRAG-OUT GUARD ──
+   When you mousedown inside a text input and accidentally drag outside the modal,
+   the browser fires `click` on the overlay (the closest common ancestor) which used
+   to close the modal and discard your input. We track where mousedown happened and
+   only close if BOTH mousedown AND mouseup happened on the overlay itself.
+*/
+let _overlayMdTarget = null;
+document.addEventListener('mousedown', (e) => {
+  const t = e.target;
+  // Mousedown is "on the overlay" only when the target IS the overlay element itself
+  if (t && t.classList && (
+    t.classList.contains('admin-modal-overlay') ||
+    t.id === 'search-modal-overlay' ||
+    t.id === 'lightbox-overlay' ||
+    t.id === 'team-modal-overlay' ||
+    t.id === 'tm-detail-overlay'
+  )) {
+    _overlayMdTarget = t.id;
+  } else {
+    _overlayMdTarget = null;
+  }
+}, true);
+
+function _shouldCloseOverlay(e, overlayId) {
+  // Click target AND prior mousedown target must both be the overlay itself.
+  return _overlayMdTarget === overlayId && e.target.id === overlayId;
+}
+
+function maybeCloseSearchModal(e) { if (_shouldCloseOverlay(e, 'search-modal-overlay')) closeSearchModal(); }
 
 function performSearchModal() {
   const q = document.getElementById('search-modal-input').value.trim();
@@ -2721,7 +3130,12 @@ function toggleOthers() {
 function resultCardHtml(entry, tokens) {
   const idDisplay = entry.id;
   const base = entry.__base || 'handbook';
-  const baseLabel = base === 'projects' ? 'PROJECT' : 'HANDBOOK';
+  let baseLabel = 'HANDBOOK';
+  if (base === 'projects') baseLabel = 'PROJECT';
+  else if (base !== 'handbook') {
+    const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === base);
+    baseLabel = (cc ? cc.label : base).toUpperCase();
+  }
   if (entry.__section) {
     return `<div class="result-card">
       <div class="result-card-header">
@@ -2828,14 +3242,57 @@ function rtInsertLink(editorId) {
   }
 }
 
+// Image size limits
+const RT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;   // 2 MB for content images
+const AVATAR_MAX_BYTES   = 1 * 1024 * 1024;   // 1 MB for avatars
+const AVATAR_MAX_DIM     = 128;               // 128x128 max for avatars
+
+// Convert a File/Blob to a data URL. If the file exceeds maxBytes (and we can't
+// fix it by resizing), reject. Returns Promise<string>.
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+// Resize an image to fit within maxDim×maxDim, preserving aspect. Returns data URL.
+function resizeImage(dataUrl, maxDim, mime) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width: w, height: h } = img;
+      if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
+      const scale = Math.min(maxDim / w, maxDim / h);
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      // Use JPEG if input has no alpha (saves bytes); fall back to PNG
+      const out = cv.toDataURL(mime === 'image/png' ? 'image/png' : 'image/jpeg', 0.88);
+      resolve(out);
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 function rtInsertImage(editorId) {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*';
-  inp.onchange = ev => {
+  inp.onchange = async ev => {
     const file = ev.target.files[0]; if (!file) return;
-    const r = new FileReader();
-    r.onload = e2 => insertImageAtCursor(editorId, e2.target.result);
-    r.readAsDataURL(file);
+    if (file.size > RT_IMAGE_MAX_BYTES) {
+      alert(`Image is too large (${(file.size/1024/1024).toFixed(2)} MB). Maximum allowed is 2 MB for in-content images. Try compressing it first.`);
+      return;
+    }
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      insertImageAtCursor(editorId, dataUrl);
+    } catch(err) { alert('Could not read image: ' + err.message); }
   };
   inp.click();
 }
@@ -2853,9 +3310,13 @@ function handleRTPaste(e, editorId) {
     if (item.type.startsWith('image/')) {
       e.preventDefault();
       const blob = item.getAsFile();
-      const r = new FileReader();
-      r.onload = ev => insertImageAtCursor(editorId, ev.target.result);
-      r.readAsDataURL(blob);
+      if (blob.size > RT_IMAGE_MAX_BYTES) {
+        alert(`Pasted image is too large (${(blob.size/1024/1024).toFixed(2)} MB). Maximum 2 MB. Try a smaller image.`);
+        return;
+      }
+      fileToDataUrl(blob)
+        .then(url => insertImageAtCursor(editorId, url))
+        .catch(err => alert('Could not paste image: ' + err.message));
       return;
     }
   }
@@ -2899,7 +3360,7 @@ function openAdminAuth() {
   setTimeout(() => document.getElementById('pwd-input').focus(), 60);
 }
 function closePwdModal() { document.getElementById('pwd-modal-overlay').classList.remove('open'); }
-function maybeClosePwd(e) { if (e.target === document.getElementById('pwd-modal-overlay')) closePwdModal(); }
+function maybeClosePwd(e) { if (_shouldCloseOverlay(e, 'pwd-modal-overlay')) closePwdModal(); }
 function checkPassword() {
   if (document.getElementById('pwd-input').value === ADMIN_PW) {
     closePwdModal(); enterAdminMode();
@@ -2911,19 +3372,25 @@ function checkPassword() {
     inp.focus();
   }
 }
+function _swapAdminIcons(adminOn) {
+  const locked = document.getElementById('admin-icon-locked');
+  const unlocked = document.getElementById('admin-icon-unlocked');
+  if (locked) locked.style.display = adminOn ? 'none' : '';
+  if (unlocked) unlocked.style.display = adminOn ? '' : 'none';
+  const btn = document.getElementById('admin-btn');
+  if (btn) btn.title = adminOn ? 'Admin Mode active — click to exit' : 'Admin Mode';
+}
 function enterAdminMode() {
   isAdminMode = true;
   document.body.classList.add('admin-mode');
-  document.getElementById('admin-btn-text').textContent = 'Exit Admin Mode';
-  document.getElementById('admin-btn-icon').textContent = '🔓';
+  _swapAdminIcons(true);
   renderSidebar(); renderAnnouncements();
   showToast('Admin mode active');
 }
 function exitAdminMode() {
   isAdminMode = false;
   document.body.classList.remove('admin-mode');
-  document.getElementById('admin-btn-text').textContent = 'Admin Mode';
-  document.getElementById('admin-btn-icon').textContent = '🔒';
+  _swapAdminIcons(false);
   if (currentView === 'docview') showHome();
   renderSidebar(); renderAnnouncements();
   showToast('Admin mode exited');
@@ -2963,6 +3430,12 @@ function openEntryEditor(id, base) {
     const found = findEntryAnywhere(id);
     if (found) base = found.base;
   }
+  const sectionNum = sectionNumOf(id);
+  if (!canEditSection(base, sectionNum)) {
+    if (base === 'projects') promptUnlockProjectSection(sectionNum);
+    else alert('You need Admin Mode to edit handbook entries.');
+    return;
+  }
   const entry = findEntry(id, base);
   if (!entry) return;
   editEntryId = id;
@@ -2980,6 +3453,11 @@ function openEntryEditor(id, base) {
 
 function openNewEntryEditor(sectionNum, base) {
   base = base || 'handbook';
+  if (sectionNum && !canEditSection(base, sectionNum)) {
+    if (base === 'projects') promptUnlockProjectSection(sectionNum);
+    else alert('You need Admin Mode to add entries.');
+    return;
+  }
   editEntryId = null;
   editEntryBase = base;
   editEntrySrcSection = null;
@@ -2996,7 +3474,7 @@ function openNewEntryEditor(sectionNum, base) {
 }
 
 function closeEntryModal() { document.getElementById('entry-modal-overlay').classList.remove('open'); }
-function maybeCloseEntry(e) { if (e.target === document.getElementById('entry-modal-overlay')) closeEntryModal(); }
+function maybeCloseEntry(e) { if (_shouldCloseOverlay(e, 'entry-modal-overlay')) closeEntryModal(); }
 
 function saveEntry() {
   const base = editEntryBase || 'handbook';
@@ -3078,7 +3556,14 @@ function openSectionEditor(num, base) {
   document.getElementById('delete-section-btn').style.display = '';
   document.getElementById('sef-num').value = sec.num;
   document.getElementById('sef-title').value = sec.title;
-  document.getElementById('sef-desc').value = sec.description || '';
+  initEditor('sef-desc-editor', 'sef-rt-toolbar', sec.description || '');
+  // Passkey row only relevant for project sections, only visible to admins
+  const showPasskey = (base === 'projects') && isAdminMode;
+  document.getElementById('sef-passkey-row').style.display = showPasskey ? '' : 'none';
+  if (showPasskey) {
+    if (!sec.passkey) sec.passkey = generatePasskey();
+    document.getElementById('sef-passkey').value = sec.passkey;
+  }
   document.getElementById('section-modal-overlay').classList.add('open');
 }
 function openNewSectionEditor(base) {
@@ -3092,17 +3577,87 @@ function openNewSectionEditor(base) {
   const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
   document.getElementById('sef-num').value = String(nextNum);
   document.getElementById('sef-title').value = '';
-  document.getElementById('sef-desc').value = '';
+  initEditor('sef-desc-editor', 'sef-rt-toolbar', '');
+  // Show passkey preview for new project sections (will be saved on Save)
+  const showPasskey = (base === 'projects') && isAdminMode;
+  document.getElementById('sef-passkey-row').style.display = showPasskey ? '' : 'none';
+  if (showPasskey) {
+    document.getElementById('sef-passkey').value = generatePasskey();
+  }
   document.getElementById('section-modal-overlay').classList.add('open');
 }
+
+function generatePasskey() {
+  // 8-char alphanumeric, easy to read (no 0/O/1/I/l)
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < 8; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+// True if the user can edit entries within (base, sectionNum):
+//   - Admin can always edit anything.
+//   - For Projects: non-admin needs to have unlocked the section's passkey.
+//   - For Handbook / custom: only admin (no passkey system).
+function canEditSection(base, sectionNum) {
+  if (isAdminMode) return true;
+  if (base === 'projects') return unlockedProjects.has(String(sectionNum));
+  return false;
+}
+
+function _saveUnlocks() {
+  try { sessionStorage.setItem('vl_unlocked', JSON.stringify([...unlockedProjects])); } catch(e){}
+}
+
+function promptUnlockProjectSection(num) {
+  const sec = findSection(num, 'projects');
+  if (!sec) return;
+  if (!sec.passkey) {
+    if (confirm(`Project "${sec.title}" has no passkey set. Only admins can edit it. Continue to Section view?`)) {
+      showSection(num, 'projects');
+    }
+    return;
+  }
+  const entered = prompt(`Enter the edit passkey for "${sec.num}. ${sec.title}":`);
+  if (entered === null) return;
+  if (entered.trim().toUpperCase() === sec.passkey.toUpperCase()) {
+    unlockedProjects.add(String(num));
+    _saveUnlocks();
+    renderSidebar();
+    if (currentView === 'section' && currentBase === 'projects' && currentSectionNum === String(num)) showSection(num, 'projects');
+    showToast(`🔓 Edit access granted for "${sec.title}"`);
+  } else {
+    alert('Incorrect passkey.');
+  }
+}
+
+function lockProjectSection(num) {
+  unlockedProjects.delete(String(num));
+  _saveUnlocks();
+  renderSidebar();
+  if (currentView === 'section' && currentBase === 'projects' && currentSectionNum === String(num)) showSection(num, 'projects');
+  showToast('🔒 Edit access locked');
+}
+
+function copySectionPasskey() {
+  const inp = document.getElementById('sef-passkey');
+  if (!inp.value) return;
+  navigator.clipboard.writeText(inp.value).then(() => showToast('Passkey copied'));
+}
+function regenerateSectionPasskey() {
+  if (!confirm('Generate a new passkey? The old one will no longer work for anyone using it.')) return;
+  document.getElementById('sef-passkey').value = generatePasskey();
+}
 function closeSectionModal() { document.getElementById('section-modal-overlay').classList.remove('open'); }
-function maybeCloseSection(e) { if (e.target === document.getElementById('section-modal-overlay')) closeSectionModal(); }
+function maybeCloseSection(e) { if (_shouldCloseOverlay(e, 'section-modal-overlay')) closeSectionModal(); }
 
 function saveSection() {
   const base = editSectionBase || 'handbook';
   const num = document.getElementById('sef-num').value.trim();
   const title = document.getElementById('sef-title').value.trim();
-  const desc = document.getElementById('sef-desc').value.trim();
+  const desc = document.getElementById('sef-desc-editor').innerHTML;
+  const passkeyInp = document.getElementById('sef-passkey');
+  const passkey = passkeyInp ? passkeyInp.value.trim() : '';
   if (!num || !title) { alert('Number and title are required.'); return; }
   const sectionsArr = sectionsOf(base);
   const entriesArr = entriesOf(base);
@@ -3120,12 +3675,15 @@ function saveSection() {
       if (currentSectionNum === editSectionNum && currentBase === base) currentSectionNum = num;
     }
     sec.num = num; sec.title = title; sec.description = desc;
+    if (base === 'projects' && passkey) sec.passkey = passkey;
     entriesArr.forEach(e => {
       if (sectionNumOf(e.id) === num) e.section = `${num}. ${title}`;
     });
   } else {
     if (findSection(num, base)) { alert(`${base==='projects'?'Project':'Section'} ${num} already exists.`); return; }
-    sectionsArr.push({ num, title, description: desc });
+    const newSec = { num, title, description: desc };
+    if (base === 'projects') newSec.passkey = passkey || generatePasskey();
+    sectionsArr.push(newSec);
   }
 
   closeSectionModal();
@@ -3178,7 +3736,7 @@ function openNewSIEditor(sectionId) {
   document.getElementById('si-modal-overlay').classList.add('open');
 }
 function closeSIModal() { document.getElementById('si-modal-overlay').classList.remove('open'); }
-function maybeCloseSI(e) { if (e.target === document.getElementById('si-modal-overlay')) closeSIModal(); }
+function maybeCloseSI(e) { if (_shouldCloseOverlay(e, 'si-modal-overlay')) closeSIModal(); }
 function saveSidebarItem() {
   const sec = SIDEBAR_CFG.find(s => s.id === editSISection); if (!sec) return;
   const text = document.getElementById('si-text').value.trim();
@@ -3216,8 +3774,10 @@ function renderAnnouncements() {
         <div class="ann-text">${escapeHtml(a.text)}</div>
       </div>
       <div class="ann-actions">
-        <button class="ann-edit-btn" onclick="openAnnEditor('${escAttr(a.id)}')" title="Edit">✎</button>
-        <button class="ann-dismiss-btn" onclick="dismissAnn('${escAttr(a.id)}')" title="Dismiss">✕</button>
+        ${isAdminMode ? `
+          <button class="ann-edit-btn" onclick="openAnnEditor('${escAttr(a.id)}')" title="Edit">✎</button>
+          <button class="ann-dismiss-btn" onclick="deleteAnnouncementAdmin('${escAttr(a.id)}')" title="Delete announcement (visible to everyone)">🗑</button>
+        ` : ''}
       </div>
     </div>
   `).join('');
@@ -3225,7 +3785,17 @@ function renderAnnouncements() {
   c.innerHTML = `<div class="ann-header"><span class="ann-label">What's New</span>${addBtn}</div>
     ${itemsHtml}${visible.length === 0 && isAdminMode ? '<div style="font-size:12px;color:var(--mid)">No announcements yet.</div>' : ''}`;
 }
-function dismissAnn(id) { dismissedAnns.add(id); saveAnnsOnly(); renderAnnouncements(); }
+function dismissAnn(id) { /* deprecated — kept for back-compat */ dismissedAnns.add(id); saveAnnsOnly(); renderAnnouncements(); }
+function deleteAnnouncementAdmin(id) {
+  if (!isAdminMode) return;
+  if (!confirm('Delete this announcement for everyone? This cannot be undone.')) return;
+  ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== id);
+  dismissedAnns.delete(id);
+  saveAnnsOnly();
+  fbSyncKey('announcements', ANNOUNCEMENTS);
+  renderAnnouncements();
+  showToast('Announcement deleted');
+}
 function openAnnEditor(id) {
   const a = ANNOUNCEMENTS.find(x => x.id === id); if (!a) return;
   editAnnId = id;
@@ -3245,7 +3815,7 @@ function openNewAnnEditor() {
   setTimeout(() => document.getElementById('ann-text-input').focus(), 60);
 }
 function closeAnnModal() { document.getElementById('ann-modal-overlay').classList.remove('open'); }
-function maybeCloseAnn(e) { if (e.target === document.getElementById('ann-modal-overlay')) closeAnnModal(); }
+function maybeCloseAnn(e) { if (_shouldCloseOverlay(e, 'ann-modal-overlay')) closeAnnModal(); }
 function saveAnn() {
   const text = document.getElementById('ann-text-input').value.trim();
   if (!text) { alert('Message required.'); return; }
@@ -3275,6 +3845,7 @@ function exportData() {
   const data = {
     sections: SECTIONS, handbook: HANDBOOK,
     projects: PROJECTS, projectEntries: PROJECT_ENTRIES,
+    customCategories: CUSTOM_CATEGORIES,
     sidebar: SIDEBAR_CFG,
     announcements: ANNOUNCEMENTS, synonyms: SYNONYMS, team: TEAM_DIRECTORY,
     exportedAt: new Date().toISOString()
@@ -3298,6 +3869,7 @@ function importData(e) {
       HANDBOOK = data.handbook;
       PROJECTS = data.projects || [];
       PROJECT_ENTRIES = data.projectEntries || [];
+      CUSTOM_CATEGORIES = data.customCategories || [];
       SIDEBAR_CFG = data.sidebar || clone(DEFAULT_SIDEBAR_CFG);
       ANNOUNCEMENTS = data.announcements || [];
       SYNONYMS = data.synonyms || clone(DEFAULT_SYNONYMS);
@@ -3321,7 +3893,7 @@ function openSynonymsEditor() {
   document.getElementById('syn-modal-overlay').classList.add('open');
 }
 function closeSynModal() { document.getElementById('syn-modal-overlay').classList.remove('open'); }
-function maybeCloseSyn(e) { if (e.target === document.getElementById('syn-modal-overlay')) closeSynModal(); }
+function maybeCloseSyn(e) { if (_shouldCloseOverlay(e, 'syn-modal-overlay')) closeSynModal(); }
 
 function renderSynGroups() {
   const list = document.getElementById('syn-groups-list');
@@ -3415,7 +3987,7 @@ function openTeamDirectory() {
   document.getElementById('team-modal-overlay').classList.add('open');
 }
 function closeTeamModal() { document.getElementById('team-modal-overlay').classList.remove('open'); }
-function maybeCloseTeamModal(e) { if (e.target === document.getElementById('team-modal-overlay')) closeTeamModal(); }
+function maybeCloseTeamModal(e) { if (_shouldCloseOverlay(e, 'team-modal-overlay')) closeTeamModal(); }
 
 function renderTeamRoster() {
   const grid = document.getElementById('team-roster-grid');
@@ -3489,7 +4061,7 @@ function closeTmDetail() {
   editingTmId = null; _tmDraft = null; tmEditMode = false;
 }
 function maybeCloseTmDetail(e) {
-  if (e.target === document.getElementById('tm-detail-overlay')) closeTmDetail();
+  if (_shouldCloseOverlay(e, 'tm-detail-overlay')) closeTmDetail();
 }
 
 function toggleTmEditMode() {
@@ -3508,11 +4080,18 @@ function renderTmDetail() {
   modeBtn.classList.toggle('editing', editing);
   document.getElementById('tm-save-btn').style.display = editing ? 'inline-block' : 'none';
 
+  // `filled` indicates whether the field currently has data. When true (and not
+  // in edit mode), we hide the helper description so the card reads cleanly.
+  // Callers that have a custom viewer must pass `filled` explicitly.
   const renderField = (opts) => {
     const { label, required, desc, value, editor, viewer } = opts;
+    const filled = (opts.filled !== undefined) ? opts.filled : !!value;
+    // In view mode: show desc only when empty (acts as helper for first-time fill).
+    // In edit mode: show desc only when empty (so it disappears as user fills in).
+    const showDesc = desc && !filled;
     return `<div class="tm-field">
       <div class="tm-field-label${required?' tm-field-required':''}">${escapeHtml(label)}</div>
-      ${desc ? `<div class="tm-field-desc">${escapeHtml(desc)}</div>` : ''}
+      ${showDesc ? `<div class="tm-field-desc">${escapeHtml(desc)}</div>` : ''}
       ${editing ? editor : (viewer || `<div class="tm-field-value ${value?'':'empty'}">${value ? escapeHtml(value) : '(not set)'}</div>`)}
     </div>`;
   };
@@ -3538,11 +4117,13 @@ function renderTmDetail() {
           ${renderField({
             label: 'Slack Name', required: true,
             desc: 'How can we ping you in Slack?',
+            filled: !!m.slackName,
             editor: `<input class="form-input" id="tm-slackName" value="${escAttr(m.slackName||'')}" placeholder="@yourhandle"/>`
           })}
           ${renderField({
             label: 'Real Name', required: true,
             desc: "Let's see that beautiful name!",
+            filled: !!m.realName,
             editor: `<input class="form-input" id="tm-realName" value="${escAttr(m.realName||'')}" placeholder="Your name"/>`
           })}
         ` : `
@@ -3569,6 +4150,7 @@ function renderTmDetail() {
         ${renderField({
           label: 'Projects', required: true,
           desc: 'Where are you assigned right now?',
+          filled: (m.projects||[]).length > 0,
           editor: `<div class="tm-chips" id="tm-projects-chips">
             ${(m.projects||[]).map((p, i) => `
               <span class="tm-chip">${escapeHtml(p)}<button class="tm-chip-x" onclick="removeTmProject(${i})" title="Remove">×</button></span>
@@ -3584,6 +4166,7 @@ function renderTmDetail() {
         ${renderField({
           label: 'Schedule',
           desc: 'Your typical work hours and timezone.',
+          filled: !!(m.schedule && m.schedule.signIn),
           editor: `<div class="tm-schedule-row">
             <input type="time" class="form-input" id="tm-signIn" value="${escAttr((m.schedule&&m.schedule.signIn)||'')}" title="Sign-in time"/>
             <input type="time" class="form-input" id="tm-signOut" value="${escAttr((m.schedule&&m.schedule.signOut)||'')}" title="Sign-out time"/>
@@ -3642,6 +4225,7 @@ function renderTmDetail() {
           ${renderField({
             label: 'Portfolio Link',
             desc: 'Bless us with your art style!',
+            filled: !!m.portfolio,
             editor: `<input class="form-input" id="tm-portfolio" value="${escAttr(m.portfolio||'')}" placeholder="https://..."/>`,
             viewer: `<div class="tm-field-value ${m.portfolio?'':'empty'}">${m.portfolio
               ? `<a class="tm-portfolio-link" href="${escAttr(m.portfolio)}" target="_blank" rel="noopener">🔗 ${escapeHtml(m.portfolio.length > 38 ? m.portfolio.substring(0, 38) + '…' : m.portfolio)}</a>`
@@ -3651,6 +4235,7 @@ function renderTmDetail() {
         ${renderField({
           label: 'Favorite Video Games',
           desc: 'Top 5 favorite games? Top 10? Top 20? Top 999 games?',
+          filled: !!m.favoriteGames,
           editor: `<textarea class="form-textarea" id="tm-favoriteGames" rows="3" placeholder="One per line, or comma-separated">${escapeHtml(m.favoriteGames||'')}</textarea>`,
           viewer: `<div class="tm-field-value ${m.favoriteGames?'':'empty'}" style="white-space:pre-wrap">${m.favoriteGames ? escapeHtml(m.favoriteGames) : '(not set)'}</div>`
         })}
@@ -3678,14 +4263,21 @@ function removeTmProject(i) {
 function uploadTmImage() {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*';
-  inp.onchange = ev => {
+  inp.onchange = async ev => {
     const file = ev.target.files[0]; if (!file) return;
-    if (file.size > 1024 * 1024) {
-      if (!confirm('Image is over 1MB. Large images slow down sync. Continue?')) return;
+    if (file.size > AVATAR_MAX_BYTES) {
+      alert(`Avatar is too large (${(file.size/1024/1024).toFixed(2)} MB). Maximum allowed is 1 MB.`);
+      return;
     }
-    const r = new FileReader();
-    r.onload = e2 => { _tmDraft.image = e2.target.result; renderTmDetail(); };
-    r.readAsDataURL(file);
+    try {
+      const originalUrl = await fileToDataUrl(file);
+      // Auto-resize to fit AVATAR_MAX_DIM × AVATAR_MAX_DIM
+      const resized = await resizeImage(originalUrl, AVATAR_MAX_DIM, file.type);
+      _tmDraft.image = resized;
+      renderTmDetail();
+    } catch(err) {
+      alert('Could not process image: ' + err.message);
+    }
   };
   inp.click();
 }
@@ -3803,14 +4395,24 @@ function renderDocView() {
   const content = document.getElementById('docview-content');
   const base = docViewBase || 'handbook';
   const sectionsArr = sectionsOf(base);
-  const baseLabel = base === 'projects' ? 'Projects' : 'Handbook';
-  const itemLabel = base === 'projects' ? 'Project' : 'Section';
+  let baseLabel = 'Handbook';
+  let itemLabel = 'Section';
+  if (base === 'projects') { baseLabel = 'Projects'; itemLabel = 'Project'; }
+  else if (base !== 'handbook') {
+    const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === base);
+    baseLabel = cc ? cc.label : base;
+  }
 
-  // Outline
+  // Outline with base tabs for ALL kb categories
+  let tabsHtml = `<button class="dv-tab${base==='handbook'?' active':''}" onclick="dvSetBase('handbook')">📘 Handbook</button>
+    <button class="dv-tab${base==='projects'?' active':''}" onclick="dvSetBase('projects')">🗂 Projects</button>`;
+  for (const cc of (CUSTOM_CATEGORIES || [])) {
+    if (!cc || !cc.id) continue;
+    tabsHtml += `<button class="dv-tab${base===cc.id?' active':''}" onclick="dvSetBase('${escAttr(cc.id)}')">📂 ${escapeHtml(cc.label)}</button>`;
+  }
   let oh = `<div class="dv-outline-heading">Outline</div>
-    <div class="dv-base-toggle">
-      <button class="dv-tab${base==='handbook'?' active':''}" onclick="dvSetBase('handbook')">📘 Handbook</button>
-      <button class="dv-tab${base==='projects'?' active':''}" onclick="dvSetBase('projects')">🗂 Projects</button>
+    <div class="dv-base-toggle" style="flex-wrap:wrap">
+      ${tabsHtml}
     </div>`;
   if (sectionsArr.length === 0) {
     oh += `<div style="font-size:12px;color:var(--mid);font-style:italic;padding:8px 0">No ${baseLabel.toLowerCase()} yet.</div>`;
@@ -3854,7 +4456,7 @@ function renderDocView() {
         <button class="dv-entry-edit-btn" onclick="openSectionEditor('${escAttr(sec.num)}','${escAttr(base)}')">⚙ Edit</button>
       </div>
       <div class="dv-section-body">
-        <div class="dv-section-desc">${escapeHtml(sec.description || '(no description)')}</div>`;
+        <div class="dv-section-desc">${sec.description || '<em style="color:var(--mid)">(no description)</em>'}</div>`;
     const entries = entriesInSection(sec.num, base);
     for (const e of entries) {
       ch += `<div class="dv-entry" id="dv-en-${escAttr(base)}-${escAttr(e.id)}" data-entry-id="${escAttr(e.id)}" data-base="${escAttr(base)}">
