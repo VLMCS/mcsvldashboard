@@ -1,0 +1,3666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VL Dashboard — Mega Cat Studios</title>
+<style>
+  :root {
+    --black: #0d0d0d; --white: #f5f5f3; --mid: #888; --border: #d0d0cc;
+    --hover-bg: #f0f0ee; --admin-accent: #b87c00; --admin-accent-light: #fff8ee;
+    --bg-sidebar: #fafaf8; --bg-card-head: #f7f7f5; --bg-th: #f0f0ee;
+    --bg-modal: #f5f5f3; --bg-form-input: #ffffff; --text-body: #222;
+    --shadow-modal: 0 8px 40px rgba(0,0,0,0.18);
+  }
+  body.dark {
+    --black: #ededeb; --white: #161616; --mid: #6a6a6a; --border: #2a2a2a;
+    --hover-bg: #1e1e1e; --admin-accent: #d4a843; --admin-accent-light: #1e1700;
+    --bg-sidebar: #111111; --bg-card-head: #1c1c1c; --bg-th: #1e1e1e;
+    --bg-modal: #161616; --bg-form-input: #1a1a1a; --text-body: #ccccca;
+    --shadow-modal: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Calibri', 'Calibri Web', 'Segoe UI', sans-serif;
+    background: var(--white); color: var(--black);
+    display: flex; min-height: 100vh; font-size: 15px; line-height: 1.55;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 260px; min-width: 260px;
+    border-right: 1.5px solid var(--border);
+    background: var(--bg-sidebar);
+    display: flex; flex-direction: column;
+    height: 100vh; position: sticky; top: 0;
+    overflow-y: auto; overflow-x: hidden; flex-shrink: 0;
+    transition: width 0.22s, min-width 0.22s, background 0.2s, border-color 0.2s;
+  }
+  #sidebar.collapsed { width: 48px; min-width: 48px; overflow: hidden; }
+  #sidebar.collapsed .sidebar-collapsible { display: none; }
+
+  #sidebar-logo {
+    padding: 0 8px 0 14px; border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; gap: 4px;
+    height: 64px; flex-shrink: 0; background: var(--bg-sidebar);
+  }
+  #sidebar-logo-text { flex: 1; min-width: 0; }
+  #sidebar-logo .studio-label {
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--mid); margin-bottom: 2px;
+  }
+  #sidebar-logo h1 {
+    font-size: 17px; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--black); white-space: nowrap; cursor: pointer;
+  }
+
+  .icon-btn {
+    background: none; border: none; cursor: pointer; color: var(--mid);
+    padding: 6px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: color 0.12s, background 0.12s; line-height: 1;
+  }
+  .icon-btn:hover { background: var(--hover-bg); color: var(--black); }
+
+  .sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 4px; }
+
+  .sidebar-section { padding: 10px 8px 6px; }
+  .sidebar-section-label {
+    font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--mid); margin-bottom: 4px; font-weight: 600; padding: 0 8px;
+  }
+
+  /* Parent items (hierarchical) */
+  .sb-parent {
+    display: flex; align-items: center; gap: 2px;
+    padding: 5px 6px; margin-bottom: 1px; border-radius: 4px;
+    color: var(--black); font-size: 13.5px; cursor: pointer;
+    transition: background 0.12s; user-select: none; position: relative;
+  }
+  .sb-parent:hover { background: var(--hover-bg); }
+  .sb-parent.active { background: var(--hover-bg); font-weight: 600; }
+  .sb-chevron {
+    flex-shrink: 0; width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--mid); font-size: 9px; transition: transform 0.15s;
+    cursor: pointer;
+  }
+  .sb-chevron.expanded { transform: rotate(90deg); }
+  .sb-parent-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .sb-children {
+    display: none; padding-left: 24px; padding-top: 1px; padding-bottom: 2px;
+  }
+  .sb-children.expanded { display: block; }
+
+  .sb-child {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 8px; margin-bottom: 1px; border-radius: 4px;
+    color: var(--text-body); font-size: 12.5px; cursor: pointer;
+    transition: background 0.12s; position: relative;
+  }
+  .sb-child:hover { background: var(--hover-bg); color: var(--black); }
+  .sb-child.active { background: var(--admin-accent-light); color: var(--black); font-weight: 600; }
+  body.dark .sb-child.active { background: #2a2207; }
+  .sb-child-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Quick-link / team items */
+  .sb-link {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 8px; margin-bottom: 1px; border-radius: 4px;
+    color: var(--black); font-size: 13px; cursor: pointer;
+    transition: background 0.12s; position: relative;
+  }
+  .sb-link:hover { background: var(--hover-bg); }
+  .sb-link.placeholder { color: var(--mid); font-style: italic; font-size: 12px; cursor: default; }
+  .sb-link-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-link-text a { color: inherit; text-decoration: none; }
+
+  .sb-divider { height: 1px; background: var(--border); margin: 8px 12px; transition: background 0.2s; }
+
+  /* Drag handles */
+  .drag-handle {
+    display: none; cursor: grab; color: #ccc; font-size: 12px;
+    padding: 0 2px; flex-shrink: 0; user-select: none; line-height: 1;
+  }
+  body.dark .drag-handle { color: #444; }
+  body.admin-mode .drag-handle { display: block; }
+  .drag-handle:active { cursor: grabbing; }
+
+  /* Edit icons */
+  .sb-edit-btn, .sb-add-btn {
+    display: none; background: none; border: none; cursor: pointer;
+    color: transparent; font-size: 12px; padding: 1px 4px;
+    border-radius: 3px; flex-shrink: 0; line-height: 1;
+    transition: color 0.1s, background 0.1s;
+  }
+  body.admin-mode .sb-edit-btn, body.admin-mode .sb-add-btn { display: block; }
+  body.admin-mode .sb-parent:hover .sb-edit-btn,
+  body.admin-mode .sb-parent:hover .sb-add-btn,
+  body.admin-mode .sb-child:hover .sb-edit-btn,
+  body.admin-mode .sb-link:hover .sb-edit-btn { color: var(--mid); }
+  .sb-edit-btn:hover, .sb-add-btn:hover { color: var(--admin-accent) !important; background: var(--hover-bg); }
+
+  .admin-add-btn {
+    display: none; width: 100%; padding: 4px 8px; margin: 4px 0 2px;
+    background: none; border: 1px dashed var(--border); border-radius: 4px;
+    color: var(--mid); font-family: inherit; font-size: 11.5px;
+    cursor: pointer; text-align: center; transition: border-color 0.12s, color 0.12s;
+  }
+  body.admin-mode .admin-add-btn { display: block; }
+  .admin-add-btn:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  /* Drag-over indicators */
+  .drag-over-above::before {
+    content: ''; position: absolute; top: -1px; left: 4px; right: 4px;
+    height: 2px; background: var(--admin-accent); border-radius: 2px;
+  }
+  .drag-over-below::after {
+    content: ''; position: absolute; bottom: -1px; left: 4px; right: 4px;
+    height: 2px; background: var(--admin-accent); border-radius: 2px;
+  }
+  .dragging { opacity: 0.4; }
+
+  /* Sidebar bottom */
+  #sidebar-bottom { padding: 8px 12px 10px; border-top: 1px solid var(--border); flex-shrink: 0; transition: border-color 0.2s; }
+  #admin-btn {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    background: none; border: none; cursor: pointer; color: var(--mid);
+    font-family: inherit; font-size: 12px; border-radius: 4px;
+    width: 100%; transition: background 0.12s, color 0.12s;
+  }
+  #admin-btn:hover { background: var(--hover-bg); color: var(--black); }
+
+  #admin-toolbar {
+    display: none; padding: 0 12px 8px; gap: 4px; flex-direction: column;
+  }
+  body.admin-mode #admin-toolbar { display: flex; }
+  .admin-tool-btn {
+    padding: 5px 8px; background: none; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--mid); font-family: inherit; font-size: 11px;
+    cursor: pointer; text-align: center;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .admin-tool-btn:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+  .admin-tool-row { display: flex; gap: 4px; }
+  .admin-tool-row .admin-tool-btn { flex: 1; }
+
+  body.admin-mode #sidebar { border-top: 3px solid var(--admin-accent); }
+  .admin-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    background: var(--admin-accent); color: #fff; padding: 2px 5px; border-radius: 3px;
+    display: none; flex-shrink: 0;
+  }
+  body.admin-mode .admin-badge { display: inline-block; }
+
+  #admin-banner {
+    display: none; background: var(--admin-accent); color: #fff;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; text-align: center;
+    padding: 5px 12px; cursor: pointer; flex-shrink: 0;
+  }
+  body.admin-mode #admin-banner { display: block; }
+
+  /* ── MAIN ── */
+  #main {
+    flex: 1; display: flex; flex-direction: column;
+    min-height: 100vh; min-width: 0;
+    /* No overflow-x:hidden here — it implicitly makes #main the scrolling
+       container and breaks position:sticky on the docview outline. Children
+       that could overflow horizontally (rich editor, docview-content) set
+       their own min-width:0 / overflow-x:hidden. */
+  }
+
+  #top-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--white); border-bottom: 1.5px solid var(--border);
+    padding: 0 24px; height: 52px;
+    display: flex; align-items: center; gap: 12px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .breadcrumb {
+    flex: 1; min-width: 0; display: flex; align-items: center;
+    gap: 6px; font-size: 13px; color: var(--mid); overflow: hidden;
+  }
+  .bc-item {
+    cursor: pointer; padding: 3px 7px; border-radius: 4px;
+    transition: background 0.12s, color 0.12s; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; max-width: 280px;
+  }
+  .bc-item:hover { background: var(--hover-bg); color: var(--black); }
+  .bc-item.active { color: var(--black); font-weight: 600; cursor: default; }
+  .bc-item.active:hover { background: none; }
+  .bc-sep { color: var(--mid); flex-shrink: 0; }
+
+  #search-trigger {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    padding: 5px 10px; cursor: pointer; color: var(--mid);
+    font-family: inherit; font-size: 12.5px;
+    display: flex; align-items: center; gap: 6px;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  #search-trigger:hover { border-color: var(--black); color: var(--black); }
+  #search-trigger svg { width: 14px; height: 14px; }
+  .search-shortcut { color: #aaa; font-size: 11px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; }
+  body.dark .search-shortcut { color: #555; }
+
+  /* Views */
+  .view { display: none; flex: 1; }
+  .view.active { display: flex; flex-direction: column; }
+
+  /* Home view */
+  #view-home { align-items: center; padding: 60px 40px 60px; }
+  .hero-label { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--mid); margin-bottom: 12px; }
+  .hero-title { font-size: 38px; font-weight: 700; letter-spacing: -0.03em; color: var(--black); margin-bottom: 8px; text-align: center; }
+  .hero-sub { font-size: 14.5px; color: var(--mid); margin-bottom: 32px; text-align: center; max-width: 460px; }
+
+  #whats-new { width: 100%; max-width: 580px; margin-bottom: 28px; }
+  #whats-new:empty { display: none; }
+  .ann-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .ann-label { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mid); font-weight: 600; }
+  .ann-add-btn {
+    display: none; background: none; border: none; cursor: pointer;
+    color: var(--admin-accent); font-family: inherit; font-size: 11px;
+    padding: 2px 6px; border-radius: 3px; transition: background 0.12s;
+  }
+  body.admin-mode .ann-add-btn { display: inline-block; }
+  .ann-add-btn:hover { background: var(--hover-bg); }
+  .ann-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 5px;
+    margin-bottom: 6px; background: var(--bg-card-head);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .ann-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--admin-accent); flex-shrink: 0; margin-top: 6px; }
+  .ann-content { flex: 1; min-width: 0; }
+  .ann-date { font-size: 10.5px; color: var(--mid); margin-bottom: 2px; }
+  .ann-text { font-size: 13px; color: var(--black); line-height: 1.5; }
+  .ann-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .ann-dismiss-btn, .ann-edit-btn {
+    background: none; border: none; cursor: pointer; color: var(--mid);
+    font-size: 13px; padding: 2px 5px; border-radius: 3px; line-height: 1;
+    transition: color 0.1s, background 0.1s;
+  }
+  .ann-dismiss-btn:hover, .ann-edit-btn:hover { background: var(--hover-bg); color: var(--black); }
+  .ann-edit-btn { display: none; }
+  body.admin-mode .ann-edit-btn { display: inline-block; }
+
+  #search-wrap { width: 100%; max-width: 580px; position: relative; }
+  #search-input {
+    width: 100%; padding: 16px 56px 16px 20px;
+    font-family: 'Calibri', 'Calibri Web', 'Segoe UI', sans-serif;
+    font-size: 16px; border: 2px solid var(--black); border-radius: 6px;
+    background: var(--white); color: var(--black); outline: none;
+    transition: box-shadow 0.15s, background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  #search-input:focus { box-shadow: 0 0 0 3px rgba(13,13,13,0.08); }
+  #search-input::placeholder { color: #bbb; }
+  body.dark #search-input::placeholder { color: #444; }
+  #search-btn-home {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--black); padding: 4px;
+    display: flex; align-items: center;
+  }
+  #search-btn-home svg { width: 20px; height: 20px; }
+  .suggest-row {
+    margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center; max-width: 580px;
+  }
+  .suggest-chip {
+    background: none; border: 1px solid var(--border); border-radius: 20px;
+    padding: 5px 14px; font-family: inherit; font-size: 12.5px;
+    color: #555; cursor: pointer; transition: border-color 0.12s, color 0.12s;
+  }
+  body.dark .suggest-chip { color: #888; }
+  .suggest-chip:hover { border-color: var(--black); color: var(--black); }
+
+  /* Section view */
+  #view-section { padding: 40px 40px 60px; }
+  .section-inner { max-width: 860px; margin: 0 auto; width: 100%; }
+  .section-num-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--mid); margin-bottom: 6px; font-weight: 600; }
+  .section-title { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: var(--black); margin-bottom: 14px; }
+  .section-desc { font-size: 15px; color: var(--text-body); line-height: 1.65; margin-bottom: 28px; max-width: 720px; }
+  .section-actions { display: flex; gap: 8px; margin-bottom: 18px; }
+  .section-actions .btn { display: none; }
+  body.admin-mode .section-actions .btn { display: inline-flex; align-items: center; gap: 4px; }
+  .section-card-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .section-card {
+    border: 1.5px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; cursor: pointer;
+    transition: border-color 0.12s, transform 0.12s, background 0.12s;
+    background: var(--bg-card-head); position: relative;
+  }
+  .section-card:hover { border-color: var(--black); transform: translateY(-1px); }
+  .section-card-id { font-size: 10.5px; color: var(--mid); font-weight: 600; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .section-card-title { font-size: 14px; font-weight: 600; color: var(--black); line-height: 1.35; }
+  .section-card-actions {
+    position: absolute; top: 6px; right: 6px; display: none; gap: 2px;
+  }
+  body.admin-mode .section-card:hover .section-card-actions { display: flex; }
+  .section-card-actions button {
+    background: var(--white); border: 1px solid var(--border); border-radius: 3px;
+    padding: 2px 5px; font-size: 11px; cursor: pointer; color: var(--mid);
+    line-height: 1; transition: color 0.1s, border-color 0.1s;
+  }
+  .section-card-actions button:hover { color: var(--admin-accent); border-color: var(--admin-accent); }
+
+  .add-card {
+    display: none; align-items: center; justify-content: center;
+    border: 1.5px dashed var(--border); border-radius: 6px;
+    padding: 14px 16px; cursor: pointer; color: var(--mid);
+    font-size: 13px; transition: border-color 0.12s, color 0.12s;
+    min-height: 60px;
+  }
+  body.admin-mode .add-card { display: flex; }
+  .add-card:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  /* Entry view */
+  #view-entry { padding: 28px 40px 60px; }
+  .entry-inner { max-width: 860px; margin: 0 auto; width: 100%; }
+  .entry-back {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: none; border: none; cursor: pointer; color: var(--mid);
+    font-family: inherit; font-size: 12.5px; padding: 4px 0; margin-bottom: 14px;
+    transition: color 0.12s;
+  }
+  .entry-back:hover { color: var(--black); }
+  .entry-id-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--mid); font-weight: 600; margin-bottom: 6px; }
+  .entry-title {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--black); margin-bottom: 14px;
+  }
+  .entry-actions { display: flex; gap: 8px; margin-bottom: 22px; }
+  .entry-actions .btn { display: none; }
+  body.admin-mode .entry-actions .btn { display: inline-flex; align-items: center; gap: 4px; }
+  .entry-content {
+    font-size: 14.5px; line-height: 1.7; color: var(--text-body);
+  }
+  .entry-content h2, .entry-content h3, .entry-content h4 {
+    color: var(--black); margin: 16px 0 8px; font-weight: 700;
+  }
+  .entry-content h3 { font-size: 17px; }
+  .entry-content p, .entry-content ul, .entry-content ol, .entry-content table { margin-bottom: 12px; }
+  .entry-content ul, .entry-content ol { margin-left: 20px; }
+  .entry-content li { margin-bottom: 4px; }
+  .entry-content strong { font-weight: 700; }
+  .entry-content em { font-style: italic; }
+  .entry-content a { color: var(--admin-accent); text-decoration: underline; }
+  .entry-content a:hover { color: var(--black); }
+  .entry-content table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .entry-content th, .entry-content td {
+    border: 1px solid var(--border); padding: 8px 12px;
+    text-align: left; vertical-align: top;
+  }
+  .entry-content th { background: var(--bg-th); font-weight: 700; }
+  .entry-content img, .entry-img {
+    max-width: 100%; height: auto; border-radius: 4px;
+    margin: 8px 0; cursor: pointer;
+    transition: opacity 0.12s, box-shadow 0.12s;
+  }
+  .entry-content img:hover, .entry-img:hover {
+    opacity: 0.88;
+    box-shadow: 0 0 0 2px var(--admin-accent);
+  }
+
+  /* Search modal */
+  #search-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(13,13,13,0.55); z-index: 1000;
+    align-items: flex-start; justify-content: center;
+    padding: 64px 24px 24px;
+  }
+  body.dark #search-modal-overlay { background: rgba(0,0,0,0.7); }
+  #search-modal-overlay.open { display: flex; }
+  #search-modal {
+    background: var(--bg-modal); border: 1.5px solid var(--border);
+    border-radius: 8px; width: 100%; max-width: 700px;
+    max-height: 78vh; display: flex; flex-direction: column;
+    box-shadow: var(--shadow-modal);
+    animation: modal-in 0.18s ease;
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .search-modal-header {
+    padding: 14px 20px; border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  #search-modal-input {
+    flex: 1; padding: 8px 12px; font-family: inherit; font-size: 15px;
+    border: 1.5px solid var(--border); border-radius: 5px;
+    background: var(--bg-form-input); color: var(--black); outline: none;
+    transition: border-color 0.12s;
+  }
+  #search-modal-input:focus { border-color: var(--black); }
+  #search-modal-close {
+    background: none; border: none; cursor: pointer; color: var(--mid);
+    font-size: 20px; padding: 2px 6px; border-radius: 4px; line-height: 1;
+  }
+  #search-modal-close:hover { background: var(--hover-bg); color: var(--black); }
+  #search-modal-body { overflow-y: auto; padding: 16px 20px 22px; flex: 1; }
+  #results-count { font-size: 11px; color: var(--mid); margin-bottom: 14px; letter-spacing: 0.04em; }
+  .search-segment-label {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--mid); font-weight: 700; margin: 14px 0 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search-segment-label:first-child { margin-top: 0; }
+  .segment-line { flex: 1; height: 1px; background: var(--border); }
+
+  .others-toggle {
+    display: flex; align-items: center; gap: 6px; width: 100%;
+    background: none; border: 1px dashed var(--border); border-radius: 5px;
+    padding: 8px 12px; cursor: pointer; color: var(--mid);
+    font-family: inherit; font-size: 12px; margin-top: 4px;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .others-toggle:hover { border-color: var(--black); color: var(--black); }
+
+  .result-card {
+    border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 10px; overflow: hidden;
+    transition: border-color 0.12s;
+  }
+  .result-card:hover { border-color: var(--black); }
+  .result-card-header {
+    padding: 10px 14px; background: var(--bg-card-head);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .result-section-id {
+    font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--mid); white-space: nowrap; font-weight: 600;
+  }
+  .result-section-title { font-size: 13.5px; font-weight: 700; color: var(--black); flex: 1; }
+  .result-go-btn {
+    background: none; border: 1px solid var(--border); cursor: pointer;
+    color: var(--mid); font-size: 10.5px; padding: 2px 7px;
+    border-radius: 3px; font-family: inherit; flex-shrink: 0;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .result-go-btn:hover { border-color: var(--black); color: var(--black); }
+  .result-edit-btn {
+    display: none; background: none; border: 1px solid var(--border);
+    cursor: pointer; color: var(--mid); font-size: 10.5px;
+    padding: 2px 7px; border-radius: 3px; font-family: inherit; flex-shrink: 0;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  body.admin-mode .result-edit-btn { display: inline-flex; align-items: center; gap: 3px; }
+  .result-edit-btn:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  .no-results { text-align: center; padding: 40px 0; color: var(--mid); font-size: 14px; }
+
+  #add-entry-btn-modal {
+    display: none; margin-top: 14px; padding: 9px 18px;
+    background: none; border: 1.5px dashed var(--border); border-radius: 6px;
+    color: var(--mid); font-family: inherit; font-size: 13px;
+    cursor: pointer; width: 100%; text-align: center;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  body.admin-mode #add-entry-btn-modal { display: block; }
+  #add-entry-btn-modal:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  mark { background: #f0f0c8; padding: 0 2px; border-radius: 2px; }
+  body.dark mark { background: #4a4a1a; color: var(--black); }
+
+  /* Admin modals (general) */
+  .admin-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(13,13,13,0.6); z-index: 2000;
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  body.dark .admin-modal-overlay { background: rgba(0,0,0,0.75); }
+  .admin-modal-overlay.open { display: flex; }
+  .admin-modal {
+    background: var(--bg-modal); border: 1.5px solid var(--border);
+    border-radius: 8px; width: 100%; max-height: 90vh;
+    display: flex; flex-direction: column; box-shadow: var(--shadow-modal);
+    animation: modal-in 0.18s ease;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .admin-modal-header {
+    padding: 14px 18px 12px; border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--admin-accent-light); border-radius: 6px 6px 0 0;
+  }
+  .admin-modal-title { font-size: 14px; font-weight: 700; color: var(--black); display: flex; align-items: center; gap: 8px; }
+  .admin-tag {
+    font-size: 8.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    background: var(--admin-accent); color: #fff; padding: 2px 5px; border-radius: 3px;
+  }
+  .admin-modal-close {
+    background: none; border: none; cursor: pointer; color: var(--mid);
+    font-size: 20px; padding: 2px 6px; border-radius: 4px; line-height: 1;
+  }
+  .admin-modal-close:hover { background: var(--hover-bg); color: var(--black); }
+  .admin-modal-body {
+    overflow-y: auto; padding: 16px 18px; flex: 1;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mid); font-weight: 600; }
+  .form-input, .form-textarea, .form-select {
+    font-family: inherit; font-size: 13.5px; padding: 7px 10px;
+    border: 1.5px solid var(--border); border-radius: 4px;
+    background: var(--bg-form-input); color: var(--black); outline: none;
+    transition: border-color 0.12s, background 0.2s, color 0.2s;
+  }
+  .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--black); }
+  .form-textarea { resize: vertical; min-height: 80px; line-height: 1.5; font-size: 13px; }
+  .form-hint { font-size: 11px; color: var(--mid); }
+  .admin-modal-footer {
+    padding: 10px 18px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .btn {
+    padding: 6px 14px; border-radius: 5px; font-family: inherit;
+    font-size: 12.5px; cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    border: 1.5px solid transparent;
+  }
+  .btn-primary { background: var(--black); color: var(--white); border-color: var(--black); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary { background: none; color: var(--black); border-color: var(--border); }
+  .btn-secondary:hover { border-color: var(--black); }
+  .btn-danger { background: none; color: #c0392b; border-color: #e0b0ac; font-size: 12px; }
+  .btn-danger:hover { background: #fdf0f0; border-color: #c0392b; }
+  body.dark .btn-danger:hover { background: #2a0a0a; }
+  .btn-admin { background: var(--admin-accent); color: #fff; border-color: var(--admin-accent); }
+  .btn-admin:hover { opacity: 0.88; }
+
+  /* ── RICH TEXT EDITOR ── */
+  .rt-wrap {
+    border: 1.5px solid var(--border); border-radius: 5px;
+    background: var(--bg-form-input); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .rt-wrap:focus-within { border-color: var(--black); }
+  .rt-toolbar {
+    display: flex; flex-wrap: wrap; gap: 2px;
+    padding: 5px; border-bottom: 1px solid var(--border);
+    background: var(--bg-card-head);
+  }
+  .rt-btn {
+    background: none; border: 1px solid transparent; border-radius: 3px;
+    cursor: pointer; padding: 3px 7px; color: var(--text-body);
+    font-family: inherit; font-size: 12.5px; min-width: 26px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .rt-btn:hover { background: var(--hover-bg); border-color: var(--border); }
+  .rt-btn.active { background: var(--admin-accent-light); border-color: var(--admin-accent); color: var(--admin-accent); }
+  body.dark .rt-btn.active { color: var(--admin-accent); }
+  .rt-sep { width: 1px; background: var(--border); margin: 2px 4px; align-self: stretch; }
+  .rt-editor {
+    min-height: 180px; max-height: 380px; overflow-y: auto;
+    padding: 10px 12px; outline: none;
+    font-family: 'Calibri', 'Calibri Web', 'Segoe UI', sans-serif;
+    font-size: 13.5px; line-height: 1.6; color: var(--text-body);
+  }
+  .rt-editor:empty::before {
+    content: attr(data-placeholder); color: #bbb;
+  }
+  body.dark .rt-editor:empty::before { color: #555; }
+  .rt-editor img { max-width: 100%; border-radius: 4px; margin: 4px 0; cursor: pointer; }
+  .rt-editor ul, .rt-editor ol { margin: 6px 0 6px 20px; }
+  .rt-editor table { border-collapse: collapse; margin: 6px 0; font-size: 12.5px; }
+  .rt-editor th, .rt-editor td { border: 1px solid var(--border); padding: 5px 8px; }
+  .rt-editor th { background: var(--bg-th); }
+  .rt-editor a { color: var(--admin-accent); text-decoration: underline; }
+
+  /* Password modal */
+  #pwd-modal-overlay { z-index: 3000; }
+  #pwd-modal .admin-modal-body { padding: 26px 20px; align-items: center; text-align: center; gap: 12px; }
+  .lock-icon { font-size: 28px; }
+  .pwd-title { font-size: 15px; font-weight: 700; }
+  .pwd-sub { font-size: 12.5px; color: var(--mid); max-width: 260px; }
+  #pwd-input {
+    width: 100%; max-width: 260px; padding: 10px 14px;
+    font-family: inherit; font-size: 15px;
+    border: 2px solid var(--border); border-radius: 5px;
+    text-align: center; letter-spacing: 0.12em; outline: none;
+    background: var(--bg-form-input); color: var(--black);
+    transition: border-color 0.12s, background 0.2s, color 0.2s;
+  }
+  #pwd-input:focus { border-color: var(--black); }
+  #pwd-input.error { border-color: #c0392b; animation: shake 0.3s; }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  #pwd-error { font-size: 11.5px; color: #c0392b; min-height: 16px; }
+
+  /* ── LIGHTBOX ── */
+  #lightbox-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92); z-index: 5000;
+    align-items: center; justify-content: center;
+    cursor: pointer; user-select: none;
+  }
+  #lightbox-overlay.open { display: flex; }
+  #lightbox-stage {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    overflow: auto;
+  }
+  #lightbox-img {
+    max-width: 92vw; max-height: 88vh;
+    transition: transform 0.18s ease;
+    cursor: zoom-in;
+    user-select: none; -webkit-user-drag: none;
+  }
+  .lightbox-controls {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 6px 8px;
+    background: rgba(40,40,40,0.85); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    z-index: 5001;
+  }
+  .lb-btn {
+    background: none; border: 1px solid rgba(255,255,255,0.18);
+    color: #fff; cursor: pointer; padding: 6px 12px; border-radius: 5px;
+    font-family: inherit; font-size: 13px; min-width: 34px;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .lb-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); }
+  #lightbox-zoom-label { color: #ccc; font-size: 11.5px; padding: 6px 4px; min-width: 50px; text-align: center; }
+  #lightbox-close-corner {
+    position: fixed; top: 18px; right: 22px; background: rgba(40,40,40,0.85);
+    backdrop-filter: blur(8px); color: #fff; border: 1px solid rgba(255,255,255,0.18);
+    cursor: pointer; padding: 8px 14px; border-radius: 6px; font-size: 16px; z-index: 5001;
+    transition: background 0.12s;
+  }
+  #lightbox-close-corner:hover { background: rgba(60,60,60,0.95); }
+
+  /* ── DOCUMENTATION VIEW ── */
+  #view-docview { padding: 0; }
+  #docview-wrap {
+    display: flex; gap: 0;
+    width: 100%; min-height: calc(100vh - 52px);
+  }
+  #docview-outline {
+    width: 260px; min-width: 260px; flex-shrink: 0;
+    border-right: 1.5px solid var(--border);
+    background: var(--bg-sidebar);
+    padding: 24px 18px;
+    position: sticky; top: 52px;
+    height: calc(100vh - 52px); overflow-y: auto;
+  }
+  .dv-outline-heading { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mid); font-weight: 700; margin-bottom: 12px; }
+  .dv-out-parent {
+    font-size: 13px; font-weight: 600; color: var(--black);
+    padding: 5px 6px; border-radius: 4px; cursor: pointer;
+    margin-bottom: 1px;
+    transition: background 0.1s;
+  }
+  .dv-out-parent:hover { background: var(--hover-bg); }
+  .dv-out-children { padding-left: 14px; margin-bottom: 6px; }
+  .dv-out-child {
+    font-size: 12px; color: var(--text-body); padding: 4px 6px;
+    border-radius: 4px; cursor: pointer; margin-bottom: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: background 0.1s, color 0.1s;
+  }
+  .dv-out-child:hover { background: var(--hover-bg); color: var(--black); }
+
+  #docview-content {
+    flex: 1; padding: 32px 48px 80px;
+    overflow-x: hidden; min-width: 0;
+  }
+  .dv-title-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 14px; border-bottom: 1.5px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .dv-title { font-size: 24px; font-weight: 700; }
+  .dv-title-meta { font-size: 12px; color: var(--mid); }
+
+  .dv-section {
+    margin-bottom: 32px;
+    border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden;
+  }
+  .dv-section-header {
+    padding: 14px 18px; background: var(--bg-card-head);
+    border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .dv-section-num { font-size: 12px; color: var(--mid); font-weight: 600; letter-spacing: 0.1em; }
+  .dv-section-title { font-size: 17px; font-weight: 700; color: var(--black); flex: 1; }
+  .dv-section-body { padding: 14px 18px 18px; }
+  .dv-section-desc { font-size: 13.5px; color: var(--text-body); line-height: 1.6; padding: 6px 0 12px; }
+
+  .dv-entry {
+    border-top: 1px dashed var(--border); padding: 14px 0;
+  }
+  .dv-entry:first-child { border-top: none; padding-top: 4px; }
+  .dv-entry-head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  }
+  .dv-entry-num { font-size: 11px; color: var(--mid); font-weight: 600; letter-spacing: 0.08em; }
+  .dv-entry-title { font-size: 14.5px; font-weight: 700; color: var(--black); flex: 1; }
+  .dv-entry-actions { display: flex; gap: 4px; }
+  .dv-entry-edit-btn, .dv-entry-toggle-btn {
+    background: none; border: 1px solid var(--border); cursor: pointer;
+    color: var(--mid); font-size: 10.5px; padding: 2px 7px;
+    border-radius: 3px; font-family: inherit;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .dv-entry-edit-btn:hover, .dv-entry-toggle-btn:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  .dv-entry-content {
+    font-size: 13.5px; line-height: 1.65; color: var(--text-body);
+    padding-left: 4px;
+  }
+  .dv-entry-content table { border-collapse: collapse; margin: 6px 0; font-size: 12.5px; }
+  .dv-entry-content th, .dv-entry-content td { border: 1px solid var(--border); padding: 5px 9px; }
+  .dv-entry-content th { background: var(--bg-th); font-weight: 700; }
+  .dv-entry-content ul, .dv-entry-content ol { margin: 6px 0 6px 20px; }
+  .dv-entry-content img { max-width: 100%; border-radius: 4px; cursor: pointer; }
+
+  .dv-add-entry-btn {
+    display: block; width: 100%; padding: 9px;
+    border: 1.5px dashed var(--border); border-radius: 6px;
+    background: none; color: var(--mid); font-family: inherit; font-size: 12.5px;
+    cursor: pointer; margin-top: 12px;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .dv-add-entry-btn:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  .dv-edit-controls {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+
+  /* ── TOAST ── */
+  #save-toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: #1a1a1a; color: #fff;
+    padding: 8px 18px; border-radius: 20px; font-size: 12.5px;
+    z-index: 9999; opacity: 0; pointer-events: none;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  body.dark #save-toast { background: #e8e8e6; color: #111; }
+  #save-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* ── FIREBASE STATUS DOT ── */
+  #fb-status-dot {
+    position: absolute; top: 4px; right: 4px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #aaa; pointer-events: none;
+  }
+  #fb-status-dot.connected { background: #2bb24a; box-shadow: 0 0 4px rgba(43,178,74,0.5); }
+  #fb-status-dot.offline { background: #c0392b; }
+  #team-btn { position: relative; }
+
+  /* ── TEAM DIRECTORY MODAL ── */
+  #team-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(13,13,13,0.55); z-index: 2500;
+    align-items: flex-start; justify-content: center;
+    padding: 48px 24px 24px;
+  }
+  body.dark #team-modal-overlay { background: rgba(0,0,0,0.72); }
+  #team-modal-overlay.open { display: flex; }
+  #team-modal {
+    background: var(--bg-modal); border: 1.5px solid var(--border);
+    border-radius: 10px; width: 100%; max-width: 1080px;
+    max-height: 88vh; display: flex; flex-direction: column;
+    box-shadow: var(--shadow-modal); animation: modal-in 0.18s ease;
+  }
+  #team-modal-header {
+    padding: 18px 24px; border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  }
+  #team-modal-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  #team-modal-actions { display: flex; gap: 8px; }
+  #team-modal-body { overflow-y: auto; padding: 20px 24px 28px; flex: 1; }
+
+  .team-roster-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .tm-card {
+    border: 1.5px solid var(--border); border-radius: 8px;
+    padding: 14px; background: var(--bg-card-head); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 8px; transition: border-color 0.12s, transform 0.12s;
+    position: relative; min-height: 200px;
+  }
+  .tm-card:hover { border-color: var(--black); transform: translateY(-2px); }
+  .tm-card-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    overflow: hidden; background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--mid); flex-shrink: 0;
+  }
+  .tm-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .tm-card-name { font-size: 14px; font-weight: 700; color: var(--black); line-height: 1.3; }
+  .tm-card-slack { font-size: 12px; color: var(--mid); }
+  .tm-card-projects { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+  .tm-card-project-chip {
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    background: var(--admin-accent-light); color: var(--admin-accent); font-weight: 600;
+  }
+  .tm-add-card {
+    border: 1.5px dashed var(--border); border-radius: 8px;
+    padding: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 200px; font-size: 14px; color: var(--mid);
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .tm-add-card:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  /* Team member detail */
+  #tm-detail-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(13,13,13,0.62); z-index: 2600;
+    align-items: flex-start; justify-content: center;
+    padding: 32px 20px;
+  }
+  body.dark #tm-detail-overlay { background: rgba(0,0,0,0.78); }
+  #tm-detail-overlay.open { display: flex; }
+  #tm-detail {
+    background: var(--bg-modal); border: 1.5px solid var(--border);
+    border-radius: 10px; width: 100%; max-width: 640px;
+    max-height: 90vh; display: flex; flex-direction: column;
+    box-shadow: var(--shadow-modal); animation: modal-in 0.18s ease;
+  }
+  .tm-detail-header {
+    padding: 14px 20px; border-bottom: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg-card-head);
+  }
+  .tm-detail-title { font-size: 14px; font-weight: 700; }
+  .tm-detail-mode-toggle {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    padding: 4px 12px; cursor: pointer; color: var(--black);
+    font-family: inherit; font-size: 12px;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .tm-detail-mode-toggle:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+  .tm-detail-mode-toggle.editing { background: var(--admin-accent); color: #fff; border-color: var(--admin-accent); }
+
+  .tm-detail-body { overflow-y: auto; padding: 20px 22px; flex: 1; }
+
+  .tm-avatar-edit {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .tm-avatar-big {
+    width: 110px; height: 110px; border-radius: 50%;
+    overflow: hidden; background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--mid);
+  }
+  .tm-avatar-big img { width: 100%; height: 100%; object-fit: cover; }
+  .tm-avatar-buttons { display: flex; gap: 6px; }
+
+  .tm-field { margin-bottom: 12px; }
+  .tm-field-label {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--mid); font-weight: 700; margin-bottom: 3px;
+  }
+  .tm-field-required::after { content: ' *'; color: #c0392b; }
+  .tm-field-desc { font-size: 11px; color: var(--mid); font-style: italic; margin-bottom: 5px; }
+  .tm-field-value { font-size: 14px; color: var(--text-body); line-height: 1.5; }
+  .tm-field-value.empty { color: var(--mid); font-style: italic; }
+
+  .tm-chips {
+    display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    min-height: 28px;
+  }
+  .tm-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 12px;
+    background: var(--admin-accent-light); color: var(--admin-accent);
+    font-size: 12px; font-weight: 600;
+  }
+  .tm-chip-x {
+    background: none; border: none; cursor: pointer; color: var(--admin-accent);
+    font-size: 14px; line-height: 1; padding: 0 0 0 2px;
+  }
+  .tm-chip-x:hover { color: #c0392b; }
+  .tm-chip-input {
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font-family: inherit; font-size: 12px;
+    background: var(--bg-form-input); color: var(--black); outline: none;
+    min-width: 110px;
+  }
+  .tm-chip-input:focus { border-color: var(--black); }
+
+  .tm-schedule-row { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 8px; }
+
+  .tm-badge-placeholder {
+    padding: 10px 12px; border: 1px dashed var(--border); border-radius: 5px;
+    color: var(--mid); font-size: 12px; font-style: italic; text-align: center;
+    background: var(--bg-card-head);
+  }
+
+  .tm-detail-footer {
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; gap: 10px;
+  }
+
+  /* ── SYNONYMS EDITOR MODAL ── */
+  .syn-group-row {
+    display: flex; gap: 6px; align-items: flex-start;
+    padding: 8px; border: 1px solid var(--border); border-radius: 5px;
+    margin-bottom: 6px; background: var(--bg-card-head);
+  }
+  .syn-group-input {
+    flex: 1; font-family: inherit; font-size: 12.5px;
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-form-input); color: var(--black);
+    outline: none; resize: vertical; min-height: 32px;
+  }
+  .syn-group-input:focus { border-color: var(--black); }
+  .syn-del-btn {
+    background: none; border: 1px solid #e0b0ac; color: #c0392b;
+    padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .syn-del-btn:hover { background: #fdf0f0; }
+  body.dark .syn-del-btn:hover { background: #2a0a0a; }
+  .syn-help {
+    background: var(--admin-accent-light); padding: 10px 14px;
+    border-radius: 5px; font-size: 12px; line-height: 1.5; margin-bottom: 12px;
+    color: var(--text-body);
+  }
+
+  /* Mobile tweaks */
+  @media (max-width: 600px) {
+    .team-roster-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .tm-schedule-row { grid-template-columns: 1fr; }
+  }
+
+  /* Responsive */
+  @media (max-width: 760px) {
+    #docview-outline { display: none; }
+    #docview-content { padding: 20px 16px 60px; }
+    #view-section, #view-entry { padding: 24px 18px 60px; }
+    #top-bar { padding: 0 12px; }
+    .breadcrumb { font-size: 12px; }
+    .hero-title { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<aside id="sidebar">
+  <div id="sidebar-logo">
+    <div id="sidebar-logo-text" class="sidebar-collapsible">
+      <div class="studio-label">Mega Cat Studios</div>
+      <h1 onclick="showHome()">VL Dashboard</h1>
+    </div>
+    <button class="icon-btn sidebar-collapsible" onclick="toggleDark()" id="dark-btn" title="Toggle dark mode">
+      <svg id="dark-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="icon-btn sidebar-collapsible" onclick="openTeamDirectory()" id="team-btn" title="Team Directory">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span id="fb-status-dot"></span>
+    </button>
+    <button class="icon-btn" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="admin-banner" onclick="exitAdminMode()" title="Click to exit Admin Mode">
+    Admin Mode — Click to Exit
+  </div>
+
+  <div class="sidebar-scroll sidebar-collapsible">
+    <div id="sidebar-sections-container"></div>
+  </div>
+
+  <div id="admin-toolbar" class="sidebar-collapsible">
+    <button class="admin-tool-btn btn-admin" onclick="showDocView()" style="color:#fff;border-color:var(--admin-accent);background:var(--admin-accent)">📑 Documentation View</button>
+    <button class="admin-tool-btn" onclick="openSynonymsEditor()" title="Manage search synonyms">🧠 Manage Synonyms</button>
+    <div class="admin-tool-row">
+      <button class="admin-tool-btn" onclick="exportData()" title="Download backup">↓ Export</button>
+      <button class="admin-tool-btn" onclick="document.getElementById('import-file').click()" title="Upload backup">↑ Import</button>
+    </div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
+  </div>
+
+  <div id="sidebar-bottom" class="sidebar-collapsible">
+    <button id="admin-btn" onclick="openAdminAuth()">
+      <span id="admin-btn-icon">🔒</span>
+      <span id="admin-btn-text">Admin Mode</span>
+      <span class="admin-badge">Active</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main id="main">
+  <div id="top-bar">
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <button id="search-trigger" onclick="openSearchModal()" title="Search (/)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Search
+      <span class="search-shortcut">/</span>
+    </button>
+  </div>
+
+  <!-- HOME VIEW -->
+  <div id="view-home" class="view active">
+    <div class="hero-label">Visual Leads Department · Mega Cat Studios</div>
+    <h2 class="hero-title">VL Dashboard</h2>
+    <p class="hero-sub">Browse the Visual Leads Handbook from the sidebar, or search for anything below.</p>
+
+    <div id="whats-new"></div>
+
+    <div id="search-wrap">
+      <input id="search-input" type="text"
+        placeholder="Search the handbook…"
+        autocomplete="off" onkeydown="if(event.key==='Enter') runHomeSearch()" />
+      <button id="search-btn-home" onclick="runHomeSearch()" title="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- SECTION VIEW -->
+  <div id="view-section" class="view">
+    <div class="section-inner">
+      <div class="section-num-label" id="sv-num">Section</div>
+      <h1 class="section-title" id="sv-title">Title</h1>
+      <p class="section-desc" id="sv-desc"></p>
+      <div class="section-actions">
+        <button class="btn btn-secondary" onclick="openSectionEditor(currentSectionNum)">⚙ Edit Section Info</button>
+      </div>
+      <div class="section-card-grid" id="sv-grid"></div>
+    </div>
+  </div>
+
+  <!-- ENTRY VIEW -->
+  <div id="view-entry" class="view">
+    <div class="entry-inner">
+      <button class="entry-back" id="ev-back" onclick="backToSection()">← Back</button>
+      <div class="entry-id-label" id="ev-id">Entry</div>
+      <h1 class="entry-title" id="ev-title">Title</h1>
+      <div class="entry-actions">
+        <button class="btn btn-secondary" onclick="openEntryEditor(currentEntryId)">✎ Edit Entry</button>
+      </div>
+      <div class="entry-content" id="ev-content"></div>
+    </div>
+  </div>
+
+  <!-- DOCUMENTATION VIEW (admin) -->
+  <div id="view-docview" class="view">
+    <div id="docview-wrap">
+      <aside id="docview-outline"></aside>
+      <div id="docview-content"></div>
+    </div>
+  </div>
+</main>
+
+<!-- ── SEARCH MODAL ── -->
+<div id="search-modal-overlay" onclick="maybeCloseSearchModal(event)">
+  <div id="search-modal">
+    <div class="search-modal-header">
+      <input id="search-modal-input" type="text" placeholder="Search the handbook…"
+             onkeydown="if(event.key==='Enter') performSearchModal(); if(event.key==='Escape') closeSearchModal()" />
+      <button id="search-modal-close" onclick="closeSearchModal()" title="Close (Esc)">✕</button>
+    </div>
+    <div id="search-modal-body">
+      <div id="results-count"></div>
+      <div id="results-list"></div>
+      <button id="add-entry-btn-modal" onclick="openNewEntryEditor()">＋ Add New Handbook Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PASSWORD MODAL ── -->
+<div id="pwd-modal-overlay" class="admin-modal-overlay" onclick="maybeClosePwd(event)">
+  <div class="admin-modal" style="max-width:400px" id="pwd-modal">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">Admin Access <span class="admin-tag">Protected</span></div>
+      <button class="admin-modal-close" onclick="closePwdModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="lock-icon">🔐</div>
+      <div class="pwd-title">Enter Admin Password</div>
+      <div class="pwd-sub">Edit handbook entries, add new content, post announcements, and access Documentation View.</div>
+      <input id="pwd-input" type="password" placeholder="Password"
+             onkeydown="if(event.key==='Enter')checkPassword()" autocomplete="off" />
+      <div id="pwd-error"></div>
+    </div>
+    <div class="admin-modal-footer" style="justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closePwdModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="checkPassword()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ENTRY EDITOR MODAL ── -->
+<div id="entry-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseEntry(event)">
+  <div class="admin-modal" style="max-width:720px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="entry-modal-title-text">Edit Entry</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeEntryModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-field">
+          <label class="form-label">Section</label>
+          <select class="form-select" id="ef-section-select" onchange="onSectionSelectChange()"></select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Entry ID</label>
+          <input class="form-input" id="ef-id" type="text" placeholder="e.g. 1.3" />
+          <span class="form-hint">Format: sectionNum.position (auto-suggested for new entries)</span>
+        </div>
+      </div>
+      <div class="form-field" id="ef-new-section-group" style="display:none">
+        <label class="form-label">New Section Number & Title</label>
+        <div style="display:grid;grid-template-columns:80px 1fr;gap:8px">
+          <input class="form-input" id="ef-new-section-num" type="text" placeholder="17" />
+          <input class="form-input" id="ef-new-section-title" type="text" placeholder="New Section Title" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Entry Title</label>
+        <input class="form-input" id="ef-title" type="text" placeholder="Entry title" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Keywords</label>
+        <input class="form-input" id="ef-keywords" type="text" placeholder="keyword one, keyword two…" />
+        <span class="form-hint">Comma-separated. Used by the search engine.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Content</label>
+        <div class="rt-wrap">
+          <div class="rt-toolbar" id="ef-rt-toolbar"></div>
+          <div class="rt-editor" id="ef-content-editor" contenteditable="true" data-placeholder="Write the entry content…"></div>
+        </div>
+        <span class="form-hint">Use the toolbar to format text. Paste images from clipboard or click 🖼 to upload.</span>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-entry-btn" onclick="deleteCurrentEntry()">Delete Entry</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeEntryModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEntry()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION EDITOR MODAL ── -->
+<div id="section-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSection(event)">
+  <div class="admin-modal" style="max-width:540px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="section-modal-title-text">Edit Section</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSectionModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Section Number</label>
+        <input class="form-input" id="sef-num" type="text" placeholder="e.g. 1" />
+        <span class="form-hint">Renaming changes how this section appears and groups its entries.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Section Title</label>
+        <input class="form-input" id="sef-title" type="text" placeholder="Section title" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="sef-desc" rows="4" placeholder="Brief description shown on the section page."></textarea>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-section-btn" onclick="deleteCurrentSection()">Delete Section</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSectionModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSection()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SIDEBAR-ITEM EDITOR (Quick Links / Team Directory) ── -->
+<div id="si-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSI(event)">
+  <div class="admin-modal" style="max-width:460px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">Edit Sidebar Link <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSIModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Display Text</label>
+        <input class="form-input" id="si-text" type="text" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">URL <span style="font-weight:400;text-transform:none">(leave blank for placeholder)</span></label>
+        <input class="form-input" id="si-href" type="text" placeholder="https://..." />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Visibility</label>
+        <select class="form-select" id="si-visible">
+          <option value="true">Visible</option>
+          <option value="false">Hidden (admin only)</option>
+        </select>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" onclick="deleteSidebarItem()">Remove</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSIModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSidebarItem()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ANNOUNCEMENT EDITOR ── -->
+<div id="ann-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseAnn(event)">
+  <div class="admin-modal" style="max-width:500px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="ann-modal-title-text">New Announcement</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeAnnModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Message</label>
+        <textarea class="form-textarea" id="ann-text-input" rows="4" placeholder="Announcement message…"></textarea>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Author / Tag <span style="font-weight:400;text-transform:none">(optional)</span></label>
+        <input class="form-input" id="ann-author-input" type="text" placeholder="e.g. Piper, AD…" />
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-ann-btn" onclick="deleteCurrentAnn()">Delete</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeAnnModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveAnn()">Post</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LIGHTBOX ── -->
+<div id="lightbox-overlay" onclick="maybeCloseLightbox(event)">
+  <div id="lightbox-stage" id="lightbox-stage">
+    <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()" />
+  </div>
+  <button id="lightbox-close-corner" onclick="closeLightbox()" title="Close (Esc)">✕ Close</button>
+  <div class="lightbox-controls" onclick="event.stopPropagation()">
+    <button class="lb-btn" onclick="zoomLightbox(-0.25)" title="Zoom out (-)">−</button>
+    <div id="lightbox-zoom-label">100%</div>
+    <button class="lb-btn" onclick="zoomLightbox(0.25)" title="Zoom in (+)">+</button>
+    <button class="lb-btn" onclick="resetLightboxZoom()" title="Reset zoom (0)">Reset</button>
+  </div>
+</div>
+
+<!-- ── TEAM DIRECTORY MODAL ── -->
+<div id="team-modal-overlay" onclick="maybeCloseTeamModal(event)">
+  <div id="team-modal">
+    <div id="team-modal-header">
+      <div id="team-modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        Team Directory
+      </div>
+      <div id="team-modal-actions">
+        <button class="btn btn-primary" onclick="openNewTeamMember()">＋ Add Team Member</button>
+        <button class="btn btn-secondary" onclick="closeTeamModal()">Close</button>
+      </div>
+    </div>
+    <div id="team-modal-body">
+      <div class="team-roster-grid" id="team-roster-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TEAM MEMBER DETAIL MODAL ── -->
+<div id="tm-detail-overlay" onclick="maybeCloseTmDetail(event)">
+  <div id="tm-detail">
+    <div class="tm-detail-header">
+      <div class="tm-detail-title" id="tm-detail-title">Team Member</div>
+      <div style="display:flex;gap:6px">
+        <button class="tm-detail-mode-toggle" id="tm-mode-btn" onclick="toggleTmEditMode()">✎ Edit</button>
+        <button class="admin-modal-close" onclick="closeTmDetail()">✕</button>
+      </div>
+    </div>
+    <div class="tm-detail-body" id="tm-detail-body"></div>
+    <div class="tm-detail-footer">
+      <button class="btn btn-danger" id="tm-delete-btn" onclick="deleteCurrentTm()" style="display:none">Delete Profile</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-secondary" onclick="closeTmDetail()">Close</button>
+        <button class="btn btn-primary" id="tm-save-btn" onclick="saveTm()" style="display:none">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SYNONYMS EDITOR MODAL ── -->
+<div id="syn-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSyn(event)">
+  <div class="admin-modal" style="max-width:760px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">🧠 Manage Search Synonyms <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSynModal()">✕</button>
+    </div>
+    <div class="admin-modal-body" style="max-height:65vh">
+      <div class="syn-help">
+        Each row is a <strong>group of related/equivalent terms</strong>. When a user searches for any term in a group, the others get boosted as concept matches. The first term is just convention — order doesn't matter.<br>
+        <strong>Auto-extension:</strong> every handbook entry's <em>keywords</em> are also treated as a synonym group automatically, so you mainly need to add cross-section concept bridges here.
+      </div>
+      <div id="syn-groups-list"></div>
+      <button class="admin-add-btn" style="display:block" onclick="addSynGroup()">＋ Add New Synonym Group</button>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-secondary" onclick="resetSynonymsToDefault()">↺ Reset to Defaults</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSynModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSynonyms()">Save Synonyms</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="save-toast">Changes saved</div>
+
+<script>
+/* ══════════════════════════════════════════
+   DEFAULT DATA
+   ══════════════════════════════════════════ */
+const DEFAULT_SECTIONS = [
+  { num:'1',  title:'What is a Visual Lead?',                description:'An overview of the Visual Lead role — its mission, core pillars, and place within Mega Cat Studios.' },
+  { num:'2',  title:'Role Structure & Authority',            description:'How the VL relates to the Art Director, what decisions VLs own independently, and when to escalate.' },
+  { num:'3',  title:'Core Responsibilities',                 description:'The full scope of VL work: vision-setting, art team leadership, production collaboration, and technical alignment.' },
+  { num:'4',  title:'Task Frequency Reference',              description:'A quick-reference table showing how often each core VL task recurs — always, daily, weekly, or per milestone.' },
+  { num:'5',  title:'Project Phase Responsibilities',        description:'What VLs are responsible for at each project phase: pitching, pre-production, production, and post-production.' },
+  { num:'6',  title:'Onboarding to a New Project',           description:'How to set yourself up for success when joining a project — whether at kick-off or mid-production.' },
+  { num:'7',  title:'Art Bible Standards',                   description:'What an Art Bible contains, how to maintain it, and how to give consistent, direction-based feedback on art assets.' },
+  { num:'8',  title:'Defending Direction & Handling Feedback', description:'How to build a defensible case for a visual direction, respond to pushback, and recognize when a change is warranted.' },
+  { num:'9',  title:'Direction Changes Mid-Production',      description:'The formal process for identifying, evaluating, and implementing a directional change without disrupting the team.' },
+  { num:'10', title:'Communication Standards',               description:'Check-in cadence, when to call vs. use async, and how to keep communication clear across distributed teams.' },
+  { num:'11', title:'Pipelines & Workflows',                 description:'How production plans, goalsets, asset reviews, and build reviews are structured and executed.' },
+  { num:'12', title:'Goal Setting & Task Management',        description:'Using the SMART framework for task delegation and the Pulse Sheet system for personal task tracking.' },
+  { num:'13', title:'Meetings & Reporting',                  description:'The standing weekly format, postmortem structure, and how reporting flows from the VL level upward.' },
+  { num:'14', title:'Art Standards Reference',               description:'Evaluation criteria for each visual discipline: Character, Environment, UI, VFX, Cinematography, and Animation.' },
+  { num:'15', title:'KPI & Performance',                     description:'The four KPI categories used in quarterly performance reviews for Visual Leads.' },
+  { num:'16', title:'Resources & Tools',                     description:'Department document links and the core tools used day-to-day: Gyazo, OBS, Google Sheets, Figma, Draw.io.' }
+];
+
+const DEFAULT_HANDBOOK = [
+  { id:"1.1", section:"1. What is a Visual Lead?", title:"The Mission",
+    keywords:["visual lead","what is","mission","role","overview","definition","vl","purpose"],
+    content:`A Visual Lead (VL) helps guide and maintain the visual direction of a project from concept through final implementation. The role focuses on ensuring that the game's artistic identity remains clear, cohesive, and aligned across all visual elements and pipelines involved in development.<br><br>VLs work closely with artists, production, design, and other departments to help translate creative goals into a consistent player experience. They are expected to remain open to collaboration, iteration, and production realities as projects evolve.`
+  },
+  { id:"1.2", section:"1. What is a Visual Lead?", title:"The Five Pillars of the Role",
+    keywords:["pillars","responsibilities overview","what does vl do","vl duties","five pillars"],
+    content:`<ul><li>Helping define and maintain the project's visual direction and artistic standards</li><li>Collaborating with Production, Design, and other departments to align creative and production goals</li><li>Setting visual goals, references, and expectations for art deliverables</li><li>Reviewing assets and providing constructive feedback to maintain consistency and quality</li><li>Supporting the team through communication, problem-solving, and occasional hands-on contribution</li><li>Representing and communicating the project's visual direction across teams and discussions</li></ul>`
+  },
+  { id:"2.1", section:"2. Role Structure & Authority", title:"Visual Lead and Art Director Relationship",
+    keywords:["art director","ad","relationship","vl vs ad","escalation","oversight","hierarchy","authority"],
+    content:`Visual Leads guide the visual direction of their assigned projects day-to-day. The Art Director (AD) provides broader oversight across projects and ensures alignment with studio-wide standards.<br><br>The relationship is <strong>collaborative, not approval-driven</strong>. Not every decision requires AD escalation — VLs are expected to exercise ownership and communicate proactively when additional alignment is needed.`
+  },
+  { id:"2.2", section:"2. Role Structure & Authority", title:"Decision Authority",
+    keywords:["decision","authority","who decides","escalate","sign off","ownership","approval","vl owns"],
+    content:`<table><tr><th>Decision Type</th><th>VL Owns</th><th>Escalates to AD</th></tr><tr><td>Asset feedback and approval</td><td>Primary reviewer and approver</td><td>Not typically required</td></tr><tr><td>Art bible creation and updates</td><td>Leads creation and maintenance</td><td>Consulted for major directional changes</td></tr><tr><td>Handling pushback on visual direction</td><td>Leads discussions within project scope</td><td>Available for support when needed</td></tr><tr><td>Directional changes during production</td><td>Collaborates on adjustments</td><td>Kept informed on significant changes</td></tr><tr><td>Large scope or pipeline risks</td><td>Identifies concerns, raises them proactively</td><td>Included in resolution planning</td></tr><tr><td>Cross-project pipeline changes</td><td>May propose improvements</td><td>Exec Producer reviews</td></tr></table>`
+  },
+  { id:"3.1", section:"3. Core Responsibilities", title:"Vision and Direction",
+    keywords:["vision","direction","art direction bible","creative pillars","color","lighting","benchmarks","visual identity"],
+    content:`<ul><li>Collaborating with Producers and project leadership during pre-production to define the game's visual identity</li><li>Developing and maintaining the Art Direction Bible and related visual reference materials</li><li>Establishing creative pillars and visual guidelines that support consistent artistic decision-making</li><li>Guiding lighting, color, composition, mood, and overall presentation</li><li>Researching comparable titles or references to inform visual direction and production goals</li><li>Setting and communicating clear visual benchmarks and expectations before and during production</li></ul>`
+  },
+  { id:"3.2", section:"3. Core Responsibilities", title:"Art Team Leadership",
+    keywords:["art team","leadership","mentoring","feedback","artists","subteams","2d","3d","ui","vfx","concept art"],
+    content:`<ul><li>Supporting and coordinating with art subteams: UI, VFX, 2D, 3D, and Concept Art</li><li>Guiding artists on visual tone, atmosphere, environments, characters, and key presentation moments</li><li>Providing constructive, actionable, and consistent feedback on assets and deliverables</li><li>Mentoring and supporting artists in direction, workflow, and artistic development</li><li>Identifying workflow or direction-related challenges early and helping coordinate solutions</li></ul>`
+  },
+  { id:"3.3", section:"3. Core Responsibilities", title:"Production Collaboration & Role Alignment",
+    keywords:["producer","production","collaboration","producer vs vl","vl vs producer","difference","role alignment","art producer","who owns","responsibilities split","collaborating with producers"],
+    content:`<strong>Visual Lead responsibilities:</strong><ul><li>Defining visual goals and milestone expectations</li><li>Preparing asset request lists with references, specifications, and creative context</li><li>Reviewing and approving visual requests before implementation or production</li><li>Communicating artistic priorities, concerns, and project goals to Production and the Art Team</li><li>Raising concerns when timelines or production decisions may negatively affect visual quality</li></ul><strong>Production / Art Producer responsibilities:</strong><ul><li>Managing production schedules, tracking, and coordination</li><li>Providing ETAs, feasibility checks, and scope assessments</li><li>Monitoring blockers, delivery progress, and production risks</li><li>Supporting manpower allocation and workflow planning</li></ul><em>Note: Both roles are expected to collaborate closely and support one another.</em>`
+  },
+  { id:"3.4", section:"3. Core Responsibilities", title:"Creative-Technical Alignment",
+    keywords:["technical","engineering","tech art","feasibility","performance","engine constraints","build review","playtesting","technical limitations"],
+    content:`<ul><li>Collaborating with Engineering and Tech Art teams to assess feasibility before major directions are finalized</li><li>Balancing artistic ambition with engine constraints, performance considerations, and production realities</li><li>Participating in build reviews and playtesting to evaluate visual clarity and player experience</li><li>Communicating technical limitations and implementation considerations clearly to the art team</li></ul>`
+  },
+  { id:"4", section:"4. Task Frequency Reference", title:"How Often Each Core Task Occurs",
+    keywords:["frequency","how often","daily","weekly","monthly","task list","art bible","moodboard","style guide","review","sprint","kpi"],
+    content:`<table><tr><th>Task</th><th>VL</th><th>AD</th></tr><tr><td>Establish art pipelines</td><td>Always</td><td>Review basis</td></tr><tr><td>Unified art bible</td><td>Always</td><td>Always</td></tr><tr><td>Moodboarding and concept documentation</td><td>Always</td><td>Review basis</td></tr><tr><td>Art production plans (all pipelines)</td><td>Always</td><td>Review basis</td></tr><tr><td>Style guides (VFX, 3D, 2D, UI)</td><td>Always</td><td>When needed</td></tr><tr><td>Task delegation to art team</td><td>Daily</td><td>Daily</td></tr><tr><td>Asset reviews (all pipelines)</td><td>Daily</td><td>Occasionally</td></tr><tr><td>Weekly sync</td><td>Weekly</td><td>Weekly</td></tr><tr><td>Project playtesting</td><td>Per milestone</td><td>Per milestone</td></tr><tr><td>KPI evaluations</td><td>Not needed</td><td>Quarterly</td></tr></table>`
+  },
+  { id:"5.1", section:"5. Project Phase Responsibilities", title:"Pitching Phase",
+    keywords:["pitch","pitching","early","initial","concept","pre-production start","art direction start"],
+    content:`During the pitching phase, Visual Leads help establish the project's early visual identity and creative direction:<ul><li>Defining the project's initial art direction and creative pillars</li><li>Preparing early concept documentation: style guides, environment references, character direction, visual mood references</li><li>Assisting in the creation of an early Art Direction Bible or equivalent reference material</li><li>Creating visual mockups, compositions, and presentation materials</li><li>Conducting reference research and comparative visual studies to support the pitch direction</li></ul>`
+  },
+  { id:"5.2", section:"5. Project Phase Responsibilities", title:"Pre-Production Phase",
+    keywords:["pre-production","preproduction","before production","planning phase","milestone expectations","asset request","pipeline"],
+    content:`During pre-production, the VL refines, organizes, and validates the project's visual direction before full production begins:<ul><li>Updating and refining the Art Direction Bible and related visual documentation</li><li>Defining visual goals, quality targets, and milestone expectations for production</li><li>Preparing initial asset request lists with references, specifications, and implementation notes</li><li>Collaborating with stakeholders to review mockups, prototypes, and early visual test cases</li><li>Coordinating with Production and other departments to establish workflows and pipeline expectations</li></ul><em>Note: Production feasibility assessments and timeline projections are typically handled in collaboration with Production or Art Producers.</em>`
+  },
+  { id:"5.3", section:"5. Project Phase Responsibilities", title:"Production Phase (Vertical Slice through Beta)",
+    keywords:["production","vertical slice","alpha","beta","content lock","mid-production","pre-alpha","ongoing","milestones","build review","PEQA"],
+    content:`During production, the VL maintains artistic consistency, supports development workflows, and guides visual execution across milestones:<ul><li>Maintaining and updating visual documentation throughout development</li><li>Providing ongoing feedback on assets, scenes, UI, VFX, environments, and other visual deliverables</li><li>Participating in build reviews and playtesting sessions to evaluate visual quality and player experience</li><li>Submitting review notes, PEQA sheets, or other documentation tied to milestone evaluations</li><li>Coordinating with Engineering and Tech Art teams regarding implementation concerns and pipeline support</li></ul>`
+  },
+  { id:"5.4", section:"5. Project Phase Responsibilities", title:"Post-Production Phase",
+    keywords:["post-production","post production","dlc","launch","polish","post-launch","qa","release"],
+    content:`During post-production, the VL continues supporting through polish, feedback review, and content refinement:<ul><li>Reviewing and providing feedback on additional or post-launch content such as DLC, updates, or promotional assets</li><li>Evaluating player testing or focus group feedback related to visual presentation and usability</li><li>Coordinating with QA and Production on art-related bugs, polish tasks, or presentation issues</li><li>Supporting final visual refinements leading into release or post-launch support</li></ul>`
+  },
+  { id:"6.1", section:"6. Onboarding to a New Project", title:"Project Onboarding Checklist",
+    keywords:["onboarding","new project","checklist","starting","first steps","joining","fresh start","role scope"],
+    content:`All six steps must be completed before any directional calls are made to the team:<ol style="margin-left:18px"><li style="margin-bottom:6px"><strong>Confirm Role &amp; Scope</strong> — Clarify assigned projects, art subteams you support, key collaborators, and escalation pathways.</li><li style="margin-bottom:6px"><strong>Gather Relevant Project Documents</strong> — Art Direction Bible, Style Guides, GDDs, previous handoff notes.</li><li style="margin-bottom:6px"><strong>Identify Key Contacts &amp; Team Structure</strong> — Know your Producers, Art Leads, Engineering and Tech Art contacts.</li><li style="margin-bottom:6px"><strong>Review Current Project Status</strong> — Verify the project's current development phase with the team.</li><li style="margin-bottom:6px"><strong>Review Existing Visual Direction</strong> — Understand existing standards, workflows, and identify potential inconsistencies.</li><li style="margin-bottom:6px"><strong>Alignment &amp; Direction Confirmation</strong> — Confirm alignment with project leadership before communicating any directional changes.</li></ol>`
+  },
+  { id:"6.2", section:"6. Onboarding to a New Project", title:"Joining a Mid-Production Project",
+    keywords:["mid-production","joining","week 1","week 2","shadow","audit","new vl","transition","mid production"],
+    content:`Move through all four phases before making any directional calls. Resist the urge to direct anything in Week 1.<table><tr><th>Phase</th><th>What to Do</th></tr><tr><td><strong>Week 1: Shadow and Observe</strong></td><td>Join all standups without directing. Read every document. Map the team structure. Do not give feedback on assets yet.</td></tr><tr><td><strong>Week 2: Audit the Direction</strong></td><td>Identify gaps between the bible and what is actually being produced. Flag deviations in a written doc for AD review.</td></tr><tr><td><strong>Week 3: Propose and Align</strong></td><td>Present your direction read to the AD. Agree on what to hold and what to evolve. Update the bible to reflect current ratified direction.</td></tr><tr><td><strong>Week 4: Fully Operational</strong></td><td>Begin giving asset feedback and sign-offs. Run your first art sync as the VL. Confirm sign-off authority is communicated to the full team.</td></tr></table>`
+  },
+  { id:"7.1", section:"7. Art Bible Standards", title:"Typical Inclusions",
+    keywords:["art bible","inclusions","what goes in","bible contents","creative pillars","character design","environment","ui direction","vfx direction","cinematography","animation"],
+    content:`The Art Bible commonly includes:<ul><li><strong>Creative Pillars</strong> — Core artistic themes, goals, and guiding principles</li><li><strong>Character Design Direction</strong> — Color palettes, shape language, silhouettes, visual readability</li><li><strong>Environment Design Direction</strong> — Environmental themes, color direction, lighting references, post-processing</li><li><strong>UI Direction</strong> — Layout structures, wireframes, color usage, readability standards, component behavior</li><li><strong>VFX Direction</strong> — Visual themes, readability standards, optimization considerations</li><li><strong>Cinematography Direction</strong> — Framing, composition, camera behavior, shot references</li><li><strong>Animation Direction</strong> — Animation principles, workflow considerations, movement readability</li></ul>`
+  },
+  { id:"7.2", section:"7. Art Bible Standards", title:"Art Bible Maintenance",
+    keywords:["bible maintenance","update art bible","keeping bible current","art bible updates","evolve","revise"],
+    content:`The Art Bible is intended to evolve alongside the project. Visual Leads are primarily responsible for:<ul><li>Reviewing and updating outdated references or guidelines when needed</li><li>Communicating significant directional updates to relevant teams</li><li>Collaborating with stakeholders when major visual changes are proposed</li><li>Ensuring that updates and revisions are documented clearly for future reference</li></ul>Feedback or suggestions that differ from the current Art Bible should still be evaluated objectively and discussed constructively when appropriate.`
+  },
+  { id:"7.3", section:"7. Art Bible Standards", title:"Feedback Standards",
+    keywords:["feedback standards","giving feedback","constructive feedback","actionable feedback","art feedback","reviewing assets","revision notes"],
+    content:`When providing feedback on art assets or deliverables:<ul><li><strong>Objective &amp; Direction-Based</strong> — Feedback should align with the project's established goals, references, and artistic direction, not personal preference.</li><li><strong>Clear &amp; Actionable</strong> — Help artists understand what needs adjustment and why, with enough clarity to reduce unnecessary back-and-forth.</li><li><strong>Use Clear Terminology</strong> — Use consistent and commonly understood artistic or technical terminology.</li><li><strong>Reference-Supported</strong> — Include visual references, examples, or documentation that help clarify the intended direction.</li></ul>`
+  },
+  { id:"8.1", section:"8. Defending Direction & Handling Feedback", title:"Building a Case for a Direction",
+    keywords:["defending direction","building a case","justify direction","creative decision","direction argument","support direction","present direction"],
+    content:`Before presenting or reinforcing a visual direction, consider:<ul><li><strong>Does this align with the project's established creative pillars?</strong> Reference the Art Bible, visual goals, or existing project direction.</li><li><strong>Does this support the intended player experience?</strong> Consider readability, immersion, tone, and usability.</li><li><strong>Is the direction technically and production-wise achievable?</strong> Surface uncertainties early and discuss collaboratively.</li><li><strong>Is the direction aligned with stakeholder or client expectations?</strong> Clarify expectations early to reduce unnecessary revisions.</li></ul><strong>When explaining a direction:</strong> explain the creative goal it supports → provide visual references → clarify the player-facing outcome → acknowledge valid concerns → discuss possible adjustments.`
+  },
+  { id:"8.2", section:"8. Defending Direction & Handling Feedback", title:"Pushback Management & Sample Responses",
+    keywords:["pushback","handling pushback","pushback types","how to respond","client feedback","scope concern","subjective preference","pushback management","handle feedback"],
+    content:`<table><tr><th>Pushback Type</th><th>What It Usually Sounds Like</th><th>How to Respond</th></tr><tr><td>Subjective Preference</td><td>"I personally don't like this look."</td><td>Acknowledge respectfully. Evaluate whether the direction still aligns with creative pillars and goals.</td></tr><tr><td>Scope or Feasibility Concern</td><td>"This may take too long to implement."</td><td>Treat as a production/feasibility discussion. Coordinate with Production, Engineering, or relevant stakeholders.</td></tr><tr><td>Stakeholder or Client Feedback</td><td>"The client wants something different."</td><td>Clarify the feedback as specifically as possible. Assess how it aligns with project goals.</td></tr><tr><td>Direction or Consistency Concern</td><td>"This feels off-style" or "This doesn't match the established direction."</td><td>Review concern against the Art Bible and project standards objectively.</td></tr><tr><td>Unclear or General Pressure</td><td>"Can we just change it?"</td><td>Ask clarifying questions to understand the concern. Directional changes need clear goals and context.</td></tr></table>`
+  },
+  { id:"8.3", section:"8. Defending Direction & Handling Feedback", title:"When Direction Changes May Be Necessary",
+    keywords:["when to change direction","direction change","necessary change","pivot","evolve direction","user feedback","playtesting results"],
+    content:`Direction changes may become necessary when:<ul><li>New gameplay, technical, or platform requirements emerge</li><li>Playtesting, PEQA reviews, or user feedback reveal issues affecting player experience or clarity</li><li>Production realities significantly impact feasibility or implementation</li><li>Stakeholders identify concerns related to quality, consistency, or project goals</li><li>Additional references or benchmarks suggest opportunities for meaningful improvement</li></ul>`
+  },
+  { id:"9.1", section:"9. Direction Changes Mid-Production", title:"The Direction Change Process",
+    keywords:["direction change process","mid-production change","change process","steps","update bible","document change","direction update"],
+    content:`<table><tr><th>Step</th><th>Process</th></tr><tr><td>1. Concern Identified</td><td>A VL, team member, or stakeholder identifies feedback or implementation that may not align with the current documented direction.</td></tr><tr><td>2. Initial Review &amp; Evaluation</td><td>The VL reviews the concern alongside creative pillars, references, production context, and existing documentation.</td></tr><tr><td>3. Collaborative Discussion</td><td>Relevant team members discuss constructively using references, project context, and clear reasoning.</td></tr><tr><td>4. Decision Made</td><td>The team aligns on whether the current direction will remain as-is or if adjustments should be implemented.</td></tr><tr><td>5. Documentation Updates</td><td>If changes are approved, the Art Bible and related documentation are updated and communicated to the appropriate teams.</td></tr></table>`
+  },
+  { id:"10.1", section:"10. Communication Standards", title:"Team Check-In Cadence",
+    keywords:["check-in","checkin","standup","monday","wednesday","friday","weekly cadence","communication cadence","team updates"],
+    content:`<table><tr><th>Timing</th><th>What to Ask</th><th>What to Do With the Information</th></tr><tr><td><strong>Start of Week (Monday)</strong></td><td>Weekly goals, priorities, known blockers, planned leave or availability concerns</td><td>Align priorities and identify potential risks or support needs early in the week</td></tr><tr><td><strong>Midweek (Wednesday)</strong></td><td>Progress updates, new tasks, workflow concerns, blockers, or shifting priorities</td><td>Maintain visibility on ongoing work and identify areas needing support</td></tr><tr><td><strong>End of Week (Friday)</strong></td><td>Completed work, pending tasks, blockers encountered, or carry-over items</td><td>Review progress, identify recurring issues, and prepare for the following week</td></tr></table>`
+  },
+  { id:"10.2", section:"10. Communication Standards", title:"Calls vs. Async Communication",
+    keywords:["call vs async","when to call","async","slack","synchronous","asynchronous","meeting","screenshare","timezone"],
+    content:`<table><tr><th>Consider a Call When…</th><th>Consider Async When…</th></tr><tr><td>Finalizing milestone goals to delegate across teams</td><td>The agenda does not require live discussion</td></tr><tr><td>The issue is too complex for chat and needs a wider audience</td><td>The issue can be resolved in a couple of minutes</td></tr><tr><td>You need to screenshare for context</td><td>A short video recording covers what a screenshare would</td></tr><tr><td>The issue is escalating and everyone needs to be in the same room</td><td>You are delivering information that does not need a response</td></tr><tr><td>You need to instill confidence or raise morale across a team</td><td>The other person is in a different timezone and it is not urgent</td></tr></table>`
+  },
+  { id:"11.1", section:"11. Pipelines & Workflows", title:"Production Plans and Goalsets",
+    keywords:["production plan","goalset","milestone","visual goalset","asset request list","feasibility check","etas","art producer handoff"],
+    content:`<ul><li>VL defines the visual goalset for the milestone: what needs to ship, to what standard, and by when</li><li>VL creates asset request lists with visual specs, references, and requirements</li><li>VL hands the goalset to the art producer and requests ETAs and feasibility checks</li><li>Producer returns with feasibility assessment and agreed target dates</li><li>VL holds the producer accountable to those dates</li><li>VL flags any production decision that is visually infeasible or conflicts with the direction</li></ul>`
+  },
+  { id:"11.2", section:"11. Pipelines & Workflows", title:"Asset Review and Approval Flow",
+    keywords:["asset review","approval flow","sign off","art cat","art team lead","final approval","review checkpoint","asset approval"],
+    content:`<table><tr><th>Checkpoint</th><th>What Happens</th></tr><tr><td><strong>Art Cat</strong></td><td>Provides mid-shift and EOD previews to the VL so corrections happen early, not at final delivery.</td></tr><tr><td><strong>Art Team Lead</strong></td><td>First review checkpoint. Checks for technical and stylistic compliance before escalating to the VL.</td></tr><tr><td><strong>Visual Lead</strong></td><td>Final sign-off. Asset is only cleared for production use once the VL has approved it.</td></tr></table><em>Note: Assets that fail are returned with specific, actionable revision notes. The cycle loops back to the Art Cat until the asset clears the VL.</em>`
+  },
+  { id:"11.3", section:"11. Pipelines & Workflows", title:"Playtesting and Build Reviews",
+    keywords:["playtesting","build review","build","sprint end","integration","alpha","beta","visual peqa","peqa sheet"],
+    content:`Playtest and build reviews should happen:<ul><li><strong>Top priority:</strong> every time a new build version is rolled out by dev</li><li><strong>Sprint end (bi-weekly):</strong> brief check-ins to maintain visual cohesion</li><li><strong>Integration points:</strong> when new art elements enter the build</li><li><strong>Pre-Alpha, Alpha, Beta:</strong> full review at each phase to inform the final polish pass</li></ul>After each build review, findings are parsed into a Visual PEQA sheet and submitted to the AD. The AD signs off before forwarding to Production and Dev for time cost and feasibility evaluation.`
+  },
+  { id:"12.1", section:"12. Goal Setting & Task Management", title:"SMART Goals",
+    keywords:["smart goals","goal setting","task breakdown","specific measurable achievable relevant time-bound","task delegation","task cards"],
+    content:`Every task delegated to the art team should be broken down using the SMART framework. If a task card cannot be broken into SMART sub-tasks, it is not ready to be assigned.<table><tr><th>Letter</th><th>What It Means</th></tr><tr><td><strong>S: Specific</strong></td><td>What needs to be done? Who is responsible? What steps does it require?</td></tr><tr><td><strong>M: Measurable</strong></td><td>How do we know when it is done? What does completion look like?</td></tr><tr><td><strong>A: Achievable</strong></td><td>Can the team actually accomplish this given current bandwidth and timeline?</td></tr><tr><td><strong>R: Relevant</strong></td><td>Does this task directly serve the current milestone goal?</td></tr><tr><td><strong>T: Time-bound</strong></td><td>When does it start? When is it due? What are the checkpoints?</td></tr></table>`
+  },
+  { id:"12.2", section:"12. Goal Setting & Task Management", title:"Pulse Sheet",
+    keywords:["pulse sheet","personal tracker","task tracker","headlines","to do","wip","done","kicked back","workflow management"],
+    content:`The pulse sheet is a personal task tracker that each VL maintains. Items flow in from discussions and standups, get broken into SMART sub-tasks, and move through <strong>Headlines → To-Do → WIP → Done → Kicked Back Tasks</strong>.<br><br>A Pulse Sheet template is available as a Google Sheet — create a copy and adjust the format as needed to better suit your workflow or project requirements.`
+  },
+  { id:"13.1", section:"13. Meetings & Reporting", title:"Standing Department Weeklies",
+    keywords:["weekly meeting","department weekly","standup","slack huddle","monday","meeting minutes","action items","blockers"],
+    content:`<ul><li>Conducted Monday or Tuesday depending on schedule</li><li>Participants: department heads, Art Manager, Art Director</li><li>Goal is under one hour — blockers and concerns first, goals second</li><li>Calls run through Slack huddle</li><li>Meeting minutes taken by the Art Manager and sent to the group chat immediately after</li><li>Action items parsed into each cat's pulse sheet after the call</li></ul>`
+  },
+  { id:"13.2", section:"13. Meetings & Reporting", title:"Postmortems",
+    keywords:["postmortem","post mortem","retrospective","what went well","what went wrong","next steps","monthly review","action items"],
+    content:`Postmortem Meetings are held at the end of each month. Each VL shares insights across:<ul><li><strong>What Went Well</strong> — Key accomplishments, effective workflows, successful collaboration, or practices worth continuing.</li><li><strong>What Went Wrong / Challenges Encountered</strong> — Workflow issues, blockers, communication gaps, missed timelines, or areas that need additional support.</li><li><strong>Next Steps / Action Items</strong> — Clear and actionable follow-up plans. Action items should include an assigned owner and a target timeline before the session concludes.</li></ul>Postmortem schedules are coordinated and finalized by EA Dom alongside the EST Visual Leads Representative, Piper.`
+  },
+  { id:"14.1", section:"14. Art Standards Reference", title:"Character Design",
+    keywords:["character design","character evaluation","silhouette","readability","shape language","character color","character review"],
+    content:`<strong>What makes it work:</strong><ul><li>Color and shape language communicate the character's role and personality before the player reads a single line of dialogue</li><li>Design decisions are consistent with the camera perspective the player will actually see</li><li>Every design choice serves one of the creative pillars</li></ul><strong>What makes it fail:</strong><ul><li>Designs that look good in isolation but read as generic within the game's world</li><li>Over-designed characters where detail density competes with readability at the intended resolution</li><li>Color palettes that make the character blend in when they should stand out</li></ul><strong>How to evaluate:</strong> Pull the character up at the intended camera distance and resolution. Can a player understand their purpose from their silhouette alone? Place them in a screenshot of the actual game environment.`
+  },
+  { id:"14.2", section:"14. Art Standards Reference", title:"Environment Design",
+    keywords:["environment design","environment evaluation","environment review","environment color","lighting","props","world building","scene"],
+    content:`<strong>What makes it work:</strong><ul><li>Environments serve as the stage for the narrative and gameplay, not just visual wallpaper</li><li>Color and shape language are consistent across assets within a location</li><li>Thematic lighting and post-processing reinforce the emotional tone of the scene</li></ul><strong>What makes it fail:</strong><ul><li>Environments that obscure gameplay-critical information</li><li>Inconsistent asset quality within the same environment</li><li>Lighting set up for a screenshot and not tested under actual camera movement</li></ul><strong>How to evaluate:</strong> Playtest the environment in the actual build. Identify the three most visually dominant elements in the scene — are those the right three?`
+  },
+  { id:"14.3", section:"14. Art Standards Reference", title:"UI Review Standards",
+    keywords:["ui","user interface","hud","readability","ui evaluation","ui review","font","color hierarchy","screen design"],
+    content:`<strong>What makes it work:</strong><ul><li>UI communicates information without the player needing to consciously look for it</li><li>Color, hierarchy, and layout serve the player's cognitive load</li><li>UI style is consistent with the game's overall visual language</li></ul><strong>What makes it fail:</strong><ul><li>UI that prioritizes visual novelty over readability, especially under time pressure during gameplay</li><li>Inconsistent font usage, color choices, or component styling across screens</li><li>UI designed for a static screenshot and not tested under actual gameplay conditions</li></ul><strong>How to evaluate:</strong> Run the game and do not look at the UI intentionally for 30 seconds. What did you absorb passively? What did you miss?`
+  },
+  { id:"14.4", section:"14. Art Standards Reference", title:"VFX Review Standards",
+    keywords:["vfx","visual effects","vfx evaluation","vfx review","particle","performance","fx readability","effect","optimization"],
+    content:`<strong>What makes it work:</strong><ul><li>VFX serve a purpose: they communicate information (hit confirmation, area of effect, status), establish tone, or reinforce the game's visual language</li><li>Scale, timing, and density are calibrated for the camera distance and gameplay speed</li><li>VFX are consistent with the visual style established in the art bible</li></ul><strong>What makes it fail:</strong><ul><li>VFX that obscure gameplay-critical information when combined with other effects</li><li>Effects not optimized, causing performance issues on the target platform</li><li>VFX that break stylistic consistency (e.g. a hyper-realistic explosion in a stylized cartoon game)</li></ul><strong>How to evaluate:</strong> Test effects in context with other simultaneous effects active, not in isolation.`
+  },
+  { id:"14.5", section:"14. Art Standards Reference", title:"Cinematography Review Standards",
+    keywords:["cinematography","camera","framing","composition","shot","camera angles","camera movement"],
+    content:`<strong>What makes it work:</strong><ul><li>Camera choices direct the player's attention to the correct subject without them realizing it</li><li>Framing, composition, and lighting work together to reinforce the emotional tone of the moment</li><li>Camera types and angles are consistent with the game's genre conventions</li></ul><strong>What makes it fail:</strong><ul><li>Camera movement that feels mechanical or unmotivated, drawing attention to itself</li><li>Framing that clips important elements or creates visual ambiguity</li></ul><strong>How to evaluate:</strong> View the scene from all camera angles documented in the art bible, not just the preferred angle.`
+  },
+  { id:"14.6", section:"14. Art Standards Reference", title:"Animation Review Standards",
+    keywords:["animation","12 principles","squash and stretch","timing","anticipation","follow through","animation review","animation evaluation"],
+    content:`<strong>What makes it work:</strong><ul><li>Animations serve the game's tone and are consistent with the character's visual design</li><li>The 12 principles are applied with intent — squash and stretch, anticipation, and follow-through are choices calibrated to the style</li><li>Animations are tested at the actual gameplay speed, not previewed in isolation</li></ul><strong>What makes it fail:</strong><ul><li>Animations that feel correct in the editor but feel wrong in gameplay</li><li>Inconsistent application of the 12 principles across characters in the same game</li></ul><strong>How to evaluate:</strong> Play the game and interact with every animated element you are reviewing. Do not approve animations from the editor alone.`
+  },
+  { id:"15.1", section:"15. KPI & Performance", title:"KPI Categories",
+    keywords:["kpi","performance","review","evaluation","metrics","categories","leadership","cross-functional","visual standards"],
+    content:`<ul><li><strong>Operations, Pipelines and Delivery</strong> — Capacity planning, pipeline stability, milestone readiness, risk identification</li><li><strong>Visual Standards and Documentation</strong> — Art bible accuracy, craft standard enforcement, version control discipline</li><li><strong>Leadership and Mentorship</strong> — Coaching effectiveness, feedback quality, team morale and psychological safety</li><li><strong>Cross-functional Impact</strong> — Stakeholder communication, strategic thinking, operational decision alignment</li></ul>KPI reviews are held every quarter, with 1-on-1s after each KPI period.`
+  },
+  { id:"16.1", section:"16. Resources & Tools", title:"Essential Resources and Tools",
+    keywords:["resources","tools","gyazo","obs","figma","drawio","google sheets","documents","links","reference"],
+    content:`<strong>Department Documents:</strong><ul><li>Visual Leads Dashboard (Hub Page)</li><li>Visual Lead — Team Bible</li><li>Unified Art Bible template</li><li>PEQA sheet template</li><li>Pulse Sheet Template</li><li>Visual Leads Department - Post Mortem (updated quarterly)</li></ul><strong>Tools:</strong><ul><li><strong>Gyazo</strong> — Screenshot and screen recording</li><li><strong>OBS</strong> — Screen recording for build reviews</li><li><strong>Google Sheets</strong> — Task tracking and asset request lists</li><li><strong>Figma</strong> — UI wireframes and visual comps</li><li><strong>Draw.io</strong> — Pipeline and flowchart documentation</li></ul>`
+  }
+];
+
+const DEFAULT_SIDEBAR_CFG = [
+  {
+    id:'quicklinks', label:'Quick Links',
+    items:[
+      { id:'ql1', text:'VL Dashboard (Hub) — coming soon',       href:null, visible:true },
+      { id:'ql2', text:'Unified Art Bible — coming soon',         href:null, visible:true },
+      { id:'ql3', text:'PEQA Sheet Template — coming soon',       href:null, visible:true },
+      { id:'ql4', text:'Pulse Sheet Template — coming soon',      href:null, visible:true },
+      { id:'ql5', text:'VL Weekly Goals Sheet — coming soon',     href:null, visible:true },
+      { id:'ql6', text:'Post Mortem Archive — coming soon',       href:null, visible:true },
+      { id:'ql7', text:'EA Contact Sheet — coming soon',          href:null, visible:true }
+    ]
+  }
+  // Team Directory is now a modal opened from the person-icon button in the sidebar header.
+];
+
+// Search synonym map — each inner array is a group of related/equivalent terms.
+// The search algorithm auto-extends this from each entry's `keywords` at query time,
+// so you mainly need to add groups here for cross-section concept bridges
+// (e.g., "frequency" should pull in "cadence", "schedule", "quarterly", "weekly"…).
+const DEFAULT_SYNONYMS = [
+  ['frequency','cadence','often','schedule','when','recurrence','pace','rhythm','timing','how often','how frequent','how frequently'],
+  ['kpi','performance','evaluation','review','metric','assessment','measure','measurement','rating'],
+  ['pushback','feedback','concern','objection','criticism','disagreement','complaint','pushed back'],
+  ['pipeline','workflow','process','flow','production flow','art pipeline'],
+  ['art bible','style guide','art direction','visual direction','creative direction','art documentation'],
+  ['onboarding','joining','starting','orientation','first week','first day','new project','kickoff'],
+  ['preproduction','pre-production','planning phase','prep','before production'],
+  ['mid-production','mid production','during production','in production','ongoing production'],
+  ['post-production','postproduction','launch','polish','release','post-launch','dlc'],
+  ['alignment','collaboration','coordination','sync','aligned','collab','team alignment'],
+  ['approval','sign-off','signoff','approve','approved','cleared','green light','final approval'],
+  ['vl','visual lead','visual leads','lead'],
+  ['ad','art director'],
+  ['asset','deliverable','artwork','art asset','art deliverable'],
+  ['meeting','standup','sync','weekly','huddle','call','slack huddle'],
+  ['communication','comms','messaging','channel'],
+  ['mentor','mentoring','coaching','develop','support','guide','guiding'],
+  ['task','work','assignment','job','responsibility','duty'],
+  ['smart','goal','goals','objective','target','goal framework','specific measurable achievable'],
+  ['pulse sheet','tracker','task tracker','personal tracker','to-do tracker'],
+  ['postmortem','post-mortem','retrospective','retro','review meeting','monthly review'],
+  ['character','character design','protagonist','figure'],
+  ['environment','scene','world','background','level','location'],
+  ['ui','user interface','hud','menu','screen','interface'],
+  ['vfx','visual effects','effect','fx','particles','particle'],
+  ['animation','animate','movement','motion','animated'],
+  ['cinematography','camera','shot','framing','composition','camera angle'],
+  ['tool','tools','software','app','application'],
+  ['gyazo','screenshot','screen capture','screen recording'],
+  ['obs','screen recording','capture'],
+  ['figma','wireframe','mockup','ui design'],
+  ['art cat','contributor','artist'],
+  ['art team lead','team lead','lead artist'],
+  ['producer','production','project management','art producer'],
+  ['direction','creative direction','vision','guidance','art direction'],
+  ['readability','clarity','legibility','visibility','clear'],
+  ['playtest','playtesting','play test','test build','testing'],
+  ['build','build review','milestone build','dev build'],
+  ['scope','feasibility','scope creep','too much'],
+  ['delegate','delegation','assign','hand off','task delegation'],
+  ['blocker','blockers','blocked','stuck','impediment'],
+  ['escalate','escalation','raise to','bring up','escalate to'],
+  ['stakeholder','client','leadership','project leadership'],
+  ['quarterly','every quarter','q1','q2','q3','q4','4 times a year','per quarter'],
+  ['daily','every day','each day','day-to-day'],
+  ['weekly','every week','each week','week-to-week'],
+  ['monthly','every month','each month','month-to-month'],
+  ['mood','tone','feel','atmosphere','vibe'],
+  ['color','palette','hue','tint','color palette'],
+  ['lighting','lights','illumination','lit'],
+  ['style','aesthetic','look','visual style'],
+  ['reference','ref','references','inspiration','refs'],
+  ['peqa','visual peqa','review sheet','peqa sheet'],
+  ['art subteam','art team','subteam','art sub-team','2d','3d'],
+  ['hand off','handoff','transition','handover'],
+  ['async','asynchronous','asynchronously','no meeting','no call']
+];
+
+/* ══════════════════════════════════════════
+   STATE
+   ══════════════════════════════════════════ */
+let SECTIONS = [];
+let HANDBOOK = [];
+let SIDEBAR_CFG = [];
+let ANNOUNCEMENTS = [];
+let SYNONYMS = [];
+let TEAM_DIRECTORY = [];
+let dismissedAnns = new Set();
+let expandedSections = new Set();
+
+let isAdminMode = false;
+let sidebarCollapsed = false;
+let isDark = false;
+let currentView = 'home';
+let currentSectionNum = null;
+let currentEntryId = null;
+let lightboxZoom = 1;
+
+let dragSrcSection = null;
+let dragSrcItemId = null;
+let dragSrcType = null; // 'entry' | 'siItem'
+
+let editEntryId = null;
+let editSectionNum = null;
+let editSISection = null;
+let editSIItemId = null;
+let editAnnId = null;
+let editEntrySrcSection = null;
+
+let activeEditor = null;
+
+/* ══════════════════════════════════════════
+   FIREBASE DATA LAYER
+   ──────────────────────────────────────────
+   Fill in FIREBASE_CONFIG below to enable real-time sharing.
+   Setup instructions:
+   1. Go to https://console.firebase.google.com → "Add project" → name it (e.g. "vl-dashboard")
+   2. Disable Google Analytics (not needed) → Create
+   3. In project: Build → Firestore Database → Create database → Start in TEST MODE
+      (Test mode lets anyone read/write for 30 days; renew or set rules later)
+   4. In project Settings (⚙ icon) → General → Your apps → click </> "Web"
+   5. Register the app, copy the firebaseConfig object
+   6. Paste it into FIREBASE_CONFIG below replacing the placeholder
+   7. Reload — the page will now sync data across all users in real time
+
+   If FIREBASE_CONFIG.apiKey is left as 'PASTE_YOUR_CONFIG_HERE', the page falls
+   back to localStorage (single-user mode), so the dashboard still works offline.
+   ══════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBx1DVX_duRg1_ueNLoeg3fl5L4Of0a81c",
+  authDomain: "mcs-vl-dashboard.firebaseapp.com",
+  projectId: "mcs-vl-dashboard",
+  storageBucket: "mcs-vl-dashboard.firebasestorage.app",
+  messagingSenderId: "870550200391",
+  appId: "1:870550200391:web:2ebe322f936391d0845162"
+};
+const FIREBASE_DOC_PATH = ['dashboards', 'main']; // collection, doc
+
+let _fbApp = null, _fbDb = null, _fbDoc = null, _fbUnsub = null;
+let _fbReady = false;
+let _fbWriting = false;       // suppress our own writes triggering re-read
+let _fbWriteTimer = null;
+let _fbPendingWrite = {};     // accumulate writes for debounce
+
+function fbConfigured() {
+  return FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== 'PASTE_YOUR_CONFIG_HERE';
+}
+
+// Firestore doesn't allow nested arrays (array-of-array). SYNONYMS is one
+// (each group is an array). We wrap each group as { terms: [...] } on write
+// and unwrap on read. Other fields are objects-in-arrays, which Firestore allows.
+function encodeForFirestore(key, value) {
+  if (key === 'synonyms' && Array.isArray(value)) {
+    return value.map(g => ({ terms: Array.isArray(g) ? g : [] }));
+  }
+  return value;
+}
+function decodeFromFirestore(key, value) {
+  if (key === 'synonyms' && Array.isArray(value)) {
+    // Accept both shapes for forward/backward compatibility
+    return value.map(g => Array.isArray(g) ? g : (g && Array.isArray(g.terms) ? g.terms : []));
+  }
+  return value;
+}
+
+async function initFirebase() {
+  if (!fbConfigured()) return false;
+  try {
+    // Use Firebase Web v10 modular SDK (loaded via CDN)
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js');
+    const { getFirestore, doc, onSnapshot, setDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js');
+    _fbApp = initializeApp(FIREBASE_CONFIG);
+    _fbDb  = getFirestore(_fbApp);
+    _fbDoc = doc(_fbDb, FIREBASE_DOC_PATH[0], FIREBASE_DOC_PATH[1]);
+    _fb_setDoc = setDoc;
+    _fb_onSnapshot = onSnapshot;
+    _fb_getDoc = getDoc;
+
+    // First load from Firestore (if doc exists, overwrite local; if not, push local up)
+    const snap = await getDoc(_fbDoc);
+    if (snap.exists()) {
+      const remote = snap.data() || {};
+      if (remote.sections)      SECTIONS      = decodeFromFirestore('sections', remote.sections);
+      if (remote.handbook)      HANDBOOK      = decodeFromFirestore('handbook', remote.handbook);
+      if (remote.sidebar)       SIDEBAR_CFG   = decodeFromFirestore('sidebar', remote.sidebar);
+      if (remote.announcements) ANNOUNCEMENTS = decodeFromFirestore('announcements', remote.announcements);
+      if (remote.synonyms)      SYNONYMS      = decodeFromFirestore('synonyms', remote.synonyms);
+      if (remote.team)          TEAM_DIRECTORY = decodeFromFirestore('team', remote.team);
+      // Persist what we just fetched to localStorage as cache
+      try {
+        localStorage.setItem('vl_sections', JSON.stringify(SECTIONS));
+        localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
+        localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
+        localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
+        localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
+        localStorage.setItem('vl_team',     JSON.stringify(TEAM_DIRECTORY));
+      } catch(e){}
+    } else {
+      // First-time: seed Firestore from local
+      await setDoc(_fbDoc, {
+        sections:      encodeForFirestore('sections',      SECTIONS),
+        handbook:      encodeForFirestore('handbook',      HANDBOOK),
+        sidebar:       encodeForFirestore('sidebar',       SIDEBAR_CFG),
+        announcements: encodeForFirestore('announcements', ANNOUNCEMENTS),
+        synonyms:      encodeForFirestore('synonyms',      SYNONYMS),
+        team:          encodeForFirestore('team',          TEAM_DIRECTORY),
+        _updatedAt: Date.now()
+      });
+    }
+
+    // Real-time listener
+    _fbUnsub = onSnapshot(_fbDoc, (snap) => {
+      if (_fbWriting) return; // ignore our own write echo
+      const raw = snap.data();
+      if (!raw) return;
+      const remote = {
+        sections:      raw.sections      ? decodeFromFirestore('sections', raw.sections) : null,
+        handbook:      raw.handbook      ? decodeFromFirestore('handbook', raw.handbook) : null,
+        sidebar:       raw.sidebar       ? decodeFromFirestore('sidebar', raw.sidebar) : null,
+        announcements: raw.announcements ? decodeFromFirestore('announcements', raw.announcements) : null,
+        synonyms:      raw.synonyms      ? decodeFromFirestore('synonyms', raw.synonyms) : null,
+        team:          raw.team          ? decodeFromFirestore('team', raw.team) : null
+      };
+      let changed = false;
+      if (remote.sections      && JSON.stringify(remote.sections)      !== JSON.stringify(SECTIONS))      { SECTIONS = remote.sections; changed = true; }
+      if (remote.handbook      && JSON.stringify(remote.handbook)      !== JSON.stringify(HANDBOOK))      { HANDBOOK = remote.handbook; changed = true; }
+      if (remote.sidebar       && JSON.stringify(remote.sidebar)       !== JSON.stringify(SIDEBAR_CFG))   { SIDEBAR_CFG = remote.sidebar; changed = true; }
+      if (remote.announcements && JSON.stringify(remote.announcements) !== JSON.stringify(ANNOUNCEMENTS)) { ANNOUNCEMENTS = remote.announcements; changed = true; }
+      if (remote.synonyms      && JSON.stringify(remote.synonyms)      !== JSON.stringify(SYNONYMS))      { SYNONYMS = remote.synonyms; changed = true; }
+      if (remote.team          && JSON.stringify(remote.team)          !== JSON.stringify(TEAM_DIRECTORY)){ TEAM_DIRECTORY = remote.team; changed = true; }
+      if (changed) {
+        renderSidebar();
+        renderAnnouncements();
+        if (currentView === 'section' && currentSectionNum) showSection(currentSectionNum);
+        else if (currentView === 'entry' && currentEntryId) showEntry(currentEntryId);
+        showToast('Updated from team');
+      }
+    });
+
+    _fbReady = true;
+    return true;
+  } catch (err) {
+    console.error('Firebase init failed:', err);
+    showToast('Firebase failed — running offline');
+    return false;
+  }
+}
+let _fb_setDoc, _fb_onSnapshot, _fb_getDoc;
+
+function fbSync() {
+  if (!_fbReady) return;
+  fbSyncKey('sections', SECTIONS);
+  fbSyncKey('handbook', HANDBOOK);
+  fbSyncKey('sidebar', SIDEBAR_CFG);
+  fbSyncKey('announcements', ANNOUNCEMENTS);
+  fbSyncKey('synonyms', SYNONYMS);
+  fbSyncKey('team', TEAM_DIRECTORY);
+}
+
+function fbSyncKey(key, value) {
+  if (!_fbReady) return;
+  _fbPendingWrite[key] = encodeForFirestore(key, value);
+  if (_fbWriteTimer) clearTimeout(_fbWriteTimer);
+  _fbWriteTimer = setTimeout(async () => {
+    const payload = { ..._fbPendingWrite, _updatedAt: Date.now() };
+    _fbPendingWrite = {};
+    _fbWriting = true;
+    try {
+      await _fb_setDoc(_fbDoc, payload, { merge: true });
+    } catch (err) {
+      console.error('Firestore write failed:', err);
+    } finally {
+      setTimeout(() => { _fbWriting = false; }, 200);
+    }
+  }, 300);
+}
+
+/* ══════════════════════════════════════════
+   PERSISTENCE
+   ══════════════════════════════════════════ */
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+function loadFromStorage() {
+  try { const v=localStorage.getItem('vl_sections'); SECTIONS = v ? JSON.parse(v) : clone(DEFAULT_SECTIONS); } catch(e){ SECTIONS=clone(DEFAULT_SECTIONS); }
+  try { const v=localStorage.getItem('vl_hb');       HANDBOOK = v ? JSON.parse(v) : clone(DEFAULT_HANDBOOK); } catch(e){ HANDBOOK=clone(DEFAULT_HANDBOOK); }
+  try { const v=localStorage.getItem('vl_sb');       SIDEBAR_CFG = v ? JSON.parse(v) : clone(DEFAULT_SIDEBAR_CFG); } catch(e){ SIDEBAR_CFG=clone(DEFAULT_SIDEBAR_CFG); }
+  try { const v=localStorage.getItem('vl_ann');      ANNOUNCEMENTS = v ? JSON.parse(v) : []; } catch(e){ ANNOUNCEMENTS=[]; }
+  try { const v=localStorage.getItem('vl_syn');      SYNONYMS = v ? JSON.parse(v) : clone(DEFAULT_SYNONYMS); } catch(e){ SYNONYMS=clone(DEFAULT_SYNONYMS); }
+  try { const v=localStorage.getItem('vl_team');     TEAM_DIRECTORY = v ? JSON.parse(v) : []; } catch(e){ TEAM_DIRECTORY=[]; }
+  try { const v=localStorage.getItem('vl_dis');      dismissedAnns = new Set(v ? JSON.parse(v) : []); } catch(e){ dismissedAnns=new Set(); }
+  try { const v=localStorage.getItem('vl_exp');      expandedSections = new Set(v ? JSON.parse(v) : []); } catch(e){ expandedSections=new Set(); }
+  try { sidebarCollapsed = localStorage.getItem('vl_sc') === '1'; } catch(e){}
+  try { isDark = localStorage.getItem('vl_dark') === '1'; } catch(e){}
+
+  // ── Migrate legacy data ──
+  // Old versions stored Handbook items + divider entries inside SIDEBAR_CFG.
+  // The new sidebar auto-generates the Handbook section, so strip those.
+  if (Array.isArray(SIDEBAR_CFG)) {
+    // Strip legacy/obsolete sections: dividers, the old auto-handbook entry, and the
+    // old "team" section (Team Directory is now a modal, not a sidebar section).
+    const cleaned = SIDEBAR_CFG.filter(s =>
+      s && !s.divider && Array.isArray(s.items) && s.id && s.id !== 'handbook' && s.id !== 'team'
+    );
+    // Make sure Quick Links exists
+    const hasQL = cleaned.some(s => s.id === 'quicklinks');
+    if (!hasQL) cleaned.push(clone(DEFAULT_SIDEBAR_CFG.find(s => s.id === 'quicklinks')));
+    if (cleaned.length !== SIDEBAR_CFG.length) {
+      SIDEBAR_CFG = cleaned;
+      try { localStorage.setItem('vl_sb', JSON.stringify(SIDEBAR_CFG)); } catch(e){}
+    } else {
+      SIDEBAR_CFG = cleaned;
+    }
+  } else {
+    SIDEBAR_CFG = clone(DEFAULT_SIDEBAR_CFG);
+  }
+  if (!Array.isArray(SECTIONS) || SECTIONS.length === 0) SECTIONS = clone(DEFAULT_SECTIONS);
+  if (!Array.isArray(HANDBOOK) || HANDBOOK.length === 0) HANDBOOK = clone(DEFAULT_HANDBOOK);
+}
+
+function saveAll(label) {
+  localStorage.setItem('vl_sections', JSON.stringify(SECTIONS));
+  localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
+  localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
+  localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
+  localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
+  localStorage.setItem('vl_team',     JSON.stringify(TEAM_DIRECTORY));
+  localStorage.setItem('vl_dis',      JSON.stringify([...dismissedAnns]));
+  localStorage.setItem('vl_exp',      JSON.stringify([...expandedSections]));
+  fbSync(); // push to Firebase if configured
+  showToast(label || 'Changes saved');
+}
+
+function saveSynonymsOnly() {
+  localStorage.setItem('vl_syn', JSON.stringify(SYNONYMS));
+  fbSyncKey('synonyms', SYNONYMS);
+  showToast('Synonyms updated');
+}
+
+function saveTeamOnly() {
+  localStorage.setItem('vl_team', JSON.stringify(TEAM_DIRECTORY));
+  fbSyncKey('team', TEAM_DIRECTORY);
+  showToast('Team directory saved');
+}
+
+function saveSidebarOnly() {
+  localStorage.setItem('vl_hb', JSON.stringify(HANDBOOK));
+  localStorage.setItem('vl_sb', JSON.stringify(SIDEBAR_CFG));
+  fbSyncKey('handbook', HANDBOOK);
+  fbSyncKey('sidebar', SIDEBAR_CFG);
+  showToast('Sidebar updated');
+}
+
+function saveAnnsOnly() {
+  localStorage.setItem('vl_ann', JSON.stringify(ANNOUNCEMENTS));
+  localStorage.setItem('vl_dis', JSON.stringify([...dismissedAnns]));
+  fbSyncKey('announcements', ANNOUNCEMENTS);
+}
+
+function saveExpandedOnly() {
+  localStorage.setItem('vl_exp', JSON.stringify([...expandedSections]));
+}
+
+/* ══════════════════════════════════════════
+   UTILITIES
+   ══════════════════════════════════════════ */
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s)    { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function stripHtml(h)  { const d=document.createElement('div'); d.innerHTML=h; return (d.textContent||d.innerText||'').replace(/\s+/g,' ').trim(); }
+function sectionNumOf(entryId) { return String(entryId).split('.')[0]; }
+function findSection(num) { return SECTIONS.find(s => s.num === String(num)); }
+function findEntry(id) { return HANDBOOK.find(e => e.id === id); }
+function entriesInSection(num) { return HANDBOOK.filter(e => sectionNumOf(e.id) === String(num)); }
+function showToast(msg) {
+  const t = document.getElementById('save-toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+/* ══════════════════════════════════════════
+   DARK MODE
+   ══════════════════════════════════════════ */
+function applyDark(d) {
+  isDark = d;
+  document.body.classList.toggle('dark', d);
+  const icon = document.getElementById('dark-icon');
+  if (d) {
+    icon.innerHTML = `<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;
+  } else {
+    icon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+  }
+}
+function toggleDark() {
+  applyDark(!isDark);
+  try { localStorage.setItem('vl_dark', isDark ? '1' : '0'); } catch(e){}
+}
+
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+  try { localStorage.setItem('vl_sc', sidebarCollapsed ? '1' : '0'); } catch(e){}
+}
+
+/* ══════════════════════════════════════════
+   NAVIGATION (views)
+   ══════════════════════════════════════════ */
+function setView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+  currentView = name;
+  window.scrollTo(0, 0);
+}
+
+function updateBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  let parts = [`<span class="bc-item" onclick="showHome()">VL Dashboard</span>`];
+  if (currentView === 'section' && currentSectionNum) {
+    const sec = findSection(currentSectionNum);
+    if (sec) parts.push(`<span class="bc-sep">/</span><span class="bc-item active">${escapeHtml(sec.num + '. ' + sec.title)}</span>`);
+  } else if (currentView === 'entry' && currentEntryId) {
+    const entry = findEntry(currentEntryId);
+    if (entry) {
+      const secNum = sectionNumOf(entry.id);
+      const sec = findSection(secNum);
+      if (sec) parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showSection('${escAttr(secNum)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>`);
+      parts.push(`<span class="bc-sep">/</span><span class="bc-item active">${escapeHtml(entry.title)}</span>`);
+    }
+  } else if (currentView === 'docview') {
+    parts.push(`<span class="bc-sep">/</span><span class="bc-item active">📑 Documentation View</span>`);
+  }
+  bc.innerHTML = parts.join('');
+}
+
+function showHome() {
+  currentSectionNum = null; currentEntryId = null;
+  setView('home'); updateBreadcrumb();
+  renderAnnouncements();
+  renderSidebar();
+}
+
+function showSection(num) {
+  currentSectionNum = String(num); currentEntryId = null;
+  const sec = findSection(num);
+  if (!sec) { showHome(); return; }
+  document.getElementById('sv-num').textContent = `Section ${sec.num}`;
+  document.getElementById('sv-title').textContent = `${sec.num}. ${sec.title}`;
+  document.getElementById('sv-desc').textContent = sec.description || '';
+  const entries = entriesInSection(num);
+  const grid = document.getElementById('sv-grid');
+  grid.innerHTML = entries.map(e => `
+    <div class="section-card" data-entry-id="${escAttr(e.id)}" onclick="showEntry('${escAttr(e.id)}')">
+      <div class="section-card-id">${escapeHtml(e.id)}</div>
+      <div class="section-card-title">${escapeHtml(e.title)}</div>
+      <div class="section-card-actions">
+        <button onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}')" title="Edit">✎</button>
+      </div>
+    </div>
+  `).join('') + `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}')">＋ Add Entry</div>`;
+
+  expandedSections.add(String(num)); saveExpandedOnly();
+  setView('section'); updateBreadcrumb(); renderSidebar();
+}
+
+function showEntry(id) {
+  const entry = findEntry(id);
+  if (!entry) { showHome(); return; }
+  currentEntryId = id; currentSectionNum = sectionNumOf(id);
+
+  document.getElementById('ev-id').textContent = `${entry.section}`;
+  document.getElementById('ev-title').textContent = entry.title;
+  const content = document.getElementById('ev-content');
+  content.innerHTML = entry.content;
+  // Mark images for lightbox
+  content.querySelectorAll('img').forEach(img => img.classList.add('entry-img'));
+
+  expandedSections.add(currentSectionNum); saveExpandedOnly();
+  setView('entry'); updateBreadcrumb(); renderSidebar();
+}
+
+function backToSection() {
+  if (currentSectionNum) showSection(currentSectionNum);
+  else showHome();
+}
+
+/* ══════════════════════════════════════════
+   SIDEBAR
+   ══════════════════════════════════════════ */
+function renderSidebar() {
+  try { _renderSidebarUnsafe(); }
+  catch (err) {
+    console.error('renderSidebar failed:', err);
+    // Recover by resetting to defaults and trying once more
+    SECTIONS = clone(DEFAULT_SECTIONS);
+    HANDBOOK = clone(DEFAULT_HANDBOOK);
+    SIDEBAR_CFG = clone(DEFAULT_SIDEBAR_CFG);
+    try { _renderSidebarUnsafe(); } catch(e2) {
+      document.getElementById('sidebar-sections-container').innerHTML =
+        '<div style="padding:20px;font-size:12px;color:#c0392b">Sidebar failed to render. Open DevTools (F12) for details, or click ↑ Import in Admin Mode to restore.</div>';
+    }
+  }
+}
+
+function _renderSidebarUnsafe() {
+  const c = document.getElementById('sidebar-sections-container');
+  let html = '';
+
+  // HANDBOOK section (auto-generated from SECTIONS + HANDBOOK)
+  html += `<div class="sidebar-section">
+    <div class="sidebar-section-label">Handbook</div>`;
+  for (const sec of SECTIONS) {
+    const entries = entriesInSection(sec.num);
+    const isExpanded = expandedSections.has(sec.num);
+    const isActiveParent = currentView === 'section' && currentSectionNum === sec.num;
+    html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}">
+      <span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escAttr(sec.num)}')">▶</span>
+      <span class="sb-parent-text" onclick="showSection('${escAttr(sec.num)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>
+      <button class="sb-edit-btn" onclick="event.stopPropagation();openSectionEditor('${escAttr(sec.num)}')" title="Edit section">⚙</button>
+      <button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escAttr(sec.num)}')" title="Add entry">＋</button>
+    </div>
+    <div class="sb-children${isExpanded?' expanded':''}" data-section-num="${escAttr(sec.num)}">`;
+    for (const e of entries) {
+      const isActiveChild = currentView === 'entry' && currentEntryId === e.id;
+      html += `<div class="sb-child${isActiveChild?' active':''}" data-entry-id="${escAttr(e.id)}" data-section-num="${escAttr(sec.num)}" draggable="true">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        <span class="sb-child-text" onclick="showEntry('${escAttr(e.id)}')">${escapeHtml(e.id + ' ' + e.title)}</span>
+        <button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}')" title="Edit entry">✎</button>
+      </div>`;
+    }
+    html += `<button class="admin-add-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}')">＋ Add Entry</button>`;
+    html += `</div>`;
+  }
+  html += `<button class="admin-add-btn" onclick="openNewSectionEditor()">＋ Add New Section</button>`;
+  html += `</div><div class="sb-divider"></div>`;
+
+  // SIDEBAR_CFG sections (Quick Links, Team Directory)
+  for (const section of SIDEBAR_CFG) {
+    // Skip malformed / legacy entries (e.g. { divider: true } from old versions)
+    if (!section || !Array.isArray(section.items) || !section.id) continue;
+    html += `<div class="sidebar-section">
+      <div class="sidebar-section-label">${escapeHtml(section.label || '')}</div>`;
+    for (const item of section.items) {
+      if (!item || !item.id) continue;
+      if (!item.visible && !isAdminMode) continue;
+      const inner = item.href
+        ? `<span class="sb-link-text"><a href="${escAttr(item.href)}" target="_blank" rel="noopener">${escapeHtml(item.text)}</a></span>`
+        : `<span class="sb-link-text placeholder">${escapeHtml(item.text)}</span>`;
+      html += `<div class="sb-link" data-section-id="${escAttr(section.id)}" data-item-id="${escAttr(item.id)}" draggable="true">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        ${inner}
+        <button class="sb-edit-btn" onclick="event.stopPropagation();openSIEditor('${escAttr(section.id)}','${escAttr(item.id)}')" title="Edit link">✎</button>
+      </div>`;
+    }
+    html += `<button class="admin-add-btn" onclick="openNewSIEditor('${escAttr(section.id)}')">＋ Add Link</button>`;
+    html += `</div><div class="sb-divider"></div>`;
+  }
+
+  c.innerHTML = html;
+  attachSidebarDnD();
+}
+
+function toggleSectionExpand(num) {
+  num = String(num);
+  if (expandedSections.has(num)) expandedSections.delete(num);
+  else expandedSections.add(num);
+  saveExpandedOnly();
+  renderSidebar();
+}
+
+/* ══════════════════════════════════════════
+   DRAG & DROP
+   ══════════════════════════════════════════ */
+function attachSidebarDnD() {
+  // Entries (draggable within section)
+  document.querySelectorAll('.sb-child[draggable]').forEach(el => {
+    el.addEventListener('dragstart', e => onDragStart(e, 'entry'));
+    el.addEventListener('dragover', onDragOver);
+    el.addEventListener('dragleave', onDragLeave);
+    el.addEventListener('drop', onDropEntry);
+    el.addEventListener('dragend', onDragEnd);
+  });
+  // SI Items
+  document.querySelectorAll('.sb-link[draggable]').forEach(el => {
+    el.addEventListener('dragstart', e => onDragStart(e, 'siItem'));
+    el.addEventListener('dragover', onDragOver);
+    el.addEventListener('dragleave', onDragLeave);
+    el.addEventListener('drop', onDropSI);
+    el.addEventListener('dragend', onDragEnd);
+  });
+}
+
+function onDragStart(e, type) {
+  if (!isAdminMode) { e.preventDefault(); return; }
+  if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+  dragSrcType = type;
+  if (type === 'entry') {
+    dragSrcSection = e.currentTarget.dataset.sectionNum;
+    dragSrcItemId = e.currentTarget.dataset.entryId;
+  } else {
+    dragSrcSection = e.currentTarget.dataset.sectionId;
+    dragSrcItemId = e.currentTarget.dataset.itemId;
+  }
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrcItemId);
+  setTimeout(() => e.currentTarget.classList.add('dragging'), 0);
+}
+function onDragOver(e) {
+  if (!isAdminMode || !dragSrcItemId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  clearDragStyles();
+  const rect = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-above' : 'drag-over-below');
+}
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over-above','drag-over-below'); }
+function onDragEnd() { clearDragStyles(); dragSrcType=dragSrcSection=dragSrcItemId=null; }
+function clearDragStyles() {
+  document.querySelectorAll('.drag-over-above,.drag-over-below,.dragging').forEach(el => el.classList.remove('drag-over-above','drag-over-below','dragging'));
+}
+
+function onDropEntry(e) {
+  e.preventDefault();
+  if (!isAdminMode || dragSrcType !== 'entry') return;
+  const tgtSection = e.currentTarget.dataset.sectionNum;
+  const tgtEntryId = e.currentTarget.dataset.entryId;
+  if (dragSrcSection !== tgtSection) { clearDragStyles(); return; } // only reorder within same section
+  if (dragSrcItemId === tgtEntryId) { clearDragStyles(); return; }
+  const sectionEntries = entriesInSection(tgtSection);
+  const srcIdx = sectionEntries.findIndex(en => en.id === dragSrcItemId);
+  const tgtIdx = sectionEntries.findIndex(en => en.id === tgtEntryId);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const after = e.clientY >= rect.top + rect.height / 2;
+  // Reorder within HANDBOOK while keeping non-section entries in place
+  const srcEntry = HANDBOOK.find(en => en.id === dragSrcItemId);
+  const allIdxOfTgt = HANDBOOK.findIndex(en => en.id === tgtEntryId);
+  const allIdxOfSrc = HANDBOOK.findIndex(en => en.id === dragSrcItemId);
+  HANDBOOK.splice(allIdxOfSrc, 1);
+  const newTgtIdx = HANDBOOK.findIndex(en => en.id === tgtEntryId);
+  HANDBOOK.splice(after ? newTgtIdx + 1 : newTgtIdx, 0, srcEntry);
+  clearDragStyles();
+  saveSidebarOnly();
+  renderSidebar();
+}
+
+function onDropSI(e) {
+  e.preventDefault();
+  if (!isAdminMode || dragSrcType !== 'siItem') return;
+  const tgtSecId = e.currentTarget.dataset.sectionId;
+  const tgtItemId = e.currentTarget.dataset.itemId;
+  if (dragSrcItemId === tgtItemId) { clearDragStyles(); return; }
+  const srcSec = SIDEBAR_CFG.find(s => s.id === dragSrcSection);
+  const tgtSec = SIDEBAR_CFG.find(s => s.id === tgtSecId);
+  if (!srcSec || !tgtSec) return;
+  const srcIdx = srcSec.items.findIndex(i => i.id === dragSrcItemId);
+  const tgtIdx = tgtSec.items.findIndex(i => i.id === tgtItemId);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+  const [moved] = srcSec.items.splice(srcIdx, 1);
+  const rect = e.currentTarget.getBoundingClientRect();
+  const after = e.clientY >= rect.top + rect.height / 2;
+  const finalIdx = after ? tgtIdx + (srcSec === tgtSec && srcIdx < tgtIdx ? 0 : 1) : tgtIdx;
+  tgtSec.items.splice(finalIdx, 0, moved);
+  clearDragStyles();
+  saveSidebarOnly();
+  renderSidebar();
+}
+
+/* ══════════════════════════════════════════
+   SEARCH (synonyms + stemming + bigrams + section fallback)
+   ══════════════════════════════════════════ */
+
+// Light Porter-ish stemmer — strips common English suffixes
+function stem(word) {
+  if (!word || word.length < 4) return word;
+  // Order matters: try longer suffixes first
+  const rules = [
+    [/ies$/, 'y'],     // studies → study
+    [/ied$/, 'y'],     // studied → study
+    [/tions$/, 'tion'],
+    [/ments$/, 'ment'],
+    [/(at|bl|iz)e$/, '$1'],  // create → creat
+    [/tion$/, 'tion'],  // keep
+    [/ment$/, 'ment'],  // keep
+    [/sses$/, 'ss'],
+    [/ings$/, ''],
+    [/ing$/, ''],
+    [/edly$/, ''],
+    [/ed$/, ''],
+    [/ly$/, ''],
+    [/ers$/, ''],
+    [/er$/, ''],
+    [/est$/, ''],
+    [/s$/, '']
+  ];
+  for (const [re, rep] of rules) {
+    const m = word.match(re);
+    if (m) {
+      const next = word.replace(re, rep);
+      if (next.length >= 3) return next;
+    }
+  }
+  return word;
+}
+
+function tokenize(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+}
+
+function stemTokens(tokens) { return tokens.map(stem); }
+
+// Build a flat lookup: term → Set of all related terms (by membership in same group)
+function buildSynonymIndex() {
+  const idx = new Map();
+  const groups = Array.isArray(SYNONYMS) ? SYNONYMS : [];
+  for (const group of groups) {
+    if (!Array.isArray(group) || !group.length) continue;
+    const lowerGroup = group.map(g => String(g).toLowerCase().trim()).filter(Boolean);
+    for (const term of lowerGroup) {
+      if (!idx.has(term)) idx.set(term, new Set());
+      for (const other of lowerGroup) {
+        if (other !== term) idx.get(term).add(other);
+      }
+      // Also map the stemmed form
+      const st = stem(term);
+      if (st !== term) {
+        if (!idx.has(st)) idx.set(st, new Set());
+        for (const other of lowerGroup) {
+          if (other !== term) idx.get(st).add(other);
+        }
+      }
+    }
+  }
+  // Auto-extend from each entry's own keywords (entry-as-synonym-group)
+  for (const entry of HANDBOOK) {
+    const titleLower = entry.title.toLowerCase();
+    const terms = new Set([titleLower, ...(entry.keywords || []).map(k => k.toLowerCase())]);
+    for (const term of terms) {
+      if (!term) continue;
+      if (!idx.has(term)) idx.set(term, new Set());
+      for (const other of terms) {
+        if (other !== term) idx.get(term).add(other);
+      }
+    }
+  }
+  return idx;
+}
+
+// Returns { phrase, tokens, stemmedTokens, expandedPhrases, expandedTokens, bigrams }
+function buildQuery(query) {
+  const phrase = query.trim().toLowerCase();
+  const tokens = tokenize(query);
+  const stemmedTokens = stemTokens(tokens);
+  const synIdx = buildSynonymIndex();
+
+  // Expand: each token contributes its synonym group
+  const expandedPhrases = new Set();
+  const expandedTokens = new Set();
+
+  // First, full phrase lookup
+  if (synIdx.has(phrase)) {
+    for (const t of synIdx.get(phrase)) {
+      if (t.includes(' ')) expandedPhrases.add(t);
+      else expandedTokens.add(t);
+    }
+  }
+  // Then each individual token
+  for (const tok of tokens) {
+    if (synIdx.has(tok)) {
+      for (const t of synIdx.get(tok)) {
+        if (t.includes(' ')) expandedPhrases.add(t);
+        else expandedTokens.add(t);
+      }
+    }
+    const st = stem(tok);
+    if (st !== tok && synIdx.has(st)) {
+      for (const t of synIdx.get(st)) {
+        if (t.includes(' ')) expandedPhrases.add(t);
+        else expandedTokens.add(t);
+      }
+    }
+  }
+  // Bigrams from original tokens
+  const bigrams = [];
+  for (let i = 0; i < tokens.length - 1; i++) bigrams.push(tokens[i] + ' ' + tokens[i+1]);
+
+  return { phrase, tokens, stemmedTokens, expandedPhrases: [...expandedPhrases], expandedTokens: [...expandedTokens], bigrams };
+}
+
+// Stem an entry's searchable text once per call
+function entrySearchableText(entry) {
+  const stripped = entry.content.replace(/<[^>]*>/g, ' ');
+  const raw = (entry.title + ' ' + entry.section + ' ' + (entry.keywords||[]).join(' ') + ' ' + stripped).toLowerCase();
+  // Stemmed bag of words for stemmed-token matching
+  const stemmedSet = new Set(tokenize(raw).map(stem));
+  return { raw, stemmedSet };
+}
+
+function scoreEntry(entry, q) {
+  const title = entry.title.toLowerCase();
+  const section = entry.section.toLowerCase();
+  const kws = (entry.keywords || []).map(k => k.toLowerCase());
+  const kwStr = kws.join(' ');
+  const content = entry.content.replace(/<[^>]*>/g, ' ').toLowerCase();
+  const stext = entrySearchableText(entry);
+
+  let score = 0;
+
+  // ─── PHRASE / EXACT (highest priority) ───
+  if (title === q.phrase) score += 250;
+  else if (title.startsWith(q.phrase)) score += 130;
+  else if (title.includes(q.phrase)) score += 95;
+
+  if (kws.some(k => k === q.phrase)) score += 140;
+  else if (kws.some(k => k.includes(q.phrase))) score += 80;
+  else if (kwStr.includes(q.phrase)) score += 55;
+
+  if (section.includes(q.phrase)) score += 45;
+  if (content.includes(q.phrase)) score += 18;
+
+  // ─── ORIGINAL TOKENS ───
+  const valid = q.tokens.filter(t => t.length >= 2);
+  if (valid.length > 1) {
+    let kwHits = 0, titleHits = 0;
+    for (const t of valid) {
+      if (kws.some(k => k.includes(t))) { score += 8; kwHits++; }
+      if (title.includes(t)) { score += 6; titleHits++; }
+      else if (content.includes(t)) score += 1;
+    }
+    if (kwHits >= valid.length) score += 25;
+    if (titleHits >= valid.length) score += 20;
+  } else if (valid.length === 1) {
+    const t = valid[0];
+    if (kws.some(k => k === t)) score += 14;
+    else if (kws.some(k => k.startsWith(t))) score += 8;
+    else if (kwStr.includes(t)) score += 4;
+    else if (title.includes(t)) score += 10;
+    else if (content.includes(t)) score += 1;
+  }
+
+  // ─── STEMMED TOKEN MATCHES (catches plural/tense variants) ───
+  let stemHits = 0;
+  for (const st of q.stemmedTokens) {
+    if (st.length >= 3 && stext.stemmedSet.has(st)) stemHits++;
+  }
+  if (stemHits) score += stemHits * 3;
+
+  // ─── BIGRAM BOOST (adjacent pairs win over scattered tokens) ───
+  for (const bg of q.bigrams) {
+    if (title.includes(bg)) score += 12;
+    else if (kwStr.includes(bg)) score += 8;
+    else if (content.includes(bg)) score += 4;
+  }
+
+  // ─── SYNONYM / CONCEPT EXPANSIONS (lower weight than originals) ───
+  for (const ep of q.expandedPhrases) {
+    if (title.includes(ep)) score += 18;
+    else if (kwStr.includes(ep)) score += 14;
+    else if (content.includes(ep)) score += 6;
+  }
+  for (const et of q.expandedTokens) {
+    if (et.length < 2) continue;
+    if (kws.some(k => k === et)) score += 6;
+    else if (title.includes(et)) score += 4;
+    else if (kwStr.includes(et)) score += 3;
+    else if (content.includes(et)) score += 1;
+  }
+
+  return score;
+}
+
+function search(query) {
+  if (!query || !query.trim()) return [];
+  const q = buildQuery(query);
+  const scored = HANDBOOK
+    .map(e => ({ entry: e, score: scoreEntry(e, q) }))
+    .filter(r => r.score >= 4);
+  scored.sort((a, b) => b.score - a.score);
+  let results = scored.map(r => r.entry);
+
+  // ─── SECTION-LEVEL FALLBACK ───
+  // If we found nothing (or very little), surface matching SECTION pages as virtual results
+  if (results.length < 2) {
+    const sectionResults = [];
+    for (const sec of SECTIONS) {
+      const blob = (sec.num + ' ' + sec.title + ' ' + (sec.description || '')).toLowerCase();
+      let s = 0;
+      if (blob.includes(q.phrase)) s += 80;
+      for (const t of q.tokens) if (blob.includes(t)) s += 10;
+      for (const ep of q.expandedPhrases) if (blob.includes(ep)) s += 6;
+      for (const et of q.expandedTokens) if (blob.includes(et)) s += 3;
+      if (s >= 10) sectionResults.push({ entry: { __section: true, num: sec.num, title: sec.title, id: sec.num, section: sec.num + '. ' + sec.title, content: sec.description || '' }, score: s });
+    }
+    sectionResults.sort((a, b) => b.score - a.score);
+    const haveIds = new Set(results.map(r => r.id));
+    for (const r of sectionResults) {
+      if (!haveIds.has(r.entry.id)) results.push(r.entry);
+    }
+  }
+
+  return results;
+}
+
+function openSearchModal(initialQ) {
+  const inp = document.getElementById('search-modal-input');
+  if (typeof initialQ === 'string') { inp.value = initialQ; performSearchModal(); }
+  else { inp.value = ''; document.getElementById('results-list').innerHTML = ''; document.getElementById('results-count').textContent = ''; }
+  document.getElementById('search-modal-overlay').classList.add('open');
+  setTimeout(() => inp.focus(), 50);
+}
+function closeSearchModal() { document.getElementById('search-modal-overlay').classList.remove('open'); }
+function maybeCloseSearchModal(e) { if (e.target === document.getElementById('search-modal-overlay')) closeSearchModal(); }
+
+function performSearchModal() {
+  const q = document.getElementById('search-modal-input').value.trim();
+  if (!q) { document.getElementById('results-list').innerHTML = ''; document.getElementById('results-count').textContent = ''; return; }
+  const results = search(q);
+  renderSearchResults(q, results);
+}
+
+function runHomeSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  openSearchModal(q);
+}
+
+function chip(q) { openSearchModal(q); }
+
+function renderSearchResults(query, results) {
+  const list = document.getElementById('results-list');
+  const count = document.getElementById('results-count');
+
+  if (!results.length) {
+    count.textContent = '';
+    list.innerHTML = `<div class="no-results">No handbook sections matched "<strong>${escapeHtml(query)}</strong>".<br>Try different keywords.</div>`;
+    return;
+  }
+
+  const tokens = tokenize(query);
+  count.textContent = `${results.length} match${results.length !== 1 ? 'es' : ''} found`;
+
+  const top = results.slice(0, 3);
+  const others = results.slice(3);
+
+  let html = `<div class="search-segment-label"><span>★ Best Matches</span><span class="segment-line"></span></div>`;
+  html += top.map(e => resultCardHtml(e, tokens)).join('');
+
+  if (others.length) {
+    html += `<button class="others-toggle" onclick="toggleOthers()">▼ Show ${others.length} other result${others.length !== 1 ? 's' : ''} that could be relevant</button>`;
+    html += `<div id="others-section" style="display:none">
+      <div class="search-segment-label" style="margin-top:14px"><span>Other Results That Could Be Relevant</span><span class="segment-line"></span></div>
+      ${others.map(e => resultCardHtml(e, tokens)).join('')}
+    </div>`;
+  }
+
+  list.innerHTML = html;
+}
+
+function toggleOthers() {
+  const sec = document.getElementById('others-section');
+  const btn = document.querySelector('.others-toggle');
+  const open = sec.style.display !== 'none';
+  sec.style.display = open ? 'none' : 'block';
+  btn.textContent = open
+    ? btn.textContent.replace('▲ Hide', '▼ Show').replace('other results', 'other results that could be relevant')
+    : btn.textContent.replace('▼ Show', '▲ Hide').replace(' that could be relevant', '');
+}
+
+function resultCardHtml(entry, tokens) {
+  const idDisplay = entry.id;
+  if (entry.__section) {
+    // Virtual section-fallback result
+    return `<div class="result-card">
+      <div class="result-card-header">
+        <span class="result-section-id">SECTION ${escapeHtml(idDisplay)}</span>
+        <span class="result-section-title">${escapeHtml(entry.title)}</span>
+        <button class="result-go-btn" onclick="closeSearchModal();showSection('${escAttr(entry.num)}')">Open section →</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="result-card">
+    <div class="result-card-header">
+      <span class="result-section-id">${escapeHtml(idDisplay)}</span>
+      <span class="result-section-title">${escapeHtml(entry.title)}</span>
+      <button class="result-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(entry.id)}')">✎ Edit</button>
+      <button class="result-go-btn" onclick="closeSearchModal();showEntry('${escAttr(entry.id)}')">Open →</button>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════
+   RICH TEXT EDITOR
+   ══════════════════════════════════════════ */
+function buildToolbar(containerId, editorId) {
+  const buttons = [
+    { cmd: 'bold',           label: '<b>B</b>',   title: 'Bold (Ctrl+B)',      check: true },
+    { cmd: 'italic',         label: '<i>I</i>',   title: 'Italic (Ctrl+I)',    check: true },
+    { cmd: 'underline',      label: '<u>U</u>',   title: 'Underline (Ctrl+U)', check: true },
+    { sep: true },
+    { block: 'h3',           label: 'H',          title: 'Heading' },
+    { block: 'p',            label: '¶',          title: 'Paragraph' },
+    { sep: true },
+    { cmd: 'insertUnorderedList', label: '• List', title: 'Bullet list' },
+    { cmd: 'insertOrderedList',   label: '1. List', title: 'Numbered list' },
+    { sep: true },
+    { custom: 'link',  label: '🔗', title: 'Insert link' },
+    { custom: 'image', label: '🖼', title: 'Insert image (or paste from clipboard)' },
+    { sep: true },
+    { cmd: 'removeFormat', label: '⌫', title: 'Clear formatting' }
+  ];
+
+  const html = buttons.map(b => {
+    if (b.sep) return `<div class="rt-sep"></div>`;
+    if (b.cmd) {
+      return `<button class="rt-btn" type="button"
+        data-cmd="${escAttr(b.cmd)}" data-check="${b.check?'1':'0'}"
+        data-editor="${escAttr(editorId)}"
+        title="${escAttr(b.title)}"
+        onmousedown="event.preventDefault()"
+        onclick="rtFmt('${escAttr(b.cmd)}','${escAttr(editorId)}')">${b.label}</button>`;
+    }
+    if (b.block) {
+      return `<button class="rt-btn" type="button"
+        data-block="${escAttr(b.block)}" data-editor="${escAttr(editorId)}"
+        title="${escAttr(b.title)}"
+        onmousedown="event.preventDefault()"
+        onclick="rtBlock('${escAttr(b.block)}','${escAttr(editorId)}')">${b.label}</button>`;
+    }
+    if (b.custom === 'link') {
+      return `<button class="rt-btn" type="button" title="${escAttr(b.title)}"
+        onmousedown="event.preventDefault()"
+        onclick="rtInsertLink('${escAttr(editorId)}')">${b.label}</button>`;
+    }
+    if (b.custom === 'image') {
+      return `<button class="rt-btn" type="button" title="${escAttr(b.title)}"
+        onmousedown="event.preventDefault()"
+        onclick="rtInsertImage('${escAttr(editorId)}')">${b.label}</button>`;
+    }
+    return '';
+  }).join('');
+
+  document.getElementById(containerId).innerHTML = html;
+}
+
+function rtFmt(cmd, editorId) {
+  const ed = document.getElementById(editorId);
+  ed.focus();
+  document.execCommand(cmd, false, null);
+  updateRTToolbarState(editorId);
+}
+
+function rtBlock(tag, editorId) {
+  const ed = document.getElementById(editorId);
+  ed.focus();
+  try { document.execCommand('formatBlock', false, tag); } catch(e){}
+}
+
+function rtInsertLink(editorId) {
+  const ed = document.getElementById(editorId);
+  ed.focus();
+  const sel = window.getSelection();
+  const selectedText = sel && !sel.isCollapsed ? sel.toString() : '';
+  const url = prompt('Link URL:', 'https://');
+  if (!url) return;
+  if (selectedText) {
+    document.execCommand('createLink', false, url);
+    // Add target=_blank to the inserted link
+    setTimeout(() => {
+      ed.querySelectorAll('a[href]').forEach(a => { if (!a.target) a.target = '_blank'; });
+    }, 0);
+  } else {
+    const text = prompt('Link text:', url);
+    if (text === null) return;
+    document.execCommand('insertHTML', false, `<a href="${escAttr(url)}" target="_blank">${escapeHtml(text || url)}</a>`);
+  }
+}
+
+function rtInsertImage(editorId) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = ev => {
+    const file = ev.target.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = e2 => insertImageAtCursor(editorId, e2.target.result);
+    r.readAsDataURL(file);
+  };
+  inp.click();
+}
+
+function insertImageAtCursor(editorId, dataUrl) {
+  const ed = document.getElementById(editorId);
+  ed.focus();
+  document.execCommand('insertHTML', false,
+    `<img src="${dataUrl}" class="entry-img" style="max-width:100%;border-radius:4px;margin:4px 0;cursor:pointer">`);
+}
+
+function handleRTPaste(e, editorId) {
+  if (!e.clipboardData || !e.clipboardData.items) return;
+  for (const item of e.clipboardData.items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const blob = item.getAsFile();
+      const r = new FileReader();
+      r.onload = ev => insertImageAtCursor(editorId, ev.target.result);
+      r.readAsDataURL(blob);
+      return;
+    }
+  }
+}
+
+function updateRTToolbarState(editorId) {
+  const ed = document.getElementById(editorId);
+  if (!ed || !ed.parentElement) return;
+  const toolbar = ed.parentElement.querySelector('.rt-toolbar');
+  if (!toolbar) return;
+  toolbar.querySelectorAll('.rt-btn[data-cmd]').forEach(btn => {
+    if (btn.dataset.check === '1') {
+      try { btn.classList.toggle('active', document.queryCommandState(btn.dataset.cmd)); } catch(e){}
+    }
+  });
+}
+
+function initEditor(editorId, toolbarId, content) {
+  buildToolbar(toolbarId, editorId);
+  const ed = document.getElementById(editorId);
+  ed.innerHTML = content || '';
+  if (!ed._listenersAdded) {
+    ed.addEventListener('paste', e => handleRTPaste(e, editorId));
+    ed.addEventListener('keyup', () => updateRTToolbarState(editorId));
+    ed.addEventListener('mouseup', () => updateRTToolbarState(editorId));
+    ed._listenersAdded = true;
+  }
+  setTimeout(() => updateRTToolbarState(editorId), 10);
+}
+
+/* ══════════════════════════════════════════
+   ADMIN AUTH
+   ══════════════════════════════════════════ */
+const ADMIN_PW = 'VLMCS123';
+function openAdminAuth() {
+  if (isAdminMode) { exitAdminMode(); return; }
+  document.getElementById('pwd-input').value = '';
+  document.getElementById('pwd-error').textContent = '';
+  document.getElementById('pwd-input').classList.remove('error');
+  document.getElementById('pwd-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('pwd-input').focus(), 60);
+}
+function closePwdModal() { document.getElementById('pwd-modal-overlay').classList.remove('open'); }
+function maybeClosePwd(e) { if (e.target === document.getElementById('pwd-modal-overlay')) closePwdModal(); }
+function checkPassword() {
+  if (document.getElementById('pwd-input').value === ADMIN_PW) {
+    closePwdModal(); enterAdminMode();
+  } else {
+    document.getElementById('pwd-error').textContent = 'Incorrect password.';
+    const inp = document.getElementById('pwd-input');
+    inp.classList.add('error'); inp.value = '';
+    setTimeout(() => inp.classList.remove('error'), 400);
+    inp.focus();
+  }
+}
+function enterAdminMode() {
+  isAdminMode = true;
+  document.body.classList.add('admin-mode');
+  document.getElementById('admin-btn-text').textContent = 'Exit Admin Mode';
+  document.getElementById('admin-btn-icon').textContent = '🔓';
+  renderSidebar(); renderAnnouncements();
+  showToast('Admin mode active');
+}
+function exitAdminMode() {
+  isAdminMode = false;
+  document.body.classList.remove('admin-mode');
+  document.getElementById('admin-btn-text').textContent = 'Admin Mode';
+  document.getElementById('admin-btn-icon').textContent = '🔒';
+  if (currentView === 'docview') showHome();
+  renderSidebar(); renderAnnouncements();
+  showToast('Admin mode exited');
+}
+
+/* ══════════════════════════════════════════
+   ENTRY EDITOR
+   ══════════════════════════════════════════ */
+function populateSectionSelect(selectedNum) {
+  const sel = document.getElementById('ef-section-select');
+  sel.innerHTML = SECTIONS.map(s => `<option value="${escAttr(s.num)}">${escapeHtml(s.num + '. ' + s.title)}</option>`).join('')
+                + `<option value="__new__">＋ New section…</option>`;
+  if (selectedNum) sel.value = String(selectedNum);
+  onSectionSelectChange();
+}
+
+function onSectionSelectChange() {
+  const sel = document.getElementById('ef-section-select');
+  const isNew = sel.value === '__new__';
+  document.getElementById('ef-new-section-group').style.display = isNew ? '' : 'none';
+  // Auto-suggest entry ID
+  if (!editEntryId) {
+    let num = isNew ? document.getElementById('ef-new-section-num').value.trim() : sel.value;
+    if (num) {
+      const existing = entriesInSection(num).map(e => e.id);
+      let nextSub = 1;
+      while (existing.includes(`${num}.${nextSub}`)) nextSub++;
+      document.getElementById('ef-id').value = `${num}.${nextSub}`;
+    }
+  }
+}
+
+function openEntryEditor(id) {
+  const entry = findEntry(id);
+  if (!entry) return;
+  editEntryId = id;
+  editEntrySrcSection = sectionNumOf(id);
+  document.getElementById('entry-modal-title-text').textContent = 'Edit Entry';
+  document.getElementById('delete-entry-btn').style.display = '';
+  populateSectionSelect(sectionNumOf(id));
+  document.getElementById('ef-id').value = entry.id;
+  document.getElementById('ef-title').value = entry.title;
+  document.getElementById('ef-keywords').value = entry.keywords.join(', ');
+  initEditor('ef-content-editor', 'ef-rt-toolbar', entry.content);
+  document.getElementById('entry-modal-overlay').classList.add('open');
+}
+
+function openNewEntryEditor(sectionNum) {
+  editEntryId = null;
+  editEntrySrcSection = null;
+  document.getElementById('entry-modal-title-text').textContent = 'New Entry';
+  document.getElementById('delete-entry-btn').style.display = 'none';
+  populateSectionSelect(sectionNum || (SECTIONS[0] && SECTIONS[0].num));
+  document.getElementById('ef-title').value = '';
+  document.getElementById('ef-keywords').value = '';
+  initEditor('ef-content-editor', 'ef-rt-toolbar', '');
+  document.getElementById('ef-new-section-num').value = '';
+  document.getElementById('ef-new-section-title').value = '';
+  document.getElementById('entry-modal-overlay').classList.add('open');
+}
+
+function closeEntryModal() { document.getElementById('entry-modal-overlay').classList.remove('open'); }
+function maybeCloseEntry(e) { if (e.target === document.getElementById('entry-modal-overlay')) closeEntryModal(); }
+
+function saveEntry() {
+  const sel = document.getElementById('ef-section-select');
+  let sectionNum = sel.value;
+  let sectionTitle = null;
+
+  if (sectionNum === '__new__') {
+    sectionNum = document.getElementById('ef-new-section-num').value.trim();
+    sectionTitle = document.getElementById('ef-new-section-title').value.trim();
+    if (!sectionNum || !sectionTitle) { alert('Please fill in the new section number and title.'); return; }
+    if (findSection(sectionNum)) { alert(`Section ${sectionNum} already exists.`); return; }
+    SECTIONS.push({ num: sectionNum, title: sectionTitle, description: '' });
+  }
+
+  const id = document.getElementById('ef-id').value.trim();
+  const title = document.getElementById('ef-title').value.trim();
+  const kwRaw = document.getElementById('ef-keywords').value.trim();
+  const content = document.getElementById('ef-content-editor').innerHTML;
+
+  if (!id || !title) { alert('Entry ID and Title are required.'); return; }
+  if (!stripHtml(content)) { alert('Entry content cannot be empty.'); return; }
+  if (sectionNumOf(id) !== sectionNum) {
+    alert(`Entry ID "${id}" doesn't match selected section number "${sectionNum}". Please adjust.`);
+    return;
+  }
+
+  const sec = findSection(sectionNum);
+  const sectionLabel = sec ? `${sec.num}. ${sec.title}` : sectionNum;
+  const keywords = kwRaw.split(',').map(k => k.trim()).filter(Boolean);
+
+  if (editEntryId) {
+    // Editing existing
+    const idx = HANDBOOK.findIndex(e => e.id === editEntryId);
+    if (idx === -1) { alert('Entry not found.'); return; }
+    // If ID changed, ensure uniqueness
+    if (id !== editEntryId && HANDBOOK.some(e => e.id === id)) {
+      alert(`An entry with ID "${id}" already exists.`); return;
+    }
+    HANDBOOK[idx] = { id, section: sectionLabel, title, keywords, content };
+    if (currentEntryId === editEntryId) currentEntryId = id;
+  } else {
+    if (HANDBOOK.some(e => e.id === id)) { alert(`An entry with ID "${id}" already exists.`); return; }
+    HANDBOOK.push({ id, section: sectionLabel, title, keywords, content });
+  }
+
+  closeEntryModal();
+  saveAll('Entry saved');
+  renderSidebar();
+  if (currentView === 'entry' && currentEntryId === id) showEntry(id);
+  else if (currentView === 'section') showSection(currentSectionNum);
+  else if (currentView === 'docview') renderDocView();
+}
+
+function deleteCurrentEntry() {
+  if (!editEntryId || !confirm('Delete this entry permanently?')) return;
+  HANDBOOK = HANDBOOK.filter(e => e.id !== editEntryId);
+  closeEntryModal();
+  saveAll('Entry deleted');
+  if (currentEntryId === editEntryId) {
+    if (currentSectionNum) showSection(currentSectionNum);
+    else showHome();
+  }
+  renderSidebar();
+  if (currentView === 'docview') renderDocView();
+}
+
+/* ══════════════════════════════════════════
+   SECTION EDITOR
+   ══════════════════════════════════════════ */
+function openSectionEditor(num) {
+  const sec = findSection(num);
+  if (!sec) return;
+  editSectionNum = num;
+  document.getElementById('section-modal-title-text').textContent = 'Edit Section';
+  document.getElementById('delete-section-btn').style.display = '';
+  document.getElementById('sef-num').value = sec.num;
+  document.getElementById('sef-title').value = sec.title;
+  document.getElementById('sef-desc').value = sec.description || '';
+  document.getElementById('section-modal-overlay').classList.add('open');
+}
+function openNewSectionEditor() {
+  editSectionNum = null;
+  document.getElementById('section-modal-title-text').textContent = 'New Section';
+  document.getElementById('delete-section-btn').style.display = 'none';
+  // Auto-suggest next num
+  const nums = SECTIONS.map(s => parseInt(s.num)).filter(n => !isNaN(n));
+  const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
+  document.getElementById('sef-num').value = String(nextNum);
+  document.getElementById('sef-title').value = '';
+  document.getElementById('sef-desc').value = '';
+  document.getElementById('section-modal-overlay').classList.add('open');
+}
+function closeSectionModal() { document.getElementById('section-modal-overlay').classList.remove('open'); }
+function maybeCloseSection(e) { if (e.target === document.getElementById('section-modal-overlay')) closeSectionModal(); }
+
+function saveSection() {
+  const num = document.getElementById('sef-num').value.trim();
+  const title = document.getElementById('sef-title').value.trim();
+  const desc = document.getElementById('sef-desc').value.trim();
+  if (!num || !title) { alert('Number and title are required.'); return; }
+
+  if (editSectionNum) {
+    const sec = findSection(editSectionNum);
+    if (!sec) return;
+    if (num !== editSectionNum && findSection(num)) { alert(`Section ${num} already exists.`); return; }
+    // If renumbering, update all entry IDs and section labels
+    if (num !== editSectionNum) {
+      HANDBOOK.forEach(e => {
+        if (sectionNumOf(e.id) === editSectionNum) {
+          e.id = num + '.' + e.id.split('.').slice(1).join('.');
+        }
+      });
+      if (currentSectionNum === editSectionNum) currentSectionNum = num;
+    }
+    sec.num = num; sec.title = title; sec.description = desc;
+    HANDBOOK.forEach(e => {
+      if (sectionNumOf(e.id) === num) e.section = `${num}. ${title}`;
+    });
+  } else {
+    if (findSection(num)) { alert(`Section ${num} already exists.`); return; }
+    SECTIONS.push({ num, title, description: desc });
+  }
+
+  closeSectionModal();
+  saveAll('Section saved');
+  renderSidebar();
+  if (currentView === 'section') showSection(currentSectionNum);
+  else if (currentView === 'docview') renderDocView();
+}
+
+function deleteCurrentSection() {
+  if (!editSectionNum) return;
+  const hasEntries = entriesInSection(editSectionNum).length > 0;
+  if (hasEntries && !confirm(`Section ${editSectionNum} has entries. Delete the section AND all its entries permanently?`)) return;
+  if (!hasEntries && !confirm(`Delete section ${editSectionNum}?`)) return;
+  HANDBOOK = HANDBOOK.filter(e => sectionNumOf(e.id) !== editSectionNum);
+  SECTIONS = SECTIONS.filter(s => s.num !== editSectionNum);
+  closeSectionModal();
+  saveAll('Section deleted');
+  if (currentSectionNum === editSectionNum) showHome();
+  else renderSidebar();
+  if (currentView === 'docview') renderDocView();
+}
+
+/* ══════════════════════════════════════════
+   SIDEBAR ITEM EDITOR (Quick Links / Team)
+   ══════════════════════════════════════════ */
+function openSIEditor(sectionId, itemId) {
+  const sec = SIDEBAR_CFG.find(s => s.id === sectionId);
+  if (!sec) return;
+  const item = sec.items.find(i => i.id === itemId);
+  if (!item) return;
+  editSISection = sectionId; editSIItemId = itemId;
+  document.getElementById('si-text').value = item.text;
+  document.getElementById('si-href').value = item.href || '';
+  document.getElementById('si-visible').value = String(item.visible !== false);
+  document.getElementById('si-modal-overlay').classList.add('open');
+}
+function openNewSIEditor(sectionId) {
+  editSISection = sectionId; editSIItemId = null;
+  document.getElementById('si-text').value = '';
+  document.getElementById('si-href').value = '';
+  document.getElementById('si-visible').value = 'true';
+  document.getElementById('si-modal-overlay').classList.add('open');
+}
+function closeSIModal() { document.getElementById('si-modal-overlay').classList.remove('open'); }
+function maybeCloseSI(e) { if (e.target === document.getElementById('si-modal-overlay')) closeSIModal(); }
+function saveSidebarItem() {
+  const sec = SIDEBAR_CFG.find(s => s.id === editSISection); if (!sec) return;
+  const text = document.getElementById('si-text').value.trim();
+  if (!text) { alert('Display text is required.'); return; }
+  const href = document.getElementById('si-href').value.trim() || null;
+  const visible = document.getElementById('si-visible').value === 'true';
+  if (editSIItemId) {
+    const item = sec.items.find(i => i.id === editSIItemId);
+    if (item) { item.text = text; item.href = href; item.visible = visible; }
+  } else {
+    sec.items.push({ id: 'item-' + Date.now(), text, href, visible });
+  }
+  closeSIModal(); saveSidebarOnly(); renderSidebar();
+}
+function deleteSidebarItem() {
+  if (!editSIItemId || !confirm('Remove this sidebar item?')) return;
+  const sec = SIDEBAR_CFG.find(s => s.id === editSISection);
+  if (sec) sec.items = sec.items.filter(i => i.id !== editSIItemId);
+  closeSIModal(); saveSidebarOnly(); renderSidebar();
+}
+
+/* ══════════════════════════════════════════
+   ANNOUNCEMENTS
+   ══════════════════════════════════════════ */
+function renderAnnouncements() {
+  const c = document.getElementById('whats-new');
+  const visible = ANNOUNCEMENTS.filter(a => !dismissedAnns.has(a.id));
+  const show = visible.length > 0 || isAdminMode;
+  if (!show) { c.innerHTML = ''; return; }
+  const itemsHtml = visible.map(a => `
+    <div class="ann-item" data-ann-id="${escAttr(a.id)}">
+      <div class="ann-dot"></div>
+      <div class="ann-content">
+        <div class="ann-date">${escapeHtml(a.date)}${a.author ? ' · ' + escapeHtml(a.author) : ''}</div>
+        <div class="ann-text">${escapeHtml(a.text)}</div>
+      </div>
+      <div class="ann-actions">
+        <button class="ann-edit-btn" onclick="openAnnEditor('${escAttr(a.id)}')" title="Edit">✎</button>
+        <button class="ann-dismiss-btn" onclick="dismissAnn('${escAttr(a.id)}')" title="Dismiss">✕</button>
+      </div>
+    </div>
+  `).join('');
+  const addBtn = isAdminMode ? `<button class="ann-add-btn" onclick="openNewAnnEditor()">＋ New</button>` : '';
+  c.innerHTML = `<div class="ann-header"><span class="ann-label">What's New</span>${addBtn}</div>
+    ${itemsHtml}${visible.length === 0 && isAdminMode ? '<div style="font-size:12px;color:var(--mid)">No announcements yet.</div>' : ''}`;
+}
+function dismissAnn(id) { dismissedAnns.add(id); saveAnnsOnly(); renderAnnouncements(); }
+function openAnnEditor(id) {
+  const a = ANNOUNCEMENTS.find(x => x.id === id); if (!a) return;
+  editAnnId = id;
+  document.getElementById('ann-modal-title-text').textContent = 'Edit Announcement';
+  document.getElementById('ann-text-input').value = a.text;
+  document.getElementById('ann-author-input').value = a.author || '';
+  document.getElementById('delete-ann-btn').style.display = '';
+  document.getElementById('ann-modal-overlay').classList.add('open');
+}
+function openNewAnnEditor() {
+  editAnnId = null;
+  document.getElementById('ann-modal-title-text').textContent = 'New Announcement';
+  document.getElementById('ann-text-input').value = '';
+  document.getElementById('ann-author-input').value = '';
+  document.getElementById('delete-ann-btn').style.display = 'none';
+  document.getElementById('ann-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('ann-text-input').focus(), 60);
+}
+function closeAnnModal() { document.getElementById('ann-modal-overlay').classList.remove('open'); }
+function maybeCloseAnn(e) { if (e.target === document.getElementById('ann-modal-overlay')) closeAnnModal(); }
+function saveAnn() {
+  const text = document.getElementById('ann-text-input').value.trim();
+  if (!text) { alert('Message required.'); return; }
+  const author = document.getElementById('ann-author-input').value.trim();
+  const date = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  if (editAnnId) {
+    const idx = ANNOUNCEMENTS.findIndex(a => a.id === editAnnId);
+    if (idx !== -1) { ANNOUNCEMENTS[idx].text = text; ANNOUNCEMENTS[idx].author = author; }
+    dismissedAnns.delete(editAnnId);
+  } else {
+    ANNOUNCEMENTS.unshift({ id:'ann-'+Date.now(), date, author, text });
+  }
+  closeAnnModal(); saveAnnsOnly(); renderAnnouncements();
+  showToast('Announcement posted');
+}
+function deleteCurrentAnn() {
+  if (!editAnnId || !confirm('Delete this announcement?')) return;
+  ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== editAnnId);
+  dismissedAnns.delete(editAnnId);
+  closeAnnModal(); saveAnnsOnly(); renderAnnouncements();
+}
+
+/* ══════════════════════════════════════════
+   EXPORT / IMPORT
+   ══════════════════════════════════════════ */
+function exportData() {
+  const data = {
+    sections: SECTIONS, handbook: HANDBOOK, sidebar: SIDEBAR_CFG,
+    announcements: ANNOUNCEMENTS, synonyms: SYNONYMS, team: TEAM_DIRECTORY,
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'vl-dashboard-backup.json'; a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Exported backup');
+}
+
+function importData(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.handbook) { alert('Invalid backup file.'); return; }
+      if (!confirm('This will replace all handbook data, sidebar config, announcements, synonyms, and team directory. Continue?')) return;
+      SECTIONS = data.sections || clone(DEFAULT_SECTIONS);
+      HANDBOOK = data.handbook;
+      SIDEBAR_CFG = data.sidebar || clone(DEFAULT_SIDEBAR_CFG);
+      ANNOUNCEMENTS = data.announcements || [];
+      SYNONYMS = data.synonyms || clone(DEFAULT_SYNONYMS);
+      TEAM_DIRECTORY = data.team || [];
+      dismissedAnns = new Set();
+      saveAll('Import complete');
+      renderSidebar(); renderAnnouncements(); showHome();
+    } catch(err) { alert('Could not parse file: ' + err.message); }
+  };
+  r.readAsText(file); e.target.value = '';
+}
+
+/* ══════════════════════════════════════════
+   SYNONYMS EDITOR (admin)
+   ══════════════════════════════════════════ */
+let _synWorking = [];
+
+function openSynonymsEditor() {
+  _synWorking = JSON.parse(JSON.stringify(SYNONYMS));
+  renderSynGroups();
+  document.getElementById('syn-modal-overlay').classList.add('open');
+}
+function closeSynModal() { document.getElementById('syn-modal-overlay').classList.remove('open'); }
+function maybeCloseSyn(e) { if (e.target === document.getElementById('syn-modal-overlay')) closeSynModal(); }
+
+function renderSynGroups() {
+  const list = document.getElementById('syn-groups-list');
+  list.innerHTML = _synWorking.map((group, i) => `
+    <div class="syn-group-row">
+      <textarea class="syn-group-input" rows="1" oninput="updateSynGroup(${i}, this.value)"
+        placeholder="comma-separated, terms, here">${escapeHtml(Array.isArray(group) ? group.join(', ') : '')}</textarea>
+      <button class="syn-del-btn" onclick="removeSynGroup(${i})" title="Delete group">✕</button>
+    </div>
+  `).join('');
+}
+function updateSynGroup(i, value) {
+  _synWorking[i] = value.split(',').map(s => s.trim()).filter(Boolean);
+}
+function addSynGroup() {
+  _synWorking.push([]);
+  renderSynGroups();
+  // Focus the last input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.syn-group-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 30);
+}
+function removeSynGroup(i) {
+  _synWorking.splice(i, 1);
+  renderSynGroups();
+}
+function saveSynonyms() {
+  SYNONYMS = _synWorking.filter(g => Array.isArray(g) && g.length > 0);
+  saveSynonymsOnly();
+  closeSynModal();
+}
+function resetSynonymsToDefault() {
+  if (!confirm('Reset all synonyms to defaults? Your custom groups will be lost.')) return;
+  _synWorking = JSON.parse(JSON.stringify(DEFAULT_SYNONYMS));
+  renderSynGroups();
+}
+
+/* ══════════════════════════════════════════
+   TEAM DIRECTORY
+   ══════════════════════════════════════════ */
+const TIMEZONES = [
+  'Pacific/Honolulu','America/Anchorage','America/Los_Angeles','America/Denver',
+  'America/Phoenix','America/Chicago','America/New_York','America/Toronto',
+  'America/Mexico_City','America/Sao_Paulo','America/Argentina/Buenos_Aires',
+  'UTC','Europe/London','Europe/Berlin','Europe/Paris','Europe/Madrid',
+  'Europe/Athens','Africa/Cairo','Africa/Johannesburg','Asia/Dubai',
+  'Asia/Karachi','Asia/Kolkata','Asia/Bangkok','Asia/Singapore','Asia/Manila',
+  'Asia/Hong_Kong','Asia/Shanghai','Asia/Tokyo','Asia/Seoul',
+  'Australia/Perth','Australia/Sydney','Pacific/Auckland'
+];
+
+let editingTmId = null;
+let tmEditMode = false;
+let _tmDraft = null; // draft of current edit
+
+function openTeamDirectory() {
+  renderTeamRoster();
+  document.getElementById('team-modal-overlay').classList.add('open');
+}
+function closeTeamModal() { document.getElementById('team-modal-overlay').classList.remove('open'); }
+function maybeCloseTeamModal(e) { if (e.target === document.getElementById('team-modal-overlay')) closeTeamModal(); }
+
+function renderTeamRoster() {
+  const grid = document.getElementById('team-roster-grid');
+  const cards = TEAM_DIRECTORY.map(m => `
+    <div class="tm-card" onclick="openTmDetail('${escAttr(m.id)}')">
+      <div class="tm-card-avatar">
+        ${m.image ? `<img src="${escAttr(m.image)}" alt="${escAttr(m.realName||'')}"/>` : defaultPersonIconSvg(40)}
+      </div>
+      <div class="tm-card-name">${escapeHtml(m.realName || 'Unnamed')}</div>
+      <div class="tm-card-slack">${escapeHtml(m.slackName ? '@' + m.slackName.replace(/^@/, '') : '')}</div>
+      <div class="tm-card-projects">
+        ${(m.projects||[]).slice(0,3).map(p => `<span class="tm-card-project-chip">${escapeHtml(p)}</span>`).join('')}
+        ${(m.projects||[]).length > 3 ? `<span class="tm-card-project-chip">+${(m.projects||[]).length-3}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+  const addCard = `<div class="tm-add-card" onclick="openNewTeamMember()">＋<br>Add Team Member</div>`;
+  grid.innerHTML = cards + addCard;
+}
+
+function defaultPersonIconSvg(size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>`;
+}
+
+function blankTm() {
+  return {
+    id: 'tm-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+    image: '',
+    slackName: '',
+    realName: '',
+    projects: [],
+    schedule: { signIn: '', signOut: '', timezone: 'America/New_York' },
+    badges: '',
+    expertise: '',
+    artStyle: '',
+    favoriteGenre: '',
+    favoriteGames: '',
+    portfolio: '',
+    _createdAt: Date.now(),
+    _updatedAt: Date.now()
+  };
+}
+
+function openTmDetail(id) {
+  const m = TEAM_DIRECTORY.find(x => x.id === id);
+  if (!m) return;
+  editingTmId = id;
+  _tmDraft = JSON.parse(JSON.stringify(m));
+  tmEditMode = false;
+  document.getElementById('tm-detail-title').textContent = m.realName || 'Team Member';
+  document.getElementById('tm-delete-btn').style.display = '';
+  renderTmDetail();
+  document.getElementById('tm-detail-overlay').classList.add('open');
+}
+
+function openNewTeamMember() {
+  editingTmId = null;
+  _tmDraft = blankTm();
+  tmEditMode = true;
+  document.getElementById('tm-detail-title').textContent = 'New Team Member';
+  document.getElementById('tm-delete-btn').style.display = 'none';
+  renderTmDetail();
+  document.getElementById('tm-detail-overlay').classList.add('open');
+}
+
+function closeTmDetail() {
+  document.getElementById('tm-detail-overlay').classList.remove('open');
+  editingTmId = null; _tmDraft = null; tmEditMode = false;
+}
+function maybeCloseTmDetail(e) {
+  if (e.target === document.getElementById('tm-detail-overlay')) closeTmDetail();
+}
+
+function toggleTmEditMode() {
+  tmEditMode = !tmEditMode;
+  renderTmDetail();
+}
+
+function renderTmDetail() {
+  const m = _tmDraft;
+  const editing = tmEditMode;
+  const body = document.getElementById('tm-detail-body');
+
+  // Mode toggle button label + save button visibility
+  const modeBtn = document.getElementById('tm-mode-btn');
+  modeBtn.textContent = editing ? '👁 View Mode' : '✎ Edit';
+  modeBtn.classList.toggle('editing', editing);
+  document.getElementById('tm-save-btn').style.display = editing ? 'inline-block' : 'none';
+
+  // Build the fields
+  const html = `
+    <!-- Avatar -->
+    <div class="tm-avatar-edit">
+      <div class="tm-avatar-big">
+        ${m.image ? `<img src="${escAttr(m.image)}" alt=""/>` : defaultPersonIconSvg(64)}
+      </div>
+      ${editing ? `<div class="tm-avatar-buttons">
+        <button class="btn btn-secondary" onclick="uploadTmImage()">Upload Image</button>
+        ${m.image ? `<button class="btn btn-danger" onclick="clearTmImage()">Remove</button>` : ''}
+      </div>` : ''}
+    </div>
+
+    <!-- Slack Name (required) -->
+    <div class="tm-field">
+      <div class="tm-field-label tm-field-required">Slack Name</div>
+      <div class="tm-field-desc">How can we ping you in Slack?</div>
+      ${editing
+        ? `<input class="form-input" id="tm-slackName" value="${escAttr(m.slackName||'')}" placeholder="@yourhandle"/>`
+        : `<div class="tm-field-value ${m.slackName?'':'empty'}">${m.slackName ? escapeHtml('@' + m.slackName.replace(/^@/,'')) : '(not set)'}</div>`}
+    </div>
+
+    <!-- Real Name (required) -->
+    <div class="tm-field">
+      <div class="tm-field-label tm-field-required">Real Name</div>
+      <div class="tm-field-desc">Let's see that beautiful name!</div>
+      ${editing
+        ? `<input class="form-input" id="tm-realName" value="${escAttr(m.realName||'')}" placeholder="Your name"/>`
+        : `<div class="tm-field-value ${m.realName?'':'empty'}">${m.realName ? escapeHtml(m.realName) : '(not set)'}</div>`}
+    </div>
+
+    <!-- Projects (required, chips) -->
+    <div class="tm-field">
+      <div class="tm-field-label tm-field-required">Projects</div>
+      <div class="tm-field-desc">Where are you assigned right now?</div>
+      <div class="tm-chips" id="tm-projects-chips">
+        ${(m.projects||[]).map((p, i) => `
+          <span class="tm-chip">${escapeHtml(p)}${editing ? `<button class="tm-chip-x" onclick="removeTmProject(${i})" title="Remove">×</button>` : ''}</span>
+        `).join('')}
+        ${editing ? `<input class="tm-chip-input" id="tm-project-input" placeholder="Add project + Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addTmProject(this.value);this.value='';}"/>` : ''}
+      </div>
+    </div>
+
+    <!-- Schedule -->
+    <div class="tm-field">
+      <div class="tm-field-label">Schedule</div>
+      <div class="tm-field-desc">Your typical work hours and timezone.</div>
+      ${editing ? `
+        <div class="tm-schedule-row">
+          <input type="time" class="form-input" id="tm-signIn" value="${escAttr((m.schedule&&m.schedule.signIn)||'')}" title="Sign-in time"/>
+          <input type="time" class="form-input" id="tm-signOut" value="${escAttr((m.schedule&&m.schedule.signOut)||'')}" title="Sign-out time"/>
+          <select class="form-select" id="tm-timezone">
+            ${TIMEZONES.map(tz => `<option value="${escAttr(tz)}" ${((m.schedule&&m.schedule.timezone)===tz)?'selected':''}>${escapeHtml(tz)}</option>`).join('')}
+          </select>
+        </div>
+      ` : `
+        <div class="tm-field-value ${(!m.schedule||!m.schedule.signIn)?'empty':''}">
+          ${(m.schedule&&m.schedule.signIn) ? `${escapeHtml(m.schedule.signIn)} – ${escapeHtml(m.schedule.signOut||'?')} <span style="color:var(--mid)">(${escapeHtml(m.schedule.timezone||'')})</span>` : '(not set)'}
+        </div>
+      `}
+    </div>
+
+    <!-- Badge Showcase (placeholder for now) -->
+    <div class="tm-field">
+      <div class="tm-field-label">Badge Showcase</div>
+      <div class="tm-badge-placeholder">Related to the badge profession system. Coming soon!</div>
+    </div>
+
+    <!-- Areas of Expertise -->
+    <div class="tm-field">
+      <div class="tm-field-label">Areas of Expertise</div>
+      <div class="tm-field-desc">Where do you shine the most?</div>
+      ${editing
+        ? `<textarea class="form-textarea" id="tm-expertise" rows="2" placeholder="VFX, lighting, character design…">${escapeHtml(m.expertise||'')}</textarea>`
+        : `<div class="tm-field-value ${m.expertise?'':'empty'}">${m.expertise ? escapeHtml(m.expertise) : '(not set)'}</div>`}
+    </div>
+
+    <!-- Art Style -->
+    <div class="tm-field">
+      <div class="tm-field-label">Art Style</div>
+      <div class="tm-field-desc">What art style do you usually prefer working on?</div>
+      ${editing
+        ? `<input class="form-input" id="tm-artStyle" value="${escAttr(m.artStyle||'')}" placeholder="Stylized, semi-realistic, pixel art…"/>`
+        : `<div class="tm-field-value ${m.artStyle?'':'empty'}">${m.artStyle ? escapeHtml(m.artStyle) : '(not set)'}</div>`}
+    </div>
+
+    <!-- Favorite Genre -->
+    <div class="tm-field">
+      <div class="tm-field-label">Favorite Genre</div>
+      <div class="tm-field-desc">Your favorite game genre</div>
+      ${editing
+        ? `<input class="form-input" id="tm-favoriteGenre" value="${escAttr(m.favoriteGenre||'')}" placeholder="JRPG, Soulslike, Roguelike…"/>`
+        : `<div class="tm-field-value ${m.favoriteGenre?'':'empty'}">${m.favoriteGenre ? escapeHtml(m.favoriteGenre) : '(not set)'}</div>`}
+    </div>
+
+    <!-- Favorite Games -->
+    <div class="tm-field">
+      <div class="tm-field-label">Favorite Video Games</div>
+      <div class="tm-field-desc">Top 5 favorite games? Top 10? Top 20? Top 999 games?</div>
+      ${editing
+        ? `<textarea class="form-textarea" id="tm-favoriteGames" rows="3" placeholder="One per line, or comma-separated">${escapeHtml(m.favoriteGames||'')}</textarea>`
+        : `<div class="tm-field-value ${m.favoriteGames?'':'empty'}" style="white-space:pre-wrap">${m.favoriteGames ? escapeHtml(m.favoriteGames) : '(not set)'}</div>`}
+    </div>
+
+    <!-- Portfolio -->
+    <div class="tm-field">
+      <div class="tm-field-label">Portfolio Link</div>
+      <div class="tm-field-desc">Bless us with your art style!</div>
+      ${editing
+        ? `<input class="form-input" id="tm-portfolio" value="${escAttr(m.portfolio||'')}" placeholder="https://..."/>`
+        : `<div class="tm-field-value ${m.portfolio?'':'empty'}">${m.portfolio
+            ? `<a href="${escAttr(m.portfolio)}" target="_blank" rel="noopener" style="color:var(--admin-accent)">${escapeHtml(m.portfolio)}</a>`
+            : '(not set)'}</div>`}
+    </div>
+  `;
+  body.innerHTML = html;
+}
+
+function addTmProject(value) {
+  const v = (value || '').trim();
+  if (!v) return;
+  if (!_tmDraft.projects) _tmDraft.projects = [];
+  if (_tmDraft.projects.includes(v)) return;
+  _tmDraft.projects.push(v);
+  renderTmDetail();
+  setTimeout(() => { const inp = document.getElementById('tm-project-input'); if (inp) inp.focus(); }, 30);
+}
+function removeTmProject(i) {
+  if (!_tmDraft.projects) return;
+  _tmDraft.projects.splice(i, 1);
+  renderTmDetail();
+}
+
+function uploadTmImage() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = ev => {
+    const file = ev.target.files[0]; if (!file) return;
+    if (file.size > 1024 * 1024) {
+      if (!confirm('Image is over 1MB. Large images slow down sync. Continue?')) return;
+    }
+    const r = new FileReader();
+    r.onload = e2 => { _tmDraft.image = e2.target.result; renderTmDetail(); };
+    r.readAsDataURL(file);
+  };
+  inp.click();
+}
+function clearTmImage() { _tmDraft.image = ''; renderTmDetail(); }
+
+function saveTm() {
+  // Pull in-edit-mode values from inputs into draft
+  if (tmEditMode) {
+    const get = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    _tmDraft.slackName     = get('tm-slackName');
+    _tmDraft.realName      = get('tm-realName');
+    _tmDraft.expertise     = get('tm-expertise');
+    _tmDraft.artStyle      = get('tm-artStyle');
+    _tmDraft.favoriteGenre = get('tm-favoriteGenre');
+    _tmDraft.favoriteGames = get('tm-favoriteGames');
+    _tmDraft.portfolio     = get('tm-portfolio');
+    _tmDraft.schedule = {
+      signIn: get('tm-signIn'),
+      signOut: get('tm-signOut'),
+      timezone: get('tm-timezone') || 'America/New_York'
+    };
+    // Capture any unsubmitted text in the project input as a final chip
+    const remaining = document.getElementById('tm-project-input');
+    if (remaining && remaining.value.trim()) {
+      addTmProject(remaining.value.trim());
+      // re-capture inputs after re-render
+      return saveTm();
+    }
+  }
+
+  // Validation
+  if (!_tmDraft.slackName) { alert('Slack Name is required.'); return; }
+  if (!_tmDraft.realName) { alert('Real Name is required.'); return; }
+  if (!_tmDraft.projects || _tmDraft.projects.length === 0) { alert('Please add at least one project.'); return; }
+
+  _tmDraft._updatedAt = Date.now();
+
+  if (editingTmId) {
+    const idx = TEAM_DIRECTORY.findIndex(m => m.id === editingTmId);
+    if (idx === -1) { TEAM_DIRECTORY.push(_tmDraft); }
+    else { TEAM_DIRECTORY[idx] = _tmDraft; }
+  } else {
+    TEAM_DIRECTORY.push(_tmDraft);
+    editingTmId = _tmDraft.id;
+  }
+
+  saveTeamOnly();
+  tmEditMode = false;
+  renderTmDetail();
+  renderTeamRoster();
+  document.getElementById('tm-detail-title').textContent = _tmDraft.realName || 'Team Member';
+}
+
+function deleteCurrentTm() {
+  if (!editingTmId) return;
+  if (!confirm('Remove this team member profile? This cannot be undone.')) return;
+  TEAM_DIRECTORY = TEAM_DIRECTORY.filter(m => m.id !== editingTmId);
+  saveTeamOnly();
+  renderTeamRoster();
+  closeTmDetail();
+}
+
+/* ══════════════════════════════════════════
+   IMAGE LIGHTBOX
+   ══════════════════════════════════════════ */
+function openLightbox(src) {
+  lightboxZoom = 1;
+  const img = document.getElementById('lightbox-img');
+  img.src = src;
+  img.style.transform = 'scale(1)';
+  document.getElementById('lightbox-zoom-label').textContent = '100%';
+  document.getElementById('lightbox-overlay').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox-overlay').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
+function maybeCloseLightbox(e) {
+  if (e.target.id === 'lightbox-overlay' || e.target.id === 'lightbox-stage') closeLightbox();
+}
+function zoomLightbox(d) {
+  lightboxZoom = Math.min(4, Math.max(0.25, lightboxZoom + d));
+  document.getElementById('lightbox-img').style.transform = `scale(${lightboxZoom})`;
+  document.getElementById('lightbox-zoom-label').textContent = Math.round(lightboxZoom * 100) + '%';
+}
+function resetLightboxZoom() { zoomLightbox(1 - lightboxZoom); }
+
+// Delegated image click for lightbox
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.tagName !== 'IMG') return;
+  // Skip toolbar/UI images
+  if (t.closest('.rt-toolbar') || t.closest('.icon-btn') || t.closest('#lightbox-overlay')) return;
+  // Trigger lightbox for content images
+  if (t.closest('.entry-content') || t.closest('.dv-entry-content') || t.classList.contains('entry-img')) {
+    openLightbox(t.src);
+  }
+});
+
+/* ══════════════════════════════════════════
+   DOCUMENTATION VIEW
+   ══════════════════════════════════════════ */
+function showDocView() {
+  if (!isAdminMode) { showToast('Documentation View requires Admin Mode.'); return; }
+  setView('docview'); updateBreadcrumb(); renderDocView();
+}
+
+function renderDocView() {
+  const outline = document.getElementById('docview-outline');
+  const content = document.getElementById('docview-content');
+
+  // Outline
+  let oh = `<div class="dv-outline-heading">Outline</div>`;
+  for (const sec of SECTIONS) {
+    oh += `<div class="dv-out-parent" onclick="document.getElementById('dv-sec-${escAttr(sec.num)}').scrollIntoView({behavior:'smooth',block:'start'})">
+      ${escapeHtml(sec.num + '. ' + sec.title)}
+    </div>`;
+    const entries = entriesInSection(sec.num);
+    if (entries.length) {
+      oh += `<div class="dv-out-children">`;
+      for (const e of entries) {
+        oh += `<div class="dv-out-child" onclick="document.getElementById('dv-en-${escAttr(e.id)}').scrollIntoView({behavior:'smooth',block:'start'})">${escapeHtml(e.id + ' ' + e.title)}</div>`;
+      }
+      oh += `</div>`;
+    }
+  }
+  outline.innerHTML = oh;
+
+  // Content
+  let ch = `<div class="dv-title-bar">
+    <div>
+      <div class="dv-title">VL Handbook — Documentation View</div>
+      <div class="dv-title-meta">Edit any entry inline. Changes save when you click "Save" on each entry.</div>
+    </div>
+    <button class="btn btn-admin" onclick="openNewSectionEditor()">＋ New Section</button>
+  </div>`;
+
+  for (const sec of SECTIONS) {
+    ch += `<div class="dv-section" id="dv-sec-${escAttr(sec.num)}">
+      <div class="dv-section-header">
+        <span class="dv-section-num">SECTION ${escapeHtml(sec.num)}</span>
+        <span class="dv-section-title">${escapeHtml(sec.title)}</span>
+        <button class="dv-entry-edit-btn" onclick="openSectionEditor('${escAttr(sec.num)}')">⚙ Edit</button>
+      </div>
+      <div class="dv-section-body">
+        <div class="dv-section-desc">${escapeHtml(sec.description || '(no description)')}</div>`;
+    const entries = entriesInSection(sec.num);
+    for (const e of entries) {
+      ch += `<div class="dv-entry" id="dv-en-${escAttr(e.id)}" data-entry-id="${escAttr(e.id)}">
+        <div class="dv-entry-head">
+          <span class="dv-entry-num">${escapeHtml(e.id)}</span>
+          <span class="dv-entry-title">${escapeHtml(e.title)}</span>
+          <div class="dv-entry-actions">
+            <button class="dv-entry-edit-btn" onclick="dvToggleInlineEdit('${escAttr(e.id)}')">✎ Edit Inline</button>
+            <button class="dv-entry-edit-btn" onclick="openEntryEditor('${escAttr(e.id)}')">Full Editor</button>
+          </div>
+        </div>
+        <div class="dv-entry-content" id="dv-content-${escAttr(e.id)}">${e.content}</div>
+      </div>`;
+    }
+    ch += `<button class="dv-add-entry-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}')">＋ Add Entry to Section ${escapeHtml(sec.num)}</button>`;
+    ch += `</div></div>`;
+  }
+
+  content.innerHTML = ch;
+  // Tag content images with entry-img class
+  content.querySelectorAll('.dv-entry-content img').forEach(i => i.classList.add('entry-img'));
+}
+
+function dvToggleInlineEdit(entryId) {
+  const entry = findEntry(entryId);
+  if (!entry) return;
+  const wrap = document.getElementById(`dv-content-${entryId}`);
+  if (!wrap) return;
+  if (wrap.dataset.editing === '1') return; // already editing
+
+  wrap.dataset.editing = '1';
+  wrap.innerHTML = `
+    <div class="rt-wrap">
+      <div class="rt-toolbar" id="dv-tb-${escAttr(entryId)}"></div>
+      <div class="rt-editor" id="dv-ed-${escAttr(entryId)}" contenteditable="true" data-placeholder="Write content…">${entry.content}</div>
+    </div>
+    <div class="dv-edit-controls">
+      <button class="btn btn-primary" onclick="dvSaveInline('${escAttr(entryId)}')">Save</button>
+      <button class="btn btn-secondary" onclick="dvCancelInline('${escAttr(entryId)}')">Cancel</button>
+    </div>
+  `;
+  initEditor(`dv-ed-${entryId}`, `dv-tb-${entryId}`, entry.content);
+}
+
+function dvSaveInline(entryId) {
+  const ed = document.getElementById(`dv-ed-${entryId}`);
+  if (!ed) return;
+  const idx = HANDBOOK.findIndex(e => e.id === entryId);
+  if (idx === -1) return;
+  HANDBOOK[idx].content = ed.innerHTML;
+  saveAll('Entry saved');
+  renderDocView();
+}
+
+function dvCancelInline(entryId) {
+  renderDocView();
+}
+
+/* ══════════════════════════════════════════
+   KEYBOARD
+   ══════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  // Lightbox first
+  if (document.getElementById('lightbox-overlay').classList.contains('open')) {
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === '+' || e.key === '=') zoomLightbox(0.25);
+    else if (e.key === '-' || e.key === '_') zoomLightbox(-0.25);
+    else if (e.key === '0') resetLightboxZoom();
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    for (const id of ['tm-detail-overlay','team-modal-overlay','syn-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay']) {
+      const m = document.getElementById(id);
+      if (m && m.classList.contains('open')) { m.classList.remove('open'); return; }
+    }
+    if (document.getElementById('search-modal-overlay').classList.contains('open')) { closeSearchModal(); return; }
+  }
+  if (e.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable) {
+    e.preventDefault();
+    openSearchModal();
+  }
+});
+
+/* ══════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════ */
+loadFromStorage();
+if (sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');
+applyDark(isDark);
+renderSidebar();
+renderAnnouncements();
+showHome();
+
+// Attempt Firebase init in the background — non-blocking
+if (fbConfigured()) {
+  initFirebase().then(ok => {
+    if (ok) {
+      renderSidebar(); renderAnnouncements();
+      const dot = document.getElementById('fb-status-dot');
+      if (dot) { dot.classList.add('connected'); dot.title = 'Connected to shared dashboard'; }
+    }
+  });
+} else {
+  // Show a small "offline" indicator
+  const dot = document.getElementById('fb-status-dot');
+  if (dot) { dot.classList.add('offline'); dot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
+}
+</script>
+</body>
+</html>
