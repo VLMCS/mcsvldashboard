@@ -1802,6 +1802,18 @@ const DEFAULT_SIDEBAR_CFG = [
 // The search algorithm auto-extends this from each entry's `keywords` at query time,
 // so you mainly need to add groups here for cross-section concept bridges
 // (e.g., "frequency" should pull in "cadence", "schedule", "quarterly", "weekly"…).
+// Editable branding strings. Admin can change these via "⚙ Site Settings"
+// and the new values propagate everywhere on the page + Firestore.
+const DEFAULT_SITE_SETTINGS = {
+  siteName:        'VL Dashboard',
+  studioName:      'Mega Cat Studios',
+  departmentName:  'Visual Leads Department',
+  heroSub:         'Browse the handbook from the sidebar, or search for anything below.',
+  handbookLabel:   'Handbook',
+  quicklinksLabel: 'Quick Links',
+  projectsLabel:   'Projects'
+};
+
 const DEFAULT_SYNONYMS = [
   ['frequency','cadence','often','schedule','when','recurrence','pace','rhythm','timing','how often','how frequent','how frequently'],
   ['kpi','performance','evaluation','review','metric','assessment','measure','measurement','rating'],
@@ -1869,6 +1881,7 @@ let HANDBOOK = [];          // Handbook entries
 let PROJECTS = [];          // Project "section" definitions (parallel to SECTIONS)
 let PROJECT_ENTRIES = [];   // Project entries (parallel to HANDBOOK)
 let CUSTOM_CATEGORIES = []; // [{ id, label, sections: [{num,title,description}], entries: [...] }]
+let SITE_SETTINGS = null;   // see DEFAULT_SITE_SETTINGS
 let SIDEBAR_CFG = [];
 let ANNOUNCEMENTS = [];
 let SYNONYMS = [];
@@ -1979,6 +1992,7 @@ async function initFirebase() {
       if (remote.projects)       PROJECTS        = decodeFromFirestore('projects', remote.projects);
       if (remote.projectEntries) PROJECT_ENTRIES = decodeFromFirestore('projectEntries', remote.projectEntries);
       if (remote.customCategories) CUSTOM_CATEGORIES = decodeFromFirestore('customCategories', remote.customCategories);
+      if (remote.settings)       SITE_SETTINGS   = Object.assign({}, DEFAULT_SITE_SETTINGS, decodeFromFirestore('settings', remote.settings));
       if (remote.sidebar)        SIDEBAR_CFG     = decodeFromFirestore('sidebar', remote.sidebar);
       if (remote.announcements)  ANNOUNCEMENTS   = decodeFromFirestore('announcements', remote.announcements);
       if (remote.synonyms)       SYNONYMS        = decodeFromFirestore('synonyms', remote.synonyms);
@@ -1990,6 +2004,7 @@ async function initFirebase() {
         localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
         localStorage.setItem('vl_pe',       JSON.stringify(PROJECT_ENTRIES));
         localStorage.setItem('vl_cats',     JSON.stringify(CUSTOM_CATEGORIES));
+        localStorage.setItem('vl_settings', JSON.stringify(SITE_SETTINGS));
         localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
         localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
         localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
@@ -2003,6 +2018,7 @@ async function initFirebase() {
         projects:         encodeForFirestore('projects',         PROJECTS),
         projectEntries:   encodeForFirestore('projectEntries',   PROJECT_ENTRIES),
         customCategories: encodeForFirestore('customCategories', CUSTOM_CATEGORIES),
+        settings:         encodeForFirestore('settings',         SITE_SETTINGS),
         sidebar:          encodeForFirestore('sidebar',          SIDEBAR_CFG),
         announcements:    encodeForFirestore('announcements',    ANNOUNCEMENTS),
         synonyms:         encodeForFirestore('synonyms',         SYNONYMS),
@@ -2022,6 +2038,7 @@ async function initFirebase() {
         projects:         raw.projects         ? decodeFromFirestore('projects', raw.projects) : null,
         projectEntries:   raw.projectEntries   ? decodeFromFirestore('projectEntries', raw.projectEntries) : null,
         customCategories: raw.customCategories ? decodeFromFirestore('customCategories', raw.customCategories) : null,
+        settings:         raw.settings         ? Object.assign({}, DEFAULT_SITE_SETTINGS, decodeFromFirestore('settings', raw.settings)) : null,
         sidebar:          raw.sidebar          ? decodeFromFirestore('sidebar', raw.sidebar) : null,
         announcements:    raw.announcements    ? decodeFromFirestore('announcements', raw.announcements) : null,
         synonyms:          raw.synonyms        ? decodeFromFirestore('synonyms', raw.synonyms) : null,
@@ -2033,11 +2050,13 @@ async function initFirebase() {
       if (remote.projects         && JSON.stringify(remote.projects)         !== JSON.stringify(PROJECTS))          { PROJECTS = remote.projects; changed = true; }
       if (remote.projectEntries   && JSON.stringify(remote.projectEntries)   !== JSON.stringify(PROJECT_ENTRIES))   { PROJECT_ENTRIES = remote.projectEntries; changed = true; }
       if (remote.customCategories && JSON.stringify(remote.customCategories) !== JSON.stringify(CUSTOM_CATEGORIES)) { CUSTOM_CATEGORIES = remote.customCategories; changed = true; }
+      if (remote.settings         && JSON.stringify(remote.settings)         !== JSON.stringify(SITE_SETTINGS))     { SITE_SETTINGS = remote.settings; changed = true; }
       if (remote.sidebar          && JSON.stringify(remote.sidebar)          !== JSON.stringify(SIDEBAR_CFG))       { SIDEBAR_CFG = remote.sidebar; changed = true; }
       if (remote.announcements    && JSON.stringify(remote.announcements)    !== JSON.stringify(ANNOUNCEMENTS))     { ANNOUNCEMENTS = remote.announcements; changed = true; }
       if (remote.synonyms         && JSON.stringify(remote.synonyms)         !== JSON.stringify(SYNONYMS))          { SYNONYMS = remote.synonyms; changed = true; }
       if (remote.team             && JSON.stringify(remote.team)             !== JSON.stringify(TEAM_DIRECTORY))    { TEAM_DIRECTORY = remote.team; changed = true; }
       if (changed) {
+        applyAllSettings();
         renderSidebar();
         renderAnnouncements();
         if (currentView === 'section' && currentSectionNum) showSection(currentSectionNum);
@@ -2063,6 +2082,7 @@ function fbSync() {
   fbSyncKey('projects', PROJECTS);
   fbSyncKey('projectEntries', PROJECT_ENTRIES);
   fbSyncKey('customCategories', CUSTOM_CATEGORIES);
+  fbSyncKey('settings', SITE_SETTINGS);
   fbSyncKey('sidebar', SIDEBAR_CFG);
   fbSyncKey('announcements', ANNOUNCEMENTS);
   fbSyncKey('synonyms', SYNONYMS);
@@ -2098,6 +2118,10 @@ function loadFromStorage() {
   try { const v=localStorage.getItem('vl_projects'); PROJECTS = v ? JSON.parse(v) : []; } catch(e){ PROJECTS=[]; }
   try { const v=localStorage.getItem('vl_pe');       PROJECT_ENTRIES = v ? JSON.parse(v) : []; } catch(e){ PROJECT_ENTRIES=[]; }
   try { const v=localStorage.getItem('vl_cats');     CUSTOM_CATEGORIES = v ? JSON.parse(v) : []; } catch(e){ CUSTOM_CATEGORIES=[]; }
+  try {
+    const v=localStorage.getItem('vl_settings');
+    SITE_SETTINGS = v ? Object.assign({}, DEFAULT_SITE_SETTINGS, JSON.parse(v)) : clone(DEFAULT_SITE_SETTINGS);
+  } catch(e){ SITE_SETTINGS = clone(DEFAULT_SITE_SETTINGS); }
   try { const v=localStorage.getItem('vl_sb');       SIDEBAR_CFG = v ? JSON.parse(v) : clone(DEFAULT_SIDEBAR_CFG); } catch(e){ SIDEBAR_CFG=clone(DEFAULT_SIDEBAR_CFG); }
   try { const v=localStorage.getItem('vl_ann');      ANNOUNCEMENTS = v ? JSON.parse(v) : []; } catch(e){ ANNOUNCEMENTS=[]; }
   try { const v=localStorage.getItem('vl_syn');      SYNONYMS = v ? JSON.parse(v) : clone(DEFAULT_SYNONYMS); } catch(e){ SYNONYMS=clone(DEFAULT_SYNONYMS); }
@@ -2141,6 +2165,7 @@ function saveAll(label) {
   localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
   localStorage.setItem('vl_pe',       JSON.stringify(PROJECT_ENTRIES));
   localStorage.setItem('vl_cats',     JSON.stringify(CUSTOM_CATEGORIES));
+  localStorage.setItem('vl_settings', JSON.stringify(SITE_SETTINGS));
   localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
   localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
   localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
@@ -2244,6 +2269,39 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+// Look up the display label for a top-level category (uses SITE_SETTINGS
+// for built-ins, CUSTOM_CATEGORIES[].label for custom, fall back to SIDEBAR_CFG).
+function getCategoryLabel(catId) {
+  const s = SITE_SETTINGS || DEFAULT_SITE_SETTINGS;
+  if (catId === 'handbook')  return s.handbookLabel  || 'Handbook';
+  if (catId === 'projects')  return s.projectsLabel  || 'Projects';
+  if (catId === 'quicklinks') return s.quicklinksLabel || 'Quick Links';
+  const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === catId);
+  if (cc) return cc.label;
+  const sec = (SIDEBAR_CFG || []).find(s => s.id === catId);
+  return sec ? sec.label : catId;
+}
+
+// Apply all SITE_SETTINGS values to the live DOM (title, logo, hero).
+// Called once on init and after each Save in the settings modal.
+function applyAllSettings() {
+  const s = SITE_SETTINGS || DEFAULT_SITE_SETTINGS;
+  // Document title
+  document.title = `${s.siteName} — ${s.studioName}`;
+  // Sidebar logo
+  const studioLbl = document.querySelector('#sidebar-logo .studio-label');
+  const siteH1    = document.querySelector('#sidebar-logo h1');
+  if (studioLbl) studioLbl.textContent = s.studioName;
+  if (siteH1)    siteH1.textContent    = s.siteName;
+  // Home hero
+  const heroLbl   = document.querySelector('#view-home .hero-label');
+  const heroTitle = document.querySelector('#view-home .hero-title');
+  const heroSub   = document.querySelector('#view-home .hero-sub');
+  if (heroLbl)   heroLbl.textContent   = `${s.departmentName} · ${s.studioName}`;
+  if (heroTitle) heroTitle.textContent = s.siteName;
+  if (heroSub)   heroSub.textContent   = s.heroSub;
+}
+
 /* ══════════════════════════════════════════
    DARK MODE
    ══════════════════════════════════════════ */
@@ -2283,7 +2341,7 @@ function setView(name) {
 
 function updateBreadcrumb() {
   const bc = document.getElementById('breadcrumb');
-  let parts = [`<span class="bc-item" onclick="showHome()">VL Dashboard</span>`];
+  let parts = [`<span class="bc-item" onclick="showHome()">${escapeHtml(SITE_SETTINGS.siteName || 'Dashboard')}</span>`];
   const baseLabel = currentBase === 'projects' ? 'Projects' : (currentBase === 'handbook' ? 'Handbook' : (lookupCustomCategoryLabel(currentBase) || 'Handbook'));
   if (currentView === 'category' && currentCategoryId) {
     let catLabel = 'Category';
@@ -2634,7 +2692,7 @@ function _renderSidebarUnsafe() {
   let html = '';
 
   // HANDBOOK
-  html += _renderKbSection('handbook', 'Handbook', SECTIONS,
+  html += _renderKbSection('handbook', getCategoryLabel('handbook'), SECTIONS,
     'No handbook sections.', 'Add New Section');
 
   // SIDEBAR_CFG sections (Quick Links)
@@ -2644,7 +2702,7 @@ function _renderSidebarUnsafe() {
     html += `<div class="sidebar-section">
       <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(section.id)}','links')">
         <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(section.id)}')">▶</span>
-        <span class="sb-cat-text">${escapeHtml(section.label || '')}</span>
+        <span class="sb-cat-text">${escapeHtml(getCategoryLabel(section.id) || section.label || '')}</span>
       </div>
       <div class="sb-cat-body${collapsed?' collapsed':''}">`;
     for (const item of section.items) {
@@ -2669,7 +2727,7 @@ function _renderSidebarUnsafe() {
   }
 
   // PROJECTS (after Quick Links)
-  html += _renderKbSection('projects', 'Projects', PROJECTS,
+  html += _renderKbSection('projects', getCategoryLabel('projects'), PROJECTS,
     'No projects yet. Sign in as admin to add one.', 'Add New Project');
 
   // Custom categories (admin can add) — render each one with the same KB UX
@@ -3186,8 +3244,29 @@ function buildToolbar(containerId, editorId) {
     { custom: 'link',  label: '🔗', title: 'Insert link' },
     { custom: 'image', label: '🖼', title: 'Insert image (or paste from clipboard)' },
     { sep: true },
+    // ── Table tools ──
+    { custom: 'table-insert',  label: '⊞',  title: 'Insert table' },
+    { custom: 'table-row-add', label: '+⇕', title: 'Add row below current cell' },
+    { custom: 'table-col-add', label: '+⇔', title: 'Add column to the right (max 6 columns)' },
+    { custom: 'table-row-del', label: '−⇕', title: 'Delete current row' },
+    { custom: 'table-col-del', label: '−⇔', title: 'Delete current column' },
+    { custom: 'table-color',   label: '🎨', title: 'Set cell background color (hex)' },
+    { custom: 'table-delete',  label: '🗑', title: 'Delete entire table' },
+    { sep: true },
     { cmd: 'removeFormat', label: '⌫', title: 'Clear formatting' }
   ];
+
+  const customMap = {
+    'link':         'rtInsertLink',
+    'image':        'rtInsertImage',
+    'table-insert': 'rtInsertTable',
+    'table-row-add':'rtAddRowBelow',
+    'table-col-add':'rtAddColRight',
+    'table-row-del':'rtDeleteRow',
+    'table-col-del':'rtDeleteColumn',
+    'table-color':  'rtCellColor',
+    'table-delete': 'rtDeleteTable'
+  };
 
   const html = buttons.map(b => {
     if (b.sep) return `<div class="rt-sep"></div>`;
@@ -3206,15 +3285,10 @@ function buildToolbar(containerId, editorId) {
         onmousedown="event.preventDefault()"
         onclick="rtBlock('${escAttr(b.block)}','${escAttr(editorId)}')">${b.label}</button>`;
     }
-    if (b.custom === 'link') {
-      return `<button class="rt-btn" type="button" title="${escAttr(b.title)}"
+    if (b.custom && customMap[b.custom]) {
+      return `<button class="rt-btn rt-btn-${escAttr(b.custom)}" type="button" title="${escAttr(b.title)}"
         onmousedown="event.preventDefault()"
-        onclick="rtInsertLink('${escAttr(editorId)}')">${b.label}</button>`;
-    }
-    if (b.custom === 'image') {
-      return `<button class="rt-btn" type="button" title="${escAttr(b.title)}"
-        onmousedown="event.preventDefault()"
-        onclick="rtInsertImage('${escAttr(editorId)}')">${b.label}</button>`;
+        onclick="${customMap[b.custom]}('${escAttr(editorId)}')">${b.label}</button>`;
     }
     return '';
   }).join('');
@@ -3333,6 +3407,167 @@ function handleRTPaste(e, editorId) {
       return;
     }
   }
+}
+
+/* ══════════════════════════════════════════
+   RICH TEXT — TABLE TOOLS
+   Tables use inline styles so they render consistently anywhere the saved
+   HTML appears (entry view, section description, doc view).
+   ══════════════════════════════════════════ */
+const TABLE_MAX_COLS  = 6;
+const TABLE_STYLE     = 'border-collapse:collapse;width:100%;margin:8px 0;font-size:13.5px';
+const TABLE_TD_STYLE  = 'border:1px solid #d0d0cc;padding:8px 12px;text-align:left;vertical-align:top';
+const TABLE_TH_STYLE  = TABLE_TD_STYLE + ';background:#f0f0ee;font-weight:700';
+
+// Resolve the <td>/<th> the cursor is currently inside (or null).
+function rtCurrentCell() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  let n = sel.getRangeAt(0).startContainer;
+  if (n && n.nodeType !== 1) n = n.parentNode;
+  while (n) {
+    if (n.tagName === 'TD' || n.tagName === 'TH') return n;
+    n = n.parentNode;
+  }
+  return null;
+}
+function rtCurrentTable() {
+  const cell = rtCurrentCell();
+  if (!cell) return null;
+  let n = cell;
+  while (n && n.tagName !== 'TABLE') n = n.parentNode;
+  return n;
+}
+function _needCell() {
+  const c = rtCurrentCell();
+  if (!c) { alert('Place your cursor inside a table cell first.'); return null; }
+  return c;
+}
+
+function rtInsertTable(editorId) {
+  const colsStr = prompt(`How many columns? (1–${TABLE_MAX_COLS})`, '3');
+  if (colsStr === null) return;
+  let cols = parseInt(colsStr, 10);
+  if (isNaN(cols) || cols < 1) { alert('Invalid column count.'); return; }
+  if (cols > TABLE_MAX_COLS) { alert(`Maximum ${TABLE_MAX_COLS} columns. Clamping.`); cols = TABLE_MAX_COLS; }
+
+  const rowsStr = prompt('How many data rows? (header row added on top automatically)', '2');
+  if (rowsStr === null) return;
+  let rows = parseInt(rowsStr, 10);
+  if (isNaN(rows) || rows < 0) { alert('Invalid row count.'); return; }
+
+  let html = `<table style="${TABLE_STYLE}"><thead><tr>`;
+  for (let c = 0; c < cols; c++) html += `<th style="${TABLE_TH_STYLE}">Header ${c+1}</th>`;
+  html += `</tr></thead><tbody>`;
+  for (let r = 0; r < rows; r++) {
+    html += `<tr>`;
+    for (let c = 0; c < cols; c++) html += `<td style="${TABLE_TD_STYLE}">&nbsp;</td>`;
+    html += `</tr>`;
+  }
+  html += `</tbody></table><p><br></p>`;
+
+  const ed = document.getElementById(editorId);
+  ed.focus();
+  document.execCommand('insertHTML', false, html);
+}
+
+function rtAddRowBelow(editorId) {
+  const cell = _needCell(); if (!cell) return;
+  const tr = cell.parentNode;
+  const cols = tr.children.length;
+  const newTr = document.createElement('tr');
+  for (let c = 0; c < cols; c++) {
+    const td = document.createElement('td');
+    td.setAttribute('style', TABLE_TD_STYLE);
+    td.innerHTML = '&nbsp;';
+    newTr.appendChild(td);
+  }
+  tr.parentNode.insertBefore(newTr, tr.nextSibling);
+}
+
+function rtAddColRight(editorId) {
+  const cell = _needCell(); if (!cell) return;
+  const table = rtCurrentTable();
+  const firstRow = table && table.querySelector('tr');
+  if (firstRow && firstRow.children.length >= TABLE_MAX_COLS) {
+    alert(`This table already has ${TABLE_MAX_COLS} columns (the maximum).`);
+    return;
+  }
+  const colIdx = Array.from(cell.parentNode.children).indexOf(cell);
+  table.querySelectorAll('tr').forEach(row => {
+    const ref = row.children[colIdx];
+    if (!ref) return;
+    const isHeader = ref.tagName === 'TH';
+    const newCell = document.createElement(isHeader ? 'th' : 'td');
+    newCell.setAttribute('style', isHeader ? TABLE_TH_STYLE : TABLE_TD_STYLE);
+    newCell.innerHTML = isHeader ? 'New' : '&nbsp;';
+    row.insertBefore(newCell, ref.nextSibling);
+  });
+}
+
+function rtDeleteRow(editorId) {
+  const cell = _needCell(); if (!cell) return;
+  const tr = cell.parentNode;
+  const tbody = tr.parentNode;
+  if (tbody.children.length === 1) {
+    alert('Cannot delete the last row in this part of the table. Use Delete Table instead.');
+    return;
+  }
+  if (!confirm('Delete this row?')) return;
+  tbody.removeChild(tr);
+}
+
+function rtDeleteColumn(editorId) {
+  const cell = _needCell(); if (!cell) return;
+  const table = rtCurrentTable();
+  const firstRow = table.querySelector('tr');
+  if (firstRow.children.length === 1) {
+    alert('Cannot delete the last column. Use Delete Table instead.');
+    return;
+  }
+  if (!confirm('Delete this column from every row?')) return;
+  const colIdx = Array.from(cell.parentNode.children).indexOf(cell);
+  table.querySelectorAll('tr').forEach(row => {
+    if (row.children[colIdx]) row.removeChild(row.children[colIdx]);
+  });
+}
+
+function rtCellColor(editorId) {
+  const cell = _needCell(); if (!cell) return;
+  // Convert current style.backgroundColor (rgb format) to hex for display
+  let current = cell.style.backgroundColor || '';
+  const rgb = current.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (rgb) {
+    current = '#' + [rgb[1], rgb[2], rgb[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+  }
+  const input = prompt('Enter background hex color (e.g. #ffeecc or #fec). Leave empty to clear:', current);
+  if (input === null) return;
+  const trimmed = input.trim();
+  if (trimmed === '') {
+    cell.style.backgroundColor = '';
+    // Also strip from the inline `style` attribute so it persists clean
+    cell.setAttribute('style', cell.getAttribute('style').replace(/background-color:[^;]*;?/i, ''));
+    return;
+  }
+  let hex = trimmed;
+  if (!hex.startsWith('#')) hex = '#' + hex;
+  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
+    alert('Invalid hex color. Use a 3- or 6-digit hex like #ffeecc or #fec.');
+    return;
+  }
+  // Persist via the style attribute so it survives serialization through innerHTML
+  let styleAttr = cell.getAttribute('style') || '';
+  styleAttr = styleAttr.replace(/background-color:[^;]*;?/i, '').trim();
+  if (styleAttr && !styleAttr.endsWith(';')) styleAttr += ';';
+  styleAttr += `background-color:${hex};`;
+  cell.setAttribute('style', styleAttr);
+}
+
+function rtDeleteTable(editorId) {
+  const t = rtCurrentTable();
+  if (!t) { alert('Place your cursor inside a table first.'); return; }
+  if (!confirm('Delete the entire table? This cannot be undone (until you Save → close → undo via Import).')) return;
+  t.parentNode.removeChild(t);
 }
 
 function updateRTToolbarState(editorId) {
