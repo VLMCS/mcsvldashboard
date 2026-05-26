@@ -2344,10 +2344,12 @@ function showSection(num, base) {
   `).join('') + (canEdit ? `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}','${escAttr(base)}')">＋ Add Entry</div>` : '');
 
   // ── Render the section-actions row based on access level ──
-  // Admin: shows "Edit Section Info" (rename/desc/passkey)
-  // Project section + passkey unlocked: shows "Edit Mode Active" badge + "Exit Edit Mode"
-  // Project section + locked: shows the call-to-action "Enter Edit Mode" (prompts passkey)
-  // Handbook + non-admin: shows nothing
+  // Real admin: "Edit Section Info" (incl. passkey + delete)
+  // Project + passkey unlocked: "Edit Mode Active" badge + "Edit Section Info"
+  //                              (scoped admin: rename/edit description, NOT delete or passkey)
+  //                              + "Exit Edit Mode"
+  // Project + locked: the "Enter Edit Mode" CTA
+  // Handbook + non-admin: nothing
   const actionsEl = document.getElementById('sv-actions');
   let actionsHtml = '';
   if (isAdminMode) {
@@ -2356,6 +2358,7 @@ function showSection(num, base) {
     if (unlockedProjects.has(String(num))) {
       actionsHtml = `
         <span class="edit-mode-active">Edit Mode Active for this section</span>
+        <button class="btn btn-secondary" onclick="openSectionEditor('${escAttr(num)}','${escAttr(base)}')">⚙ Edit Section Info</button>
         <button class="btn btn-secondary" onclick="lockProjectSection('${escAttr(num)}')">🔒 Exit Edit Mode</button>
       `;
     } else {
@@ -3550,14 +3553,21 @@ function openSectionEditor(num, base) {
   base = base || 'handbook';
   const sec = findSection(num, base);
   if (!sec) return;
+  // Access check: real admin OR a passkey-unlocked project section.
+  if (!isAdminMode && !(base === 'projects' && unlockedProjects.has(String(num)))) {
+    if (base === 'projects') promptUnlockProjectSection(num);
+    else alert('Admin Mode required to edit section info.');
+    return;
+  }
   editSectionNum = num;
   editSectionBase = base;
   document.getElementById('section-modal-title-text').textContent = base === 'projects' ? 'Edit Project' : 'Edit Section';
-  document.getElementById('delete-section-btn').style.display = '';
+  // Delete is admin-only — passkey-unlocked users cannot delete the section.
+  document.getElementById('delete-section-btn').style.display = isAdminMode ? '' : 'none';
   document.getElementById('sef-num').value = sec.num;
   document.getElementById('sef-title').value = sec.title;
   initEditor('sef-desc-editor', 'sef-rt-toolbar', sec.description || '');
-  // Passkey row only relevant for project sections, only visible to admins
+  // Passkey row is real-admin only (an unlocked user shouldn't be able to view/change it).
   const showPasskey = (base === 'projects') && isAdminMode;
   document.getElementById('sef-passkey-row').style.display = showPasskey ? '' : 'none';
   if (showPasskey) {
@@ -3695,6 +3705,7 @@ function saveSection() {
 
 function deleteCurrentSection() {
   if (!editSectionNum) return;
+  if (!isAdminMode) { alert('Deleting a section requires real Admin Mode (the passkey only grants edit access within the section).'); return; }
   const base = editSectionBase || 'handbook';
   const label = base === 'projects' ? 'Project' : 'Section';
   const hasEntries = entriesInSection(editSectionNum, base).length > 0;
