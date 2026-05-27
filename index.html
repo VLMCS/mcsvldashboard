@@ -635,7 +635,7 @@
   .btn-admin { background: var(--admin-accent); color: #fff; border-color: var(--admin-accent); }
   .btn-admin:hover { opacity: 0.88; }
 
-  /* ── RICH TEXT EDITOR ── */
+  /* ── RICH TEXT EDITOR (Tiptap) ── */
   .rt-wrap {
     border: 1.5px solid var(--border); border-radius: 5px;
     background: var(--bg-form-input); overflow: hidden;
@@ -643,7 +643,7 @@
   }
   .rt-wrap:focus-within { border-color: var(--black); }
   .rt-toolbar {
-    display: flex; flex-wrap: wrap; gap: 2px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
     padding: 5px; border-bottom: 1px solid var(--border);
     background: var(--bg-card-head);
   }
@@ -657,30 +657,15 @@
   .rt-btn:hover { background: var(--hover-bg); border-color: var(--border); }
   .rt-btn.active { background: var(--admin-accent-light); border-color: var(--admin-accent); color: var(--admin-accent); }
   body.dark .rt-btn.active { color: var(--admin-accent); }
+  .rt-btn:disabled { opacity: 0.4; cursor: default; }
+  .rt-btn:disabled:hover { background: none; border-color: transparent; }
   .rt-sep { width: 1px; background: var(--border); margin: 2px 4px; align-self: stretch; }
-  /* Font-size number input in the toolbar */
-  .rt-fontsize-wrap {
-    display: inline-flex; align-items: center; height: 24px;
-    border: 1px solid var(--border); border-radius: 3px;
-    background: var(--bg-form-input); overflow: hidden;
+  .rt-select {
+    height: 24px; border: 1px solid var(--border); border-radius: 3px;
+    background: var(--bg-form-input); color: var(--text-body);
+    font-family: inherit; font-size: 12px; padding: 0 4px; cursor: pointer; outline: none;
   }
-  .rt-fontsize-input {
-    font-family: inherit; font-size: 12px; width: 38px; height: 22px;
-    border: none; background: none; color: var(--text-body);
-    text-align: right; padding: 0 2px 0 4px; outline: none;
-    -moz-appearance: textfield;
-  }
-  .rt-fontsize-input::-webkit-outer-spin-button,
-  .rt-fontsize-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .rt-px-suffix { font-size: 10.5px; color: var(--mid); padding: 0 3px 0 1px; user-select: none; }
-  .rt-fontsize-presets {
-    border: none; border-left: 1px solid var(--border);
-    background: none; color: var(--text-body); cursor: pointer;
-    font-size: 10px; height: 22px; width: 22px; padding: 0;
-    -webkit-appearance: none; -moz-appearance: none; appearance: none;
-    text-align: center; text-align-last: center;
-  }
-  .rt-fontsize-presets:hover { background: var(--hover-bg); }
+  .rt-loading { font-size: 11px; color: var(--mid); padding: 4px 6px; }
   /* Highlighter swatch group */
   .rt-hl-group { display: inline-flex; align-items: center; gap: 3px; }
   .rt-hl-icon { font-size: 13px; padding: 0 2px; }
@@ -689,52 +674,60 @@
     border-radius: 3px; cursor: pointer; padding: 0;
   }
   .rt-hl-swatch:hover { transform: scale(1.12); border-color: var(--black); }
-  .rt-editor {
-    min-height: 180px; max-height: 380px; overflow-y: auto;
-    padding: 10px 12px; outline: none;
+  /* Scroll container + the Tiptap editable surface */
+  .rt-editor { max-height: 420px; overflow-y: auto; }
+  .rt-prose {
+    min-height: 180px; padding: 10px 12px; outline: none;
     font-family: 'Calibri', 'Calibri Web', 'Segoe UI', sans-serif;
     font-size: 13.5px; line-height: 1.6; color: var(--text-body);
   }
-  .rt-editor:empty::before {
+  .rt-prose:focus { outline: none; }
+  /* Placeholder (Tiptap Placeholder extension) */
+  .rt-prose p.is-editor-empty:first-child::before {
     content: attr(data-placeholder); color: #bbb;
+    float: left; height: 0; pointer-events: none;
   }
-  body.dark .rt-editor:empty::before { color: #555; }
-  .rt-editor img { max-width: 100%; border-radius: 4px; margin: 4px 0; cursor: pointer; }
-  .rt-editor ul, .rt-editor ol { margin: 6px 0 6px 20px; }
-  .rt-editor table { border-collapse: collapse; margin: 6px 0; font-size: 12.5px; }
-  .rt-editor th, .rt-editor td { border: 1px solid var(--border); padding: 5px 8px; }
-  .rt-editor th { background: var(--bg-th); }
+  body.dark .rt-prose p.is-editor-empty:first-child::before { color: #555; }
 
-  /* ── SHARED RICH-CONTENT ELEMENTS ──
-     Applied in the editor AND wherever saved content renders. */
-  .rt-hl { color: #1a1a1a; padding: 0 2px; border-radius: 2px; }   /* highlight: force dark text so it's readable on the light highlight in any theme */
-  .rt-box {
-    border: 1px solid var(--border); border-left: 3px solid var(--admin-accent);
-    border-radius: 6px; padding: 12px 14px; margin: 12px 0;
-    background: var(--bg-card-head);
+  /* ── SHARED RICH CONTENT ──
+     One set of rules for the live Tiptap editor (.rt-prose) AND every read-only
+     surface where saved HTML is injected. Tiptap emits plain semantic HTML, so
+     these styles are all that's needed to render it anywhere. ── */
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h1 { font-size: 1.85em; font-weight: 700; line-height: 1.25; margin: 0.6em 0 0.35em; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h2 { font-size: 1.5em; font-weight: 700; line-height: 1.28; margin: 0.6em 0 0.3em; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h3 { font-size: 1.28em; font-weight: 700; line-height: 1.3; margin: 0.55em 0 0.3em; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h4 { font-size: 1.1em; font-weight: 700; line-height: 1.35; margin: 0.5em 0 0.25em; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) p { margin: 0.5em 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul,
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ol { margin: 0.4em 0 0.4em 22px; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul { list-style: disc; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ol { list-style: decimal; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) li { margin: 0.15em 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) blockquote {
+    border-left: 3px solid var(--admin-accent); margin: 0.7em 0; padding: 0.2em 0 0.2em 14px; color: var(--mid);
   }
-  .rt-box > :first-child { margin-top: 0; }
-  .rt-box > :last-child { margin-bottom: 0; }
-  /* Clickable link "chips" */
-  .rt-link-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 1px 10px 2px; border-radius: 12px;
-    background: var(--admin-accent-light); color: var(--admin-accent) !important;
-    text-decoration: none !important; font-size: 0.9em; font-weight: 600;
-    border: 1px solid var(--admin-accent); line-height: 1.5;
-    transition: background 0.12s, color 0.12s;
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) code {
+    font-family: 'Consolas','Courier New',monospace; font-size: 0.92em;
+    background: var(--bg-card-head); padding: 1px 5px; border-radius: 4px;
   }
-  .rt-link-chip::before { content: '🔗'; font-size: 0.85em; }
-  .rt-link-chip:hover { background: var(--admin-accent); color: #fff !important; }
-  /* Horizontal rules */
-  .rt-editor hr, .entry-content hr, .dv-entry-content hr, .section-desc hr {
-    border: none; border-top: 1.5px solid var(--border); margin: 16px 0;
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) pre {
+    background: var(--bg-card-head); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; margin: 0.7em 0; overflow-x: auto;
   }
-  /* Scope the box/chip/highlight styling into the live content containers too */
-  .entry-content .rt-box, .dv-entry-content .rt-box, .section-desc .rt-box { background: var(--bg-card-head); }
-  .rt-editor a:not(.rt-link-chip),
-  .entry-content a:not(.rt-link-chip),
-  .dv-entry-content a:not(.rt-link-chip) { color: var(--admin-accent); text-decoration: underline; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) pre code { background: none; padding: 0; font-size: 0.9em; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) mark { color: #1a1a1a; padding: 0 2px; border-radius: 2px; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) hr { border: none; border-top: 1.5px solid var(--border); margin: 16px 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) img { max-width: 100%; border-radius: 4px; margin: 4px 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) a { color: var(--admin-accent); text-decoration: underline; }
+  /* Task lists */
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] { list-style: none; margin-left: 0; padding: 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 8px; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] li > label { margin-top: 0.28em; user-select: none; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] li > div { flex: 1; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] li > div > p { margin: 0.2em 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] input[type="checkbox"] { cursor: pointer; }
+  /* Checkboxes are read-only outside the editor */
+  :is(.entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] input[type="checkbox"] { pointer-events: none; }
 
   /* Password modal */
   #pwd-modal-overlay { z-index: 3000; }
@@ -1451,7 +1444,7 @@
         <label class="form-label">Content</label>
         <div class="rt-wrap">
           <div class="rt-toolbar" id="ef-rt-toolbar"></div>
-          <div class="rt-editor" id="ef-content-editor" contenteditable="true" data-placeholder="Write the entry content…"></div>
+          <div class="rt-editor" id="ef-content-editor" data-placeholder="Write the entry content…"></div>
         </div>
         <span class="form-hint">Use the toolbar to format text. Paste images from clipboard or click 🖼 to upload.</span>
       </div>
@@ -1487,7 +1480,7 @@
         <label class="form-label">Description</label>
         <div class="rt-wrap">
           <div class="rt-toolbar" id="sef-rt-toolbar"></div>
-          <div class="rt-editor" id="sef-desc-editor" contenteditable="true" data-placeholder="Brief description shown on the section page. Use the toolbar to format."></div>
+          <div class="rt-editor" id="sef-desc-editor" data-placeholder="Brief description shown on the section page. Use the toolbar to format."></div>
         </div>
         <span class="form-hint">Supports formatting, links, and images — same toolbar as entry editor.</span>
       </div>
@@ -1774,6 +1767,10 @@
 <!-- ── TOAST ── -->
 <div id="save-toast">Changes saved</div>
 
+<!-- Rich-text editor engine: a vendored, fully-offline Tiptap bundle built from
+     esm.sh. Defines window.__TIPTAP_BUNDLE. If this file is absent, the editor
+     transparently falls back to loading Tiptap from the CDN (needs internet). -->
+<script src="tiptap-bundle.js"></script>
 <script>
 /* ══════════════════════════════════════════
    DEFAULT DATA
@@ -3788,225 +3785,6 @@ function resultCardHtml(entry, tokens) {
   </div>`;
 }
 
-/* ══════════════════════════════════════════
-   RICH TEXT EDITOR
-   ══════════════════════════════════════════ */
-const RT_HIGHLIGHTS = [
-  { c:'#fff176', t:'Yellow' },
-  { c:'#aed581', t:'Green' },
-  { c:'#80deea', t:'Blue' },
-  { c:'#f48fb1', t:'Pink' },
-  { c:'#ffb74d', t:'Orange' }
-];
-
-function buildToolbar(containerId, editorId) {
-  const ed = escAttr(editorId);
-  const buttons = [
-    { cmd: 'bold',           label: '<b>B</b>',   title: 'Bold (Ctrl+B)',      check: true },
-    { cmd: 'italic',         label: '<i>I</i>',   title: 'Italic (Ctrl+I)',    check: true },
-    { cmd: 'underline',      label: '<u>U</u>',   title: 'Underline (Ctrl+U)', check: true },
-    { sep: true },
-    { fontsize: true },
-    { block: 'h3',           label: 'H',          title: 'Heading' },
-    { sep: true },
-    { highlight: true },
-    { sep: true },
-    { cmd: 'insertUnorderedList', label: '• List', title: 'Bullet list' },
-    { cmd: 'insertOrderedList',   label: '1. List', title: 'Numbered list' },
-    { sep: true },
-    { custom: 'link',  label: '🔗', title: 'Insert link (becomes a clickable chip)' },
-    { custom: 'image', label: '🖼', title: 'Insert image (or paste from clipboard)' },
-    { custom: 'box',   label: '▭',  title: 'Insert a box around the selected text' },
-    { custom: 'hr',    label: '―',  title: 'Insert a horizontal line' },
-    { sep: true },
-    // ── Table tools ──
-    { custom: 'table-insert',  label: '⊞',  title: 'Insert table' },
-    { custom: 'table-row-add', label: '+⇕', title: 'Add row below current cell' },
-    { custom: 'table-col-add', label: '+⇔', title: 'Add column to the right (max 6 columns)' },
-    { custom: 'table-row-del', label: '−⇕', title: 'Delete current row' },
-    { custom: 'table-col-del', label: '−⇔', title: 'Delete current column' },
-    { custom: 'table-color',   label: '🎨', title: 'Set cell background color (hex)' },
-    { custom: 'table-delete',  label: '🗑', title: 'Delete entire table' },
-    { sep: true },
-    { cmd: 'removeFormat', label: '⌫', title: 'Clear formatting' }
-  ];
-
-  const customMap = {
-    'link':         'rtInsertLink',
-    'image':        'rtInsertImage',
-    'box':          'rtInsertBox',
-    'hr':           'rtInsertHR',
-    'table-insert': 'rtInsertTable',
-    'table-row-add':'rtAddRowBelow',
-    'table-col-add':'rtAddColRight',
-    'table-row-del':'rtDeleteRow',
-    'table-col-del':'rtDeleteColumn',
-    'table-color':  'rtCellColor',
-    'table-delete': 'rtDeleteTable'
-  };
-
-  const html = buttons.map(b => {
-    if (b.sep) return `<div class="rt-sep"></div>`;
-    if (b.fontsize) {
-      // Google Docs' preset sizes
-      const presets = [6,7,8,9,10,11,12,14,18,24,30,36,48,60,72,96];
-      const opts = presets.map(p => `<option value="${p}">${p}</option>`).join('');
-      return `<span class="rt-fontsize-wrap" title="Font size (px) — type a custom number + Enter, or pick a preset. Applies to selected text.">
-        <input type="number" class="rt-fontsize-input" min="6" max="400" step="1" value="14"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();rtFontSize('${ed}', this.value+'px');}"
-          onchange="rtFontSize('${ed}', this.value+'px')" />
-        <span class="rt-px-suffix">px</span>
-        <select class="rt-fontsize-presets" title="Preset sizes"
-          onchange="if(this.value){var inp=this.parentElement.querySelector('.rt-fontsize-input'); inp.value=this.value; rtFontSize('${ed}', this.value+'px');} this.selectedIndex=0;">
-          <option value="">▾</option>
-          ${opts}
-        </select>
-      </span>`;
-    }
-    if (b.highlight) {
-      const swatches = RT_HIGHLIGHTS.map(h =>
-        `<button class="rt-hl-swatch" type="button" title="Highlight ${h.t}" style="background:${h.c}"
-          onmousedown="event.preventDefault()" onclick="rtHighlight('${ed}','${h.c}')"></button>`
-      ).join('');
-      return `<span class="rt-hl-group"><span class="rt-hl-icon" title="Highlight">🖍</span>${swatches}<button class="rt-btn" type="button" title="Remove highlight" onmousedown="event.preventDefault()" onclick="rtHighlight('${ed}','none')">✕</button></span>`;
-    }
-    if (b.cmd) {
-      return `<button class="rt-btn" type="button"
-        data-cmd="${escAttr(b.cmd)}" data-check="${b.check?'1':'0'}"
-        data-editor="${ed}"
-        title="${escAttr(b.title)}"
-        onmousedown="event.preventDefault()"
-        onclick="rtFmt('${escAttr(b.cmd)}','${ed}')">${b.label}</button>`;
-    }
-    if (b.block) {
-      return `<button class="rt-btn" type="button"
-        data-block="${escAttr(b.block)}" data-editor="${ed}"
-        title="${escAttr(b.title)}"
-        onmousedown="event.preventDefault()"
-        onclick="rtBlock('${escAttr(b.block)}','${ed}')">${b.label}</button>`;
-    }
-    if (b.custom && customMap[b.custom]) {
-      return `<button class="rt-btn rt-btn-${escAttr(b.custom)}" type="button" title="${escAttr(b.title)}"
-        onmousedown="event.preventDefault()"
-        onclick="${customMap[b.custom]}('${ed}')">${b.label}</button>`;
-    }
-    return '';
-  }).join('');
-
-  document.getElementById(containerId).innerHTML = html;
-}
-
-function rtFmt(cmd, editorId) {
-  const ed = document.getElementById(editorId);
-  ed.focus();
-  document.execCommand(cmd, false, null);
-  updateRTToolbarState(editorId);
-}
-
-function rtBlock(tag, editorId) {
-  const ed = document.getElementById(editorId);
-  ed.focus();
-  try { document.execCommand('formatBlock', false, tag); } catch(e){}
-}
-
-// Get the selected HTML fragment as a string (for wrapping operations).
-function _rtSelectionHtml() {
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return '';
-  const div = document.createElement('div');
-  div.appendChild(sel.getRangeAt(0).cloneContents());
-  return div.innerHTML;
-}
-
-function rtInsertLink(editorId) {
-  const ed = document.getElementById(editorId);
-  ed.focus();
-  const sel = window.getSelection();
-  const selectedText = sel && !sel.isCollapsed ? sel.toString() : '';
-  const url = prompt('Link URL:', 'https://');
-  if (!url) return;
-  if (selectedText) {
-    // Wrap the selected text in a chip-styled anchor
-    document.execCommand('createLink', false, url);
-    setTimeout(() => {
-      ed.querySelectorAll('a[href]').forEach(a => {
-        if (a.getAttribute('href') === url) { a.target = '_blank'; a.classList.add('rt-link-chip'); }
-        else if (!a.target) a.target = '_blank';
-      });
-    }, 0);
-  } else {
-    const text = prompt('Link text:', url);
-    if (text === null) return;
-    document.execCommand('insertHTML', false,
-      `<a href="${escAttr(url)}" target="_blank" class="rt-link-chip">${escapeHtml(text || url)}</a>&nbsp;`);
-  }
-}
-
-// ── Font size ── (wraps selection in <span style="font-size:…">)
-function rtFontSize(editorId, px) {
-  if (!px || px === 'px') return;
-  const ed = document.getElementById(editorId);
-  // Restore the selection that existed before the user clicked the size control.
-  rtRestoreSelection(editorId);
-  ed.focus();
-  const sel = window.getSelection();
-  if (!sel || sel.isCollapsed) { showToast('Select some text first, then set its size'); return; }
-  // Trick: apply a sentinel font size via execCommand, then rewrite to a styled span.
-  document.execCommand('fontSize', false, '7');
-  ed.querySelectorAll('font[size="7"]').forEach(f => {
-    const span = document.createElement('span');
-    span.style.fontSize = px;
-    span.innerHTML = f.innerHTML;
-    f.replaceWith(span);
-  });
-  // Keep selection on the resized text so the size box reflects the change.
-  rtSaveSelection(editorId);
-  updateRTToolbarState(editorId);
-}
-
-// ── Highlight ── (wraps selection so text stays readable in light + dark)
-function rtHighlight(editorId, color) {
-  const ed = document.getElementById(editorId);
-  rtRestoreSelection(editorId);
-  ed.focus();
-  const sel = window.getSelection();
-  if (!sel || sel.isCollapsed) { showToast('Select some text first to highlight'); return; }
-  if (color === 'none') {
-    // Clear any highlight on the selection. Unwrap our rt-hl spans that the
-    // selection touches, then also clear via hiliteColor for browser-native spans.
-    const range = sel.rangeCount ? sel.getRangeAt(0) : null;
-    if (range) {
-      ed.querySelectorAll('span.rt-hl').forEach(s => {
-        if (range.intersectsNode(s)) s.replaceWith(...s.childNodes);
-      });
-    }
-    document.execCommand('styleWithCSS', false, true);
-    document.execCommand('hiliteColor', false, 'transparent');
-    document.execCommand('styleWithCSS', false, false);
-    return;
-  }
-  const html = _rtSelectionHtml();
-  if (!html) return;
-  document.execCommand('insertHTML', false, `<span class="rt-hl" style="background:${color}">${html}</span>`);
-}
-
-// ── Box (callout) ── wraps selection (or inserts an empty box)
-function rtInsertBox(editorId) {
-  const ed = document.getElementById(editorId);
-  rtRestoreSelection(editorId);
-  ed.focus();
-  const sel = window.getSelection();
-  const inner = (sel && !sel.isCollapsed) ? _rtSelectionHtml() : 'Type inside this box…';
-  document.execCommand('insertHTML', false, `<div class="rt-box">${inner}</div><p><br></p>`);
-}
-
-// ── Horizontal rule ──
-function rtInsertHR(editorId) {
-  const ed = document.getElementById(editorId);
-  ed.focus();
-  document.execCommand('insertHorizontalRule', false, null);
-}
-
 // Image size limits
 const RT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;   // 2 MB for content images
 const AVATAR_MAX_BYTES   = 1 * 1024 * 1024;   // 1 MB for avatars
@@ -4045,280 +3823,256 @@ function resizeImage(dataUrl, maxDim, mime) {
   });
 }
 
-function rtInsertImage(editorId) {
+/* ════════════════════════════════════════════════════════════════════
+   RICH TEXT EDITOR — Tiptap (ProseMirror) engine.
+   Real undo/redo history and clean semantic-HTML output that renders in the
+   read-only views with no editor runtime. Modules load lazily via loadTiptap().
+   ════════════════════════════════════════════════════════════════════ */
+const RT_EDITORS = {};
+const TIPTAP_VERSION = '2.11.5';
+const RT_HL_SWATCHES = [
+  { c:'#fff176', t:'Yellow' }, { c:'#aed581', t:'Green' },
+  { c:'#80deea', t:'Blue' }, { c:'#f48fb1', t:'Pink' }, { c:'#ffb74d', t:'Orange' }
+];
+const RT_TT_NAMES = ['core','starter-kit','extension-underline','extension-highlight',
+  'extension-link','extension-superscript','extension-subscript','extension-text-align',
+  'extension-image','extension-task-list','extension-task-item','extension-placeholder'];
+let _tiptapPromise = null;
+let _ttImportMapDone = false;
+
+// When the vendored offline bundle is present, register each module as a blob
+// URL via an import map under the `tiptapmod:<id>` scheme, so the editor loads
+// with zero network (works even from file://).
+function _setupOfflineImportMap(bundle) {
+  if (_ttImportMapDone) return;
+  _ttImportMapDone = true;
+  const map = { imports: {} };
+  bundle.modules.forEach((code, i) => {
+    map.imports['tiptapmod:' + i] = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+  });
+  const s = document.createElement('script');
+  s.type = 'importmap';
+  s.textContent = JSON.stringify(map);
+  document.head.appendChild(s);
+}
+
+// Load all Tiptap modules once — from the offline bundle if available, else CDN.
+function loadTiptap() {
+  if (_tiptapPromise) return _tiptapPromise;
+  const bundle = window.__TIPTAP_BUNDLE;
+  let specs;
+  if (bundle && bundle.modules && bundle.entries) {
+    _setupOfflineImportMap(bundle);
+    specs = RT_TT_NAMES.map(n => 'tiptapmod:' + bundle.entries[n]);
+  } else {
+    const V = TIPTAP_VERSION, base = 'https://esm.sh/@tiptap/';
+    specs = RT_TT_NAMES.map(n => base + n + '@' + V);
+  }
+  _tiptapPromise = Promise.all(specs.map(s => import(s))).then(m => {
+    const [core, sk, underline, highlight, link, sup, sub, align, image, taskList, taskItem, placeholder] = m;
+    return {
+      Editor: core.Editor, StarterKit: sk.default, Underline: underline.default,
+      Highlight: highlight.default, Link: link.default, Superscript: sup.default,
+      Subscript: sub.default, TextAlign: align.default, Image: image.default,
+      TaskList: taskList.default, TaskItem: taskItem.default, Placeholder: placeholder.default
+    };
+  }).catch(err => { _tiptapPromise = null; throw err; });
+  return _tiptapPromise;
+}
+
+async function initEditor(editorId, toolbarId, content) {
+  const mount = document.getElementById(editorId);
+  const toolbar = document.getElementById(toolbarId);
+  if (!mount) return;
+  if (RT_EDITORS[editorId]) { try { RT_EDITORS[editorId].destroy(); } catch(e){} delete RT_EDITORS[editorId]; }
+  mount.removeAttribute('contenteditable');
+  mount.innerHTML = '';
+  if (toolbar) toolbar.innerHTML = '<span class="rt-loading">Loading editor…</span>';
+  let T;
+  try { T = await loadTiptap(); }
+  catch (e) {
+    // Offline with no cached bundle: fall back to a plain editable so content
+    // is never lost, even though the rich toolbar is unavailable.
+    if (toolbar) toolbar.innerHTML = '<span class="rt-loading">Rich editor unavailable offline — plain text only.</span>';
+    mount.setAttribute('contenteditable','true');
+    mount.classList.add('rt-prose');
+    mount.innerHTML = content || '';
+    return;
+  }
+  if (!document.body.contains(mount)) return;   // modal closed while loading
+  const placeholder = mount.getAttribute('data-placeholder') || 'Write here…';
+  const editor = new T.Editor({
+    element: mount,
+    extensions: [
+      T.StarterKit.configure({ heading: { levels: [1,2,3,4] } }),
+      T.Underline,
+      T.Highlight.configure({ multicolor: true }),
+      T.Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { target:'_blank', rel:'noopener nofollow' } }),
+      T.Superscript, T.Subscript,
+      T.TextAlign.configure({ types: ['heading','paragraph'] }),
+      T.Image.configure({ inline: false, allowBase64: true }),
+      T.TaskList, T.TaskItem.configure({ nested: true }),
+      T.Placeholder.configure({ placeholder })
+    ],
+    content: content || '',
+    editorProps: {
+      attributes: { class: 'rt-prose' },
+      handlePaste: (view, event) => rtHandleImagePaste(editorId, event)
+    },
+    onSelectionUpdate: () => rtUpdateToolbar(editorId),
+    onTransaction: () => rtUpdateToolbar(editorId)
+  });
+  RT_EDITORS[editorId] = editor;
+  rtBuildToolbar(toolbarId, editorId);
+  rtUpdateToolbar(editorId);
+}
+
+// Read an editor's HTML for saving. Treats Tiptap's empty doc as empty string.
+function getEditorHTML(editorId) {
+  const e = RT_EDITORS[editorId];
+  if (e) { const html = e.getHTML(); return html === '<p></p>' ? '' : html; }
+  const el = document.getElementById(editorId);
+  return el ? el.innerHTML : '';
+}
+
+/* ── Command dispatch ── */
+function rtCmd(editorId, action, arg) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  const c = e.chain().focus();
+  switch (action) {
+    case 'bold': c.toggleBold().run(); break;
+    case 'italic': c.toggleItalic().run(); break;
+    case 'underline': c.toggleUnderline().run(); break;
+    case 'strike': c.toggleStrike().run(); break;
+    case 'sup': c.toggleSuperscript().run(); break;
+    case 'sub': c.toggleSubscript().run(); break;
+    case 'bullet': c.toggleBulletList().run(); break;
+    case 'ordered': c.toggleOrderedList().run(); break;
+    case 'task': c.toggleTaskList().run(); break;
+    case 'blockquote': c.toggleBlockquote().run(); break;
+    case 'codeblock': c.toggleCodeBlock().run(); break;
+    case 'align': c.setTextAlign(arg).run(); break;
+    case 'highlight': c.toggleHighlight({ color: arg }).run(); break;
+    case 'unhighlight': c.unsetHighlight().run(); break;
+    case 'undo': c.undo().run(); break;
+    case 'redo': c.redo().run(); break;
+    case 'clear': c.unsetAllMarks().clearNodes().run(); break;
+  }
+  rtUpdateToolbar(editorId);
+}
+function rtSetHeading(editorId, level) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  const c = e.chain().focus();
+  if (!level || level === '0') c.setParagraph().run();
+  else c.toggleHeading({ level: parseInt(level, 10) }).run();
+  rtUpdateToolbar(editorId);
+}
+function rtSetLink(editorId) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  const prev = e.getAttributes('link').href || '';
+  const url = prompt('Link URL (leave empty to remove the link):', prev || 'https://');
+  if (url === null) return;
+  if (url.trim() === '') e.chain().focus().extendMarkRange('link').unsetLink().run();
+  else e.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
+  rtUpdateToolbar(editorId);
+}
+function rtPickImage(editorId) {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = async ev => {
     const file = ev.target.files[0]; if (!file) return;
-    if (file.size > RT_IMAGE_MAX_BYTES) {
-      alert(`Image is too large (${(file.size/1024/1024).toFixed(2)} MB). Maximum allowed is 2 MB for in-content images. Try compressing it first.`);
-      return;
-    }
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      insertImageAtCursor(editorId, dataUrl);
-    } catch(err) { alert('Could not read image: ' + err.message); }
+    if (file.size > RT_IMAGE_MAX_BYTES) { alert(`Image is too large (${(file.size/1024/1024).toFixed(2)} MB). Maximum is 2 MB.`); return; }
+    try { const url = await fileToDataUrl(file); const e = RT_EDITORS[editorId]; if (e) e.chain().focus().setImage({ src: url }).run(); }
+    catch (err) { alert('Could not read image: ' + err.message); }
   };
   inp.click();
 }
-
-function insertImageAtCursor(editorId, dataUrl) {
-  const ed = document.getElementById(editorId);
-  ed.focus();
-  document.execCommand('insertHTML', false,
-    `<img src="${dataUrl}" class="entry-img" style="max-width:100%;border-radius:4px;margin:4px 0;cursor:pointer">`);
-}
-
-function handleRTPaste(e, editorId) {
-  if (!e.clipboardData || !e.clipboardData.items) return;
-  for (const item of e.clipboardData.items) {
-    if (item.type.startsWith('image/')) {
-      e.preventDefault();
-      const blob = item.getAsFile();
-      if (blob.size > RT_IMAGE_MAX_BYTES) {
-        alert(`Pasted image is too large (${(blob.size/1024/1024).toFixed(2)} MB). Maximum 2 MB. Try a smaller image.`);
-        return;
-      }
-      fileToDataUrl(blob)
-        .then(url => insertImageAtCursor(editorId, url))
-        .catch(err => alert('Could not paste image: ' + err.message));
-      return;
+// Paste image → insert as data URL. Returns true when it handled the paste.
+function rtHandleImagePaste(editorId, event) {
+  const items = event.clipboardData && event.clipboardData.items;
+  if (!items) return false;
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      const blob = it.getAsFile();
+      if (!blob) continue;
+      if (blob.size > RT_IMAGE_MAX_BYTES) { alert('Pasted image is too large (max 2 MB).'); return true; }
+      fileToDataUrl(blob).then(url => { const e = RT_EDITORS[editorId]; if (e) e.chain().focus().setImage({ src: url }).run(); });
+      return true;
     }
-  }
-}
-
-/* ══════════════════════════════════════════
-   RICH TEXT — TABLE TOOLS
-   Tables use inline styles so they render consistently anywhere the saved
-   HTML appears (entry view, section description, doc view).
-   ══════════════════════════════════════════ */
-const TABLE_MAX_COLS  = 6;
-const TABLE_STYLE     = 'border-collapse:collapse;width:100%;margin:8px 0;font-size:13.5px';
-const TABLE_TD_STYLE  = 'border:1px solid #d0d0cc;padding:8px 12px;text-align:left;vertical-align:top';
-const TABLE_TH_STYLE  = TABLE_TD_STYLE + ';background:#f0f0ee;font-weight:700';
-
-// Resolve the <td>/<th> the cursor is currently inside (or null).
-function rtCurrentCell() {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return null;
-  let n = sel.getRangeAt(0).startContainer;
-  if (n && n.nodeType !== 1) n = n.parentNode;
-  while (n) {
-    if (n.tagName === 'TD' || n.tagName === 'TH') return n;
-    n = n.parentNode;
-  }
-  return null;
-}
-function rtCurrentTable() {
-  const cell = rtCurrentCell();
-  if (!cell) return null;
-  let n = cell;
-  while (n && n.tagName !== 'TABLE') n = n.parentNode;
-  return n;
-}
-function _needCell() {
-  const c = rtCurrentCell();
-  if (!c) { alert('Place your cursor inside a table cell first.'); return null; }
-  return c;
-}
-
-function rtInsertTable(editorId) {
-  const colsStr = prompt(`How many columns? (1–${TABLE_MAX_COLS})`, '3');
-  if (colsStr === null) return;
-  let cols = parseInt(colsStr, 10);
-  if (isNaN(cols) || cols < 1) { alert('Invalid column count.'); return; }
-  if (cols > TABLE_MAX_COLS) { alert(`Maximum ${TABLE_MAX_COLS} columns. Clamping.`); cols = TABLE_MAX_COLS; }
-
-  const rowsStr = prompt('How many data rows? (header row added on top automatically)', '2');
-  if (rowsStr === null) return;
-  let rows = parseInt(rowsStr, 10);
-  if (isNaN(rows) || rows < 0) { alert('Invalid row count.'); return; }
-
-  let html = `<table style="${TABLE_STYLE}"><thead><tr>`;
-  for (let c = 0; c < cols; c++) html += `<th style="${TABLE_TH_STYLE}">Header ${c+1}</th>`;
-  html += `</tr></thead><tbody>`;
-  for (let r = 0; r < rows; r++) {
-    html += `<tr>`;
-    for (let c = 0; c < cols; c++) html += `<td style="${TABLE_TD_STYLE}">&nbsp;</td>`;
-    html += `</tr>`;
-  }
-  html += `</tbody></table><p><br></p>`;
-
-  const ed = document.getElementById(editorId);
-  ed.focus();
-  document.execCommand('insertHTML', false, html);
-}
-
-function rtAddRowBelow(editorId) {
-  const cell = _needCell(); if (!cell) return;
-  const tr = cell.parentNode;
-  const cols = tr.children.length;
-  const newTr = document.createElement('tr');
-  for (let c = 0; c < cols; c++) {
-    const td = document.createElement('td');
-    td.setAttribute('style', TABLE_TD_STYLE);
-    td.innerHTML = '&nbsp;';
-    newTr.appendChild(td);
-  }
-  tr.parentNode.insertBefore(newTr, tr.nextSibling);
-}
-
-function rtAddColRight(editorId) {
-  const cell = _needCell(); if (!cell) return;
-  const table = rtCurrentTable();
-  const firstRow = table && table.querySelector('tr');
-  if (firstRow && firstRow.children.length >= TABLE_MAX_COLS) {
-    alert(`This table already has ${TABLE_MAX_COLS} columns (the maximum).`);
-    return;
-  }
-  const colIdx = Array.from(cell.parentNode.children).indexOf(cell);
-  table.querySelectorAll('tr').forEach(row => {
-    const ref = row.children[colIdx];
-    if (!ref) return;
-    const isHeader = ref.tagName === 'TH';
-    const newCell = document.createElement(isHeader ? 'th' : 'td');
-    newCell.setAttribute('style', isHeader ? TABLE_TH_STYLE : TABLE_TD_STYLE);
-    newCell.innerHTML = isHeader ? 'New' : '&nbsp;';
-    row.insertBefore(newCell, ref.nextSibling);
-  });
-}
-
-function rtDeleteRow(editorId) {
-  const cell = _needCell(); if (!cell) return;
-  const tr = cell.parentNode;
-  const tbody = tr.parentNode;
-  if (tbody.children.length === 1) {
-    alert('Cannot delete the last row in this part of the table. Use Delete Table instead.');
-    return;
-  }
-  if (!confirm('Delete this row?')) return;
-  tbody.removeChild(tr);
-}
-
-function rtDeleteColumn(editorId) {
-  const cell = _needCell(); if (!cell) return;
-  const table = rtCurrentTable();
-  const firstRow = table.querySelector('tr');
-  if (firstRow.children.length === 1) {
-    alert('Cannot delete the last column. Use Delete Table instead.');
-    return;
-  }
-  if (!confirm('Delete this column from every row?')) return;
-  const colIdx = Array.from(cell.parentNode.children).indexOf(cell);
-  table.querySelectorAll('tr').forEach(row => {
-    if (row.children[colIdx]) row.removeChild(row.children[colIdx]);
-  });
-}
-
-function rtCellColor(editorId) {
-  const cell = _needCell(); if (!cell) return;
-  // Convert current style.backgroundColor (rgb format) to hex for display
-  let current = cell.style.backgroundColor || '';
-  const rgb = current.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-  if (rgb) {
-    current = '#' + [rgb[1], rgb[2], rgb[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
-  }
-  const input = prompt('Enter background hex color (e.g. #ffeecc or #fec). Leave empty to clear:', current);
-  if (input === null) return;
-  const trimmed = input.trim();
-  if (trimmed === '') {
-    cell.style.backgroundColor = '';
-    // Also strip from the inline `style` attribute so it persists clean
-    cell.setAttribute('style', cell.getAttribute('style').replace(/background-color:[^;]*;?/i, ''));
-    return;
-  }
-  let hex = trimmed;
-  if (!hex.startsWith('#')) hex = '#' + hex;
-  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
-    alert('Invalid hex color. Use a 3- or 6-digit hex like #ffeecc or #fec.');
-    return;
-  }
-  // Persist via the style attribute so it survives serialization through innerHTML
-  let styleAttr = cell.getAttribute('style') || '';
-  styleAttr = styleAttr.replace(/background-color:[^;]*;?/i, '').trim();
-  if (styleAttr && !styleAttr.endsWith(';')) styleAttr += ';';
-  styleAttr += `background-color:${hex};`;
-  cell.setAttribute('style', styleAttr);
-}
-
-function rtDeleteTable(editorId) {
-  const t = rtCurrentTable();
-  if (!t) { alert('Place your cursor inside a table first.'); return; }
-  if (!confirm('Delete the entire table? This cannot be undone (until you Save → close → undo via Import).')) return;
-  t.parentNode.removeChild(t);
-}
-
-function updateRTToolbarState(editorId) {
-  const ed = document.getElementById(editorId);
-  if (!ed || !ed.parentElement) return;
-  const toolbar = ed.parentElement.querySelector('.rt-toolbar');
-  if (!toolbar) return;
-  toolbar.querySelectorAll('.rt-btn[data-cmd]').forEach(btn => {
-    if (btn.dataset.check === '1') {
-      try { btn.classList.toggle('active', document.queryCommandState(btn.dataset.cmd)); } catch(e){}
-    }
-  });
-  // Reflect the current text's font size in the size input
-  const fsInput = toolbar.querySelector('.rt-fontsize-input');
-  if (fsInput && document.activeElement !== fsInput) {
-    const px = _currentFontSizePx(ed);
-    if (px != null) fsInput.value = px;
-  }
-}
-
-// Computed font-size (px, rounded) of the text at the current caret/selection.
-function _currentFontSizePx(ed) {
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return null;
-  let node = sel.getRangeAt(0).startContainer;
-  if (node && node.nodeType !== 1) node = node.parentNode;
-  if (!node || !ed.contains(node)) return null;
-  const fs = getComputedStyle(node).fontSize; // e.g. "24px"
-  const n = parseFloat(fs);
-  return isNaN(n) ? null : Math.round(n);
-}
-
-function initEditor(editorId, toolbarId, content) {
-  buildToolbar(toolbarId, editorId);
-  const ed = document.getElementById(editorId);
-  ed.innerHTML = content || '';
-  if (!ed._listenersAdded) {
-    ed.addEventListener('paste', e => handleRTPaste(e, editorId));
-    ed.addEventListener('keyup', () => { rtSaveSelection(editorId); updateRTToolbarState(editorId); });
-    ed.addEventListener('mouseup', () => { rtSaveSelection(editorId); updateRTToolbarState(editorId); });
-    ed._listenersAdded = true;
-  }
-  setTimeout(() => updateRTToolbarState(editorId), 10);
-}
-
-/* ── SELECTION SAVE / RESTORE ──
-   Toolbar controls that take focus (number input, presets dropdown) steal the
-   editor's text selection. We continuously remember the last selection made
-   inside the editor and restore it before applying a command. */
-let _rtSavedRange = null;
-let _rtSavedEditorId = null;
-function rtSaveSelection(editorId) {
-  const ed = document.getElementById(editorId);
-  const sel = window.getSelection();
-  if (ed && sel && sel.rangeCount) {
-    const r = sel.getRangeAt(0);
-    if (ed.contains(r.commonAncestorContainer)) {
-      _rtSavedRange = r.cloneRange();
-      _rtSavedEditorId = editorId;
-    }
-  }
-}
-function rtRestoreSelection(editorId) {
-  if (_rtSavedRange && _rtSavedEditorId === editorId) {
-    const ed = document.getElementById(editorId);
-    if (!ed) return false;
-    ed.focus();
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    try { sel.addRange(_rtSavedRange); } catch(e) { return false; }
-    return true;
   }
   return false;
+}
+
+/* ── Toolbar ── */
+function rtBtn(editorId, action, label, title, arg) {
+  const ed = escAttr(editorId);
+  const argCall = arg !== undefined ? `,'${escAttr(arg)}'` : '';
+  const argAttr = arg !== undefined ? ` data-arg="${escAttr(arg)}"` : '';
+  return `<button class="rt-btn" type="button" data-act="${escAttr(action)}"${argAttr} title="${escAttr(title)}" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','${escAttr(action)}'${argCall})">${label}</button>`;
+}
+function rtBuildToolbar(toolbarId, editorId) {
+  const ed = escAttr(editorId);
+  const sep = '<div class="rt-sep"></div>';
+  const headingSel = `<select class="rt-select" title="Paragraph style" onchange="rtSetHeading('${ed}', this.value)">
+    <option value="0">Normal</option>
+    <option value="1">Heading 1</option>
+    <option value="2">Heading 2</option>
+    <option value="3">Heading 3</option>
+    <option value="4">Heading 4</option>
+  </select>`;
+  const hl = `<span class="rt-hl-group"><span class="rt-hl-icon" title="Highlight">🖍</span>` +
+    RT_HL_SWATCHES.map(h => `<button class="rt-hl-swatch" type="button" title="Highlight ${h.t}" style="background:${h.c}" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','highlight','${h.c}')"></button>`).join('') +
+    `<button class="rt-btn" type="button" title="Remove highlight" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','unhighlight')">✕</button></span>`;
+  const html =
+    rtBtn(editorId,'undo','↶','Undo (Ctrl+Z)') +
+    rtBtn(editorId,'redo','↷','Redo (Ctrl+Y)') + sep +
+    headingSel + sep +
+    rtBtn(editorId,'bold','<b>B</b>','Bold (Ctrl+B)') +
+    rtBtn(editorId,'italic','<i>I</i>','Italic (Ctrl+I)') +
+    rtBtn(editorId,'underline','<u>U</u>','Underline (Ctrl+U)') +
+    rtBtn(editorId,'strike','<s>S</s>','Strikethrough') +
+    rtBtn(editorId,'sup','x<sup>2</sup>','Superscript') +
+    rtBtn(editorId,'sub','x<sub>2</sub>','Subscript') + sep +
+    hl + sep +
+    `<button class="rt-btn" type="button" data-act="link" title="Insert / edit link" onmousedown="event.preventDefault()" onclick="rtSetLink('${ed}')">🔗</button>` + sep +
+    rtBtn(editorId,'bullet','• List','Bullet list') +
+    rtBtn(editorId,'ordered','1. List','Numbered list') +
+    rtBtn(editorId,'task','☑','Task list') + sep +
+    rtBtn(editorId,'blockquote','❝','Blockquote') +
+    rtBtn(editorId,'codeblock','&lt;/&gt;','Code block') + sep +
+    rtBtn(editorId,'align','⇤','Align left','left') +
+    rtBtn(editorId,'align','≡','Align center','center') +
+    rtBtn(editorId,'align','⇥','Align right','right') +
+    rtBtn(editorId,'align','☰','Justify','justify') + sep +
+    `<button class="rt-btn" type="button" title="Insert image (or paste from clipboard)" onmousedown="event.preventDefault()" onclick="rtPickImage('${ed}')">🖼</button>` +
+    rtBtn(editorId,'clear','⌫','Clear formatting');
+  const tb = document.getElementById(toolbarId);
+  if (tb) tb.innerHTML = html;
+}
+function rtUpdateToolbar(editorId) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  const mount = document.getElementById(editorId);
+  const tb = mount && mount.parentElement ? mount.parentElement.querySelector('.rt-toolbar') : null;
+  if (!tb) return;
+  const state = {
+    bold: e.isActive('bold'), italic: e.isActive('italic'), underline: e.isActive('underline'),
+    strike: e.isActive('strike'), sup: e.isActive('superscript'), sub: e.isActive('subscript'),
+    bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'),
+    blockquote: e.isActive('blockquote'), codeblock: e.isActive('codeBlock'), link: e.isActive('link')
+  };
+  tb.querySelectorAll('.rt-btn[data-act]').forEach(btn => {
+    const act = btn.dataset.act;
+    if (act === 'align') btn.classList.toggle('active', e.isActive({ textAlign: btn.dataset.arg }));
+    else if (act === 'undo') btn.disabled = !e.can().undo();
+    else if (act === 'redo') btn.disabled = !e.can().redo();
+    else if (act in state) btn.classList.toggle('active', !!state[act]);
+  });
+  const sel = tb.querySelector('.rt-select');
+  if (sel) {
+    let v = '0';
+    for (let lvl = 1; lvl <= 4; lvl++) if (e.isActive('heading', { level: lvl })) { v = String(lvl); break; }
+    sel.value = v;
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -4471,7 +4225,7 @@ function saveEntry() {
   const id = document.getElementById('ef-id').value.trim();
   const title = document.getElementById('ef-title').value.trim();
   const kwRaw = document.getElementById('ef-keywords').value.trim();
-  const content = document.getElementById('ef-content-editor').innerHTML;
+  const content = getEditorHTML('ef-content-editor');
 
   if (!id || !title) { alert('Entry ID and Title are required.'); return; }
   if (!stripHtml(content)) { alert('Entry content cannot be empty.'); return; }
@@ -4656,7 +4410,7 @@ function saveSection() {
   const base = editSectionBase || 'handbook';
   const num = document.getElementById('sef-num').value.trim();
   const title = document.getElementById('sef-title').value.trim();
-  const desc = document.getElementById('sef-desc-editor').innerHTML;
+  const desc = getEditorHTML('sef-desc-editor');
   const passkeyInp = document.getElementById('sef-passkey');
   const passkey = passkeyInp ? passkeyInp.value.trim() : '';
   if (!num || !title) { alert('Number and title are required.'); return; }
@@ -5493,7 +5247,7 @@ function dvToggleInlineEdit(entryId, base) {
   wrap.innerHTML = `
     <div class="rt-wrap">
       <div class="rt-toolbar" id="dv-tb-${escAttr(base)}-${escAttr(entryId)}"></div>
-      <div class="rt-editor" id="dv-ed-${escAttr(base)}-${escAttr(entryId)}" contenteditable="true" data-placeholder="Write content…">${entry.content}</div>
+      <div class="rt-editor" id="dv-ed-${escAttr(base)}-${escAttr(entryId)}" data-placeholder="Write content…"></div>
     </div>
     <div class="dv-edit-controls">
       <button class="btn btn-primary" onclick="dvSaveInline('${escAttr(entryId)}','${escAttr(base)}')">Save</button>
@@ -5505,12 +5259,10 @@ function dvToggleInlineEdit(entryId, base) {
 
 function dvSaveInline(entryId, base) {
   base = base || 'handbook';
-  const ed = document.getElementById(`dv-ed-${base}-${entryId}`);
-  if (!ed) return;
   const arr = entriesOf(base);
   const idx = arr.findIndex(e => e.id === entryId);
   if (idx === -1) return;
-  arr[idx].content = ed.innerHTML;
+  arr[idx].content = getEditorHTML(`dv-ed-${base}-${entryId}`);
   saveAll('Entry saved');
   renderDocView();
 }
