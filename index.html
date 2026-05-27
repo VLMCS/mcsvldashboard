@@ -729,6 +729,80 @@
   /* Checkboxes are read-only outside the editor */
   :is(.entry-content, .dv-entry-content, .section-desc) ul[data-type="taskList"] input[type="checkbox"] { pointer-events: none; }
 
+  /* ── Tables (editor + read-only) ── */
+  :is(.rt-prose, .section-desc) table {
+    border-collapse: collapse; width: 100%; margin: 0.7em 0; table-layout: fixed; font-size: 0.95em;
+  }
+  :is(.rt-prose, .section-desc) :is(th, td) {
+    border: 1px solid var(--border); padding: 6px 10px; vertical-align: top; text-align: left; position: relative; min-width: 2em;
+  }
+  :is(.rt-prose, .section-desc) th { background: var(--bg-th); font-weight: 700; }
+  /* Existing read-only scopes already style tables; keep Tiptap output consistent there */
+  .rt-prose .tableWrapper, .section-desc .tableWrapper { overflow-x: auto; }
+  .rt-prose table .selectedCell::after {
+    content: ''; position: absolute; inset: 0; background: rgba(30,136,229,0.18); pointer-events: none; z-index: 2;
+  }
+  .rt-prose table .column-resize-handle {
+    position: absolute; right: -2px; top: 0; bottom: 0; width: 4px;
+    background: var(--admin-accent); pointer-events: none;
+  }
+  .rt-prose.resize-cursor { cursor: col-resize; }
+
+  /* ── Video embeds (responsive 16:9) ── */
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) .rt-video {
+    position: relative; width: 100%; max-width: 720px; margin: 12px 0;
+    aspect-ratio: 16 / 9; background: #000; border-radius: 6px; overflow: hidden;
+  }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) .rt-video iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+  }
+  .rt-prose .rt-video.ProseMirror-selectednode { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+
+  /* ── Resizable media (select, then drag the corner handle) ── */
+  .rt-resizable-img { position: relative; display: inline-block; max-width: 100%; line-height: 0; vertical-align: bottom; }
+  .rt-resizable-img img { width: 100%; height: auto; display: block; border-radius: 4px; }
+  .rt-resize-handle {
+    position: absolute; right: -6px; bottom: -6px; width: 13px; height: 13px;
+    background: var(--admin-accent); border: 2px solid #fff; border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25); cursor: nwse-resize; display: none; z-index: 6;
+  }
+  .rt-prose .rt-resizable.ProseMirror-selectednode { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+  .rt-prose .rt-resizable.ProseMirror-selectednode .rt-resize-handle { display: block; }
+  /* In the editor, clicks select the video node instead of being swallowed by the iframe */
+  .rt-prose .rt-resizable.rt-video iframe { pointer-events: none; }
+  /* Clickable poster shown instead of an iframe when inline playback is blocked (file://) */
+  .rt-video-poster {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    background: #1f1f1f; color: #fff; text-decoration: none; cursor: pointer;
+  }
+  .rt-video-poster:hover { background: #2a2a2a; }
+  .rt-video-play {
+    width: 54px; height: 54px; border-radius: 50%; background: rgba(229,57,53,0.92);
+    color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; padding-left: 4px;
+  }
+  .rt-video-label { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+
+  /* ── Toolbar dropdown menu (Table) ── */
+  .rt-menu { position: relative; display: inline-flex; }
+  .rt-menu-panel {
+    display: none; position: absolute; top: 28px; left: 0; z-index: 120;
+    min-width: 184px; max-height: 70vh; overflow-y: auto; padding: 4px;
+    flex-direction: column; gap: 1px;
+    background: var(--bg-form-input); border: 1px solid var(--border);
+    border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  }
+  .rt-menu.open .rt-menu-panel { display: flex; }
+  .rt-menu-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: none; border: none; border-radius: 4px; cursor: pointer;
+    padding: 6px 9px; font-family: inherit; font-size: 12.5px; color: var(--text-body); text-align: left;
+  }
+  .rt-menu-item:hover { background: var(--hover-bg); }
+  .rt-menu-item.rt-menu-danger:hover { background: rgba(192,57,43,0.10); color: #c0392b; }
+  .rt-menu-item .rt-cell-color { margin-left: auto; width: 26px; height: 20px; padding: 0; border: 1px solid var(--border); border-radius: 3px; background: none; cursor: pointer; }
+  .rt-menu-sep { height: 1px; background: var(--border); margin: 3px 2px; }
+
   /* Password modal */
   #pwd-modal-overlay { z-index: 3000; }
   #pwd-modal .admin-modal-body { padding: 26px 20px; align-items: center; text-align: center; gap: 12px; }
@@ -747,6 +821,35 @@
   #pwd-input.error { border-color: #c0392b; animation: shake 0.3s; }
   @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   #pwd-error { font-size: 11.5px; color: #c0392b; min-height: 16px; }
+
+  /* ── UNDER MAINTENANCE overlay ── */
+  #maint-overlay {
+    display: none; position: fixed; inset: 0; z-index: 99999;
+    background: var(--white); color: var(--black);
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+  }
+  #maint-overlay.open { display: flex; }
+  .maint-box { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 420px; }
+  .maint-icon { font-size: 54px; line-height: 1; }
+  .maint-title { font-size: 30px; font-weight: 800; letter-spacing: 0.06em; color: var(--text-body); }
+  .maint-sub { font-size: 14px; color: var(--mid); max-width: 360px; line-height: 1.5; }
+  .maint-skip {
+    margin-top: 8px; width: 46px; height: 46px; border-radius: 50%;
+    border: 1.5px solid var(--border); background: var(--bg-card-head); color: var(--text-body);
+    font-size: 20px; cursor: pointer; transition: background 0.12s, border-color 0.12s, transform 0.12s;
+  }
+  .maint-skip:hover { border-color: var(--admin-accent); color: var(--admin-accent); transform: translateX(3px); }
+  .maint-pwd-wrap { display: none; flex-direction: column; align-items: center; gap: 8px; margin-top: 6px; }
+  .maint-pwd-wrap.open { display: flex; }
+  #maint-pwd {
+    width: 220px; padding: 9px 12px; font-family: inherit; font-size: 14px;
+    border: 1.5px solid var(--border); border-radius: 6px; text-align: center;
+    background: var(--bg-form-input); color: var(--black); outline: none;
+  }
+  #maint-pwd:focus { border-color: var(--black); }
+  #maint-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
+  .maint-pwd-err { font-size: 11.5px; color: #c0392b; min-height: 14px; }
 
   /* ── LIGHTBOX ── */
   #lightbox-overlay {
@@ -899,7 +1002,30 @@
   .dv-add-entry-btn:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
 
   .dv-edit-controls {
-    display: flex; gap: 6px; margin-top: 8px;
+    display: flex; gap: 6px; margin-top: 8px; align-items: center;
+  }
+  /* De-emphasized delete: trashcan icon, pushed to the far right */
+  .dv-del-btn {
+    margin-left: auto; background: none; border: 1px solid transparent;
+    border-radius: 4px; cursor: pointer; color: var(--mid);
+    font-size: 15px; line-height: 1; padding: 5px 9px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .dv-del-btn:hover { background: rgba(192,57,43,0.10); color: #c0392b; border-color: #c0392b; }
+
+  /* ── Documentation-view INLINE edit / create forms ── */
+  .dv-inline-form { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+  .dv-inline-grid { display: grid; grid-template-columns: max-content 1fr; gap: 8px 12px; align-items: center; }
+  .dv-inline-grid .form-label { margin: 0; }
+  .dv-inline-form > .form-label { margin-bottom: -3px; }
+  .dv-inline-form .form-input { width: 100%; }
+  .dv-inline-new {
+    border: 1.5px dashed var(--admin-accent); border-radius: 8px;
+    padding: 12px 14px; margin: 12px 0; background: var(--bg-card-head);
+  }
+  .dv-inline-new-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--admin-accent); margin-bottom: 6px;
   }
 
   /* ── TOAST ── */
@@ -1413,23 +1539,14 @@
       <button class="admin-modal-close" onclick="closeEntryModal()">✕</button>
     </div>
     <div class="admin-modal-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-field">
-          <label class="form-label">Section</label>
-          <select class="form-select" id="ef-section-select" onchange="onSectionSelectChange()"></select>
-        </div>
-        <div class="form-field">
-          <label class="form-label">Entry ID</label>
-          <input class="form-input" id="ef-id" type="text" placeholder="e.g. 1.3" />
-          <span class="form-hint">Format: sectionNum.position (auto-suggested for new entries)</span>
-        </div>
+      <div class="form-field" id="ef-section-field">
+        <label class="form-label">Section</label>
+        <select class="form-select" id="ef-section-select" onchange="onSectionSelectChange()"></select>
+        <span class="form-hint">The entry ID is assigned automatically.</span>
       </div>
       <div class="form-field" id="ef-new-section-group" style="display:none">
-        <label class="form-label">New Section Number & Title</label>
-        <div style="display:grid;grid-template-columns:80px 1fr;gap:8px">
-          <input class="form-input" id="ef-new-section-num" type="text" placeholder="17" />
-          <input class="form-input" id="ef-new-section-title" type="text" placeholder="New Section Title" />
-        </div>
+        <label class="form-label">New Section Title</label>
+        <input class="form-input" id="ef-new-section-title" type="text" placeholder="New section title — number assigned automatically" />
       </div>
       <div class="form-field">
         <label class="form-label">Entry Title</label>
@@ -1467,11 +1584,6 @@
       <button class="admin-modal-close" onclick="closeSectionModal()">✕</button>
     </div>
     <div class="admin-modal-body">
-      <div class="form-field">
-        <label class="form-label">Section Number</label>
-        <input class="form-input" id="sef-num" type="text" placeholder="e.g. 1" />
-        <span class="form-hint">Renaming changes how this section appears and groups its entries.</span>
-      </div>
       <div class="form-field">
         <label class="form-label">Section Title</label>
         <input class="form-input" id="sef-title" type="text" placeholder="Section title" />
@@ -1767,10 +1879,26 @@
 <!-- ── TOAST ── -->
 <div id="save-toast">Changes saved</div>
 
+<!-- ── UNDER MAINTENANCE overlay (blocks the GUI while Firebase is unreachable) ── -->
+<div id="maint-overlay">
+  <div class="maint-box">
+    <div class="maint-icon">🛠️</div>
+    <div class="maint-title">UNDER MAINTENANCE</div>
+    <div class="maint-sub" id="maint-sub">We can’t reach the dashboard server right now. Please check back soon.</div>
+    <button id="maint-skip" class="maint-skip" title="Admin: skip this screen" onclick="maintShowPwd()">⏭</button>
+    <div id="maint-pwd-wrap" class="maint-pwd-wrap">
+      <input id="maint-pwd" type="password" placeholder="Admin password" autocomplete="off"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();maintTryPwd();}" />
+      <button class="btn btn-primary" onclick="maintTryPwd()">Enter</button>
+      <div id="maint-pwd-err" class="maint-pwd-err"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Rich-text editor engine: a vendored, fully-offline Tiptap bundle built from
      esm.sh. Defines window.__TIPTAP_BUNDLE. If this file is absent, the editor
      transparently falls back to loading Tiptap from the CDN (needs internet). -->
-<script src="tiptap-bundle.js"></script>
+<script src="tiptap-bundle.js?v=2"></script>
 <script>
 /* ══════════════════════════════════════════
    DEFAULT DATA
@@ -2083,6 +2211,7 @@ let dragSrcItemId = null;
 let dragSrcType = null; // 'entry' | 'siItem'
 
 let editEntryId = null;
+let editEntryPresetId = null;     // preset (auto) id for a new entry/sub being created via the modal
 let editEntryBase = 'handbook';   // base of the entry currently being edited
 let editSectionNum = null;
 let editSectionBase = 'handbook'; // base of the section being edited
@@ -2111,12 +2240,12 @@ let activeEditor = null;
    back to localStorage (single-user mode), so the dashboard still works offline.
    ══════════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBx1DVX_duRg1_ueNLoeg3fl5L4Of0a81c",
-  authDomain: "mcs-vl-dashboard.firebaseapp.com",
-  projectId: "mcs-vl-dashboard",
-  storageBucket: "mcs-vl-dashboard.firebasestorage.app",
-  messagingSenderId: "870550200391",
-  appId: "1:870550200391:web:2ebe322f936391d0845162"
+  apiKey:            "AIzaSy...",
+  authDomain:        "vl-dashboard-xxxxx.firebaseapp.com",
+  projectId:         "vl-dashboard-xxxxx",
+  storageBucket:     "vl-dashboard-xxxxx.appspot.com",
+  messagingSenderId: "123456789012",
+  appId:             "1:123456789012:web:abcdef..."
 };
 const FIREBASE_DOC_PATH = ['dashboards', 'main']; // collection, doc
 
@@ -3836,7 +3965,8 @@ const RT_HL_SWATCHES = [
 ];
 const RT_TT_NAMES = ['core','starter-kit','extension-underline','extension-highlight',
   'extension-link','extension-superscript','extension-subscript','extension-text-align',
-  'extension-image','extension-task-list','extension-task-item','extension-placeholder'];
+  'extension-image','extension-task-list','extension-task-item','extension-placeholder',
+  'extension-table','extension-table-row','extension-table-header','extension-table-cell'];
 let _tiptapPromise = null;
 let _ttImportMapDone = false;
 
@@ -3869,15 +3999,201 @@ function loadTiptap() {
     specs = RT_TT_NAMES.map(n => base + n + '@' + V);
   }
   _tiptapPromise = Promise.all(specs.map(s => import(s))).then(m => {
-    const [core, sk, underline, highlight, link, sup, sub, align, image, taskList, taskItem, placeholder] = m;
+    const [core, sk, underline, highlight, link, sup, sub, align, image, taskList, taskItem, placeholder, table, tableRow, tableHeader, tableCell] = m;
     return {
-      Editor: core.Editor, StarterKit: sk.default, Underline: underline.default,
+      Editor: core.Editor, Node: core.Node, mergeAttributes: core.mergeAttributes,
+      StarterKit: sk.default, Underline: underline.default,
       Highlight: highlight.default, Link: link.default, Superscript: sup.default,
       Subscript: sub.default, TextAlign: align.default, Image: image.default,
-      TaskList: taskList.default, TaskItem: taskItem.default, Placeholder: placeholder.default
+      TaskList: taskList.default, TaskItem: taskItem.default, Placeholder: placeholder.default,
+      Table: table.default, TableRow: tableRow.default, TableHeader: tableHeader.default, TableCell: tableCell.default
     };
   }).catch(err => { _tiptapPromise = null; throw err; });
   return _tiptapPromise;
+}
+
+// Custom extensions built from the loaded Tiptap classes (memoized).
+let _rtTableCellExt = null, _rtTableHeaderExt = null, _rtVideoNodeExt = null, _rtImageExt = null;
+
+// Convert an embed src back to a normal "watch" URL for the fallback link.
+function _rtVideoWatchUrl(src) {
+  let m = (src || '').match(/youtube\.com\/embed\/([A-Za-z0-9_-]+)/);
+  if (m) return 'https://www.youtube.com/watch?v=' + m[1];
+  m = (src || '').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/);
+  if (m) return 'https://drive.google.com/file/d/' + m[1] + '/view';
+  return src || '#';
+}
+// A clickable poster shown instead of the iframe when inline playback is blocked
+// (e.g. opened from file:// — YouTube/Drive reject embeds with a "config error").
+// `asLink` true → a real <a> (read-only views); false → a non-navigating <div> (editor).
+function _rtVideoPoster(src, asLink) {
+  const isDrive = /drive\.google\.com/.test(src || '');
+  const label = (isDrive ? 'Watch on Google Drive' : 'Watch on YouTube') + ' ↗';
+  const el = document.createElement(asLink ? 'a' : 'div');
+  el.className = 'rt-video-poster';
+  if (asLink) { el.href = _rtVideoWatchUrl(src); el.target = '_blank'; el.rel = 'noopener'; }
+  el.innerHTML = '<span class="rt-video-play">▶</span><span class="rt-video-label">' + label + '</span>';
+  return el;
+}
+// In read-only views, when running from file:// swap embedded video iframes for
+// the clickable poster (the saved HTML keeps the iframe so it still plays when hosted).
+function _rtSetupVideoFallback() {
+  if (location.protocol !== 'file:') return;          // only needed for local-file viewing
+  if (window._rtVideoFbObserver) return;
+  const hydrate = root => {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('.rt-video[data-video-embed]').forEach(box => {
+      if (box.closest('.ProseMirror') || box.dataset.rtFb === '1') return;   // editor handles its own
+      const ifr = box.querySelector('iframe');
+      const src = box.getAttribute('data-src') || (ifr ? ifr.getAttribute('src') : '');
+      if (!src) return;
+      box.dataset.rtFb = '1';
+      box.innerHTML = '';
+      box.appendChild(_rtVideoPoster(src, true));
+    });
+  };
+  hydrate(document.body);
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) for (const n of m.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      if (n.matches && n.matches('.rt-video[data-video-embed]')) hydrate(n.parentNode || n);
+      else hydrate(n);
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+  window._rtVideoFbObserver = obs;
+}
+
+// Shared resize NodeView for media (image / video). Aspect ratio is preserved:
+// width drives layout, height follows (img height:auto; video box is 16:9).
+function _rtMediaNodeView(kind) {
+  return ({ node, editor, getPos }) => {
+    let current = node;
+    const dom = document.createElement(kind === 'img' ? 'span' : 'div');
+    dom.className = 'rt-resizable ' + (kind === 'img' ? 'rt-resizable-img' : 'rt-video');
+    let media;
+    if (kind === 'img') {
+      media = document.createElement('img');
+      media.src = current.attrs.src || '';
+      if (current.attrs.alt) media.alt = current.attrs.alt;
+      if (current.attrs.title) media.title = current.attrs.title;
+    } else {
+      dom.setAttribute('data-video-embed', '');
+      dom.setAttribute('data-src', current.attrs.src || '');
+      if (location.protocol === 'file:') {
+        // Opened as a local file → embeds are blocked; show the clickable poster.
+        media = _rtVideoPoster(current.attrs.src, false);
+      } else {
+        media = document.createElement('iframe');
+        media.src = current.attrs.src || '';
+        media.setAttribute('frameborder', '0');
+        media.setAttribute('allowfullscreen', 'true');
+        media.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen');
+      }
+    }
+    dom.appendChild(media);
+    const handle = document.createElement('span');
+    handle.className = 'rt-resize-handle';
+    handle.title = 'Drag to resize';
+    dom.appendChild(handle);
+    const applyWidth = w => { dom.style.width = w ? (w + 'px') : ''; };
+    applyWidth(current.attrs.width);
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.clientX, startW = dom.offsetWidth;
+      const maxW = dom.parentElement ? dom.parentElement.clientWidth : 1600;
+      const onMove = ev => { let w = startW + (ev.clientX - startX); w = Math.max(48, Math.min(w, maxW)); dom.style.width = Math.round(w) + 'px'; };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+        const w = Math.round(dom.offsetWidth);
+        if (typeof getPos === 'function') {
+          editor.chain().command(({ tr }) => { tr.setNodeMarkup(getPos(), undefined, Object.assign({}, current.attrs, { width: w })); return true; }).run();
+        }
+      };
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+    return {
+      dom,
+      update(updated) {
+        if (updated.type.name !== current.type.name) return false;
+        current = updated;
+        if (media.tagName === 'IMG' || media.tagName === 'IFRAME') media.src = current.attrs.src || '';
+        if (kind === 'video') dom.setAttribute('data-src', current.attrs.src || '');
+        applyWidth(current.attrs.width);
+        return true;
+      },
+      ignoreMutation() { return true; }
+    };
+  };
+}
+function _rtImage(T) {
+  if (_rtImageExt) return _rtImageExt;
+  _rtImageExt = T.Image.extend({
+    addAttributes() {
+      return Object.assign({}, this.parent ? this.parent() : {}, {
+        width: {
+          default: null,
+          parseHTML: el => { const w = el.getAttribute('width') || (el.style.width ? parseInt(el.style.width, 10) : null); return w ? parseInt(w, 10) : null; },
+          renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}px;height:auto` } : {}
+        }
+      });
+    },
+    addNodeView() { return _rtMediaNodeView('img'); }
+  });
+  return _rtImageExt;
+}
+function _rtBgAttribute(parentAttrs) {
+  return Object.assign({}, parentAttrs, {
+    backgroundColor: {
+      default: null,
+      parseHTML: el => el.style.backgroundColor || null,
+      renderHTML: attrs => attrs.backgroundColor ? { style: `background-color:${attrs.backgroundColor}` } : {}
+    }
+  });
+}
+function _rtTableCell(T) {
+  if (_rtTableCellExt) return _rtTableCellExt;
+  _rtTableCellExt = T.TableCell.extend({
+    addAttributes() { return _rtBgAttribute(this.parent ? this.parent() : {}); }
+  });
+  return _rtTableCellExt;
+}
+function _rtTableHeader(T) {
+  if (_rtTableHeaderExt) return _rtTableHeaderExt;
+  _rtTableHeaderExt = T.TableHeader.extend({
+    addAttributes() { return _rtBgAttribute(this.parent ? this.parent() : {}); }
+  });
+  return _rtTableHeaderExt;
+}
+function _rtVideoNode(T) {
+  if (_rtVideoNodeExt) return _rtVideoNodeExt;
+  _rtVideoNodeExt = T.Node.create({
+    name: 'videoEmbed', group: 'block', atom: true, selectable: true, draggable: true,
+    addAttributes() {
+      return {
+        src: { default: null },
+        width: {
+          default: null,
+          parseHTML: el => (el.style && el.style.width ? parseInt(el.style.width, 10) : null) || null,
+          renderHTML: attrs => attrs.width ? { style: `width:${attrs.width}px;max-width:${attrs.width}px` } : {}
+        }
+      };
+    },
+    parseHTML() { return [{ tag: 'div[data-video-embed]', getAttrs: el => ({ src: el.getAttribute('data-src') || (el.querySelector('iframe') ? el.querySelector('iframe').getAttribute('src') : ''), width: el.style && el.style.width ? parseInt(el.style.width, 10) : null }) }]; },
+    renderHTML({ node }) {
+      const src = node.attrs.src || '';
+      const attrs = { 'data-video-embed': '', 'data-src': src, class: 'rt-video' };
+      if (node.attrs.width) attrs.style = `width:${node.attrs.width}px;max-width:${node.attrs.width}px`;
+      return ['div', attrs,
+        ['iframe', { src, frameborder: '0', allowfullscreen: 'true', allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen' }]];
+    },
+    addNodeView() { return _rtMediaNodeView('video'); },
+    addCommands() {
+      const name = this.name;
+      return { setVideoEmbed: attrs => ({ commands }) => commands.insertContent({ type: name, attrs }) };
+    }
+  });
+  return _rtVideoNodeExt;
 }
 
 async function initEditor(editorId, toolbarId, content) {
@@ -3910,8 +4226,11 @@ async function initEditor(editorId, toolbarId, content) {
       T.Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { target:'_blank', rel:'noopener nofollow' } }),
       T.Superscript, T.Subscript,
       T.TextAlign.configure({ types: ['heading','paragraph'] }),
-      T.Image.configure({ inline: false, allowBase64: true }),
+      _rtImage(T).configure({ inline: false, allowBase64: true }),
       T.TaskList, T.TaskItem.configure({ nested: true }),
+      T.Table.configure({ resizable: true, lastColumnResizable: true, allowTableNodeSelection: true }),
+      T.TableRow, _rtTableHeader(T), _rtTableCell(T),
+      _rtVideoNode(T),
       T.Placeholder.configure({ placeholder })
     ],
     content: content || '',
@@ -4003,6 +4322,74 @@ function rtHandleImagePaste(editorId, event) {
   return false;
 }
 
+/* ── Toolbar dropdown menus (Table) ── */
+function rtToggleMenu(btn) {
+  const menu = btn.closest('.rt-menu');
+  const wasOpen = menu.classList.contains('open');
+  document.querySelectorAll('.rt-menu.open').forEach(m => m.classList.remove('open'));
+  if (!wasOpen) menu.classList.add('open');
+  if (!window._rtMenuCloser) {
+    window._rtMenuCloser = true;
+    document.addEventListener('mousedown', ev => { if (!ev.target.closest('.rt-menu')) document.querySelectorAll('.rt-menu.open').forEach(m => m.classList.remove('open')); });
+  }
+}
+
+/* ── Tables ── */
+// Number of columns in the row containing the current selection (for the 6-col cap).
+function _rtColCount(e) {
+  try {
+    const dom = e.view.domAtPos(e.state.selection.from);
+    let n = dom.node; if (n && n.nodeType === 3) n = n.parentNode;
+    const cell = n && n.closest ? n.closest('td,th') : null;
+    return cell && cell.parentNode ? cell.parentNode.children.length : 0;
+  } catch (err) { return 0; }
+}
+function rtTable(editorId, op) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  const c = e.chain().focus();
+  switch (op) {
+    case 'insert': c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+    case 'rowAfter': c.addRowAfter().run(); break;
+    case 'rowBefore': c.addRowBefore().run(); break;
+    case 'colAfter': if (_rtColCount(e) >= 6) { showToast('Tables are limited to 6 columns.'); break; } c.addColumnAfter().run(); break;
+    case 'colBefore': if (_rtColCount(e) >= 6) { showToast('Tables are limited to 6 columns.'); break; } c.addColumnBefore().run(); break;
+    case 'delRow': c.deleteRow().run(); break;
+    case 'delCol': c.deleteColumn().run(); break;
+    case 'toggleHeaderRow': c.toggleHeaderRow().run(); break;
+    case 'merge': c.mergeCells().run(); break;
+    case 'split': c.splitCell().run(); break;
+    case 'clearCellColor': c.setCellAttribute('backgroundColor', null).run(); break;
+    case 'delTable': c.deleteTable().run(); break;
+  }
+  document.querySelectorAll('.rt-menu.open').forEach(m => m.classList.remove('open'));
+  rtUpdateToolbar(editorId);
+}
+function rtTableCellColor(editorId, color) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  e.chain().focus().setCellAttribute('backgroundColor', color || null).run();
+}
+
+/* ── Video embeds (YouTube + Google Drive → responsive iframe) ── */
+function _rtVideoEmbedSrc(url) {
+  url = (url || '').trim(); if (!url) return null;
+  let m;
+  // YouTube: watch?v=, youtu.be/, /embed/, /shorts/
+  m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  if (m) return 'https://www.youtube.com/embed/' + m[1];
+  // Google Drive: /file/d/ID/... or ?id=ID
+  m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([A-Za-z0-9_-]{10,})/);
+  if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+  return null;
+}
+function rtInsertVideo(editorId) {
+  const e = RT_EDITORS[editorId]; if (!e) return;
+  const url = prompt('Paste a YouTube or Google Drive link:', '');
+  if (url === null) return;
+  const src = _rtVideoEmbedSrc(url);
+  if (!src) { alert('Could not recognize that as a YouTube or Google Drive video link.'); return; }
+  e.chain().focus().setVideoEmbed({ src }).run();
+}
+
 /* ── Toolbar ── */
 function rtBtn(editorId, action, label, title, arg) {
   const ed = escAttr(editorId);
@@ -4023,6 +4410,24 @@ function rtBuildToolbar(toolbarId, editorId) {
   const hl = `<span class="rt-hl-group"><span class="rt-hl-icon" title="Highlight">🖍</span>` +
     RT_HL_SWATCHES.map(h => `<button class="rt-hl-swatch" type="button" title="Highlight ${h.t}" style="background:${h.c}" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','highlight','${h.c}')"></button>`).join('') +
     `<button class="rt-btn" type="button" title="Remove highlight" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','unhighlight')">✕</button></span>`;
+  const mi = (op, label) => `<button class="rt-menu-item" type="button" onmousedown="event.preventDefault()" onclick="rtTable('${ed}','${op}')">${label}</button>`;
+  const tableMenu = `<span class="rt-menu">
+    <button class="rt-btn" type="button" title="Table" onmousedown="event.preventDefault()" onclick="rtToggleMenu(this)">▦ ▾</button>
+    <div class="rt-menu-panel">
+      ${mi('insert','▦  Insert table')}
+      <div class="rt-menu-sep"></div>
+      ${mi('rowAfter','＋ Row below')}${mi('rowBefore','＋ Row above')}
+      ${mi('colAfter','＋ Column right')}${mi('colBefore','＋ Column left')}
+      ${mi('delRow','−  Delete row')}${mi('delCol','−  Delete column')}
+      <div class="rt-menu-sep"></div>
+      ${mi('toggleHeaderRow','Toggle header row')}
+      ${mi('merge','Merge cells')}${mi('split','Split cell')}
+      <label class="rt-menu-item" onmousedown="event.preventDefault()">🎨 Cell color <input type="color" class="rt-cell-color" oninput="rtTableCellColor('${ed}', this.value)"></label>
+      ${mi('clearCellColor','Clear cell color')}
+      <div class="rt-menu-sep"></div>
+      <button class="rt-menu-item rt-menu-danger" type="button" onmousedown="event.preventDefault()" onclick="rtTable('${ed}','delTable')">🗑 Delete table</button>
+    </div>
+  </span>`;
   const html =
     rtBtn(editorId,'undo','↶','Undo (Ctrl+Z)') +
     rtBtn(editorId,'redo','↷','Redo (Ctrl+Y)') + sep +
@@ -4045,6 +4450,8 @@ function rtBuildToolbar(toolbarId, editorId) {
     rtBtn(editorId,'align','⇥','Align right','right') +
     rtBtn(editorId,'align','☰','Justify','justify') + sep +
     `<button class="rt-btn" type="button" title="Insert image (or paste from clipboard)" onmousedown="event.preventDefault()" onclick="rtPickImage('${ed}')">🖼</button>` +
+    `<button class="rt-btn" type="button" title="Embed a YouTube or Google Drive video" onmousedown="event.preventDefault()" onclick="rtInsertVideo('${ed}')">▶</button>` +
+    tableMenu + sep +
     rtBtn(editorId,'clear','⌫','Clear formatting');
   const tb = document.getElementById(toolbarId);
   if (tb) tb.innerHTML = html;
@@ -4139,17 +4546,8 @@ function populateSectionSelect(selectedNum, base) {
 
 function onSectionSelectChange() {
   const sel = document.getElementById('ef-section-select');
-  const isNew = sel.value === '__new__';
-  document.getElementById('ef-new-section-group').style.display = isNew ? '' : 'none';
-  if (!editEntryId) {
-    let num = isNew ? document.getElementById('ef-new-section-num').value.trim() : sel.value;
-    if (num) {
-      const existing = entriesInSection(num, editEntryBase).map(e => e.id);
-      let nextSub = 1;
-      while (existing.includes(`${num}.${nextSub}`)) nextSub++;
-      document.getElementById('ef-id').value = `${num}.${nextSub}`;
-    }
-  }
+  document.getElementById('ef-new-section-group').style.display = (sel.value === '__new__') ? '' : 'none';
+  // Entry IDs are assigned automatically on save — nothing to compute here.
 }
 
 function openEntryEditor(id, base) {
@@ -4167,12 +4565,15 @@ function openEntryEditor(id, base) {
   const entry = findEntry(id, base);
   if (!entry) return;
   editEntryId = id;
+  editEntryPresetId = null;
   editEntryBase = base;
   editEntrySrcSection = sectionNumOf(id);
   document.getElementById('entry-modal-title-text').textContent = base === 'projects' ? 'Edit Project Entry' : 'Edit Entry';
   document.getElementById('delete-entry-btn').style.display = '';
   populateSectionSelect(sectionNumOf(id), base);
-  document.getElementById('ef-id').value = entry.id;
+  // Editing keeps the entry where it is — the section/ID are fixed.
+  document.getElementById('ef-section-field').style.display = 'none';
+  document.getElementById('ef-new-section-group').style.display = 'none';
   document.getElementById('ef-title').value = entry.title;
   document.getElementById('ef-keywords').value = (entry.keywords || []).join(', ');
   initEditor('ef-content-editor', 'ef-rt-toolbar', entry.content);
@@ -4187,6 +4588,7 @@ function openNewEntryEditor(sectionNum, base, presetId) {
     return;
   }
   editEntryId = null;
+  editEntryPresetId = presetId || null;   // for a sub-entry, the parent fixes the (auto) ID
   editEntryBase = base;
   editEntrySrcSection = null;
   const isSub = presetId && idComponents(presetId).length > 2;
@@ -4195,13 +4597,12 @@ function openNewEntryEditor(sectionNum, base, presetId) {
   document.getElementById('delete-entry-btn').style.display = 'none';
   const firstSec = sectionsOf(base)[0];
   populateSectionSelect(sectionNum || (firstSec && firstSec.num), base);
+  // Sub-entries belong to a fixed parent → hide the section picker; top-level new entries keep it.
+  document.getElementById('ef-section-field').style.display = isSub ? 'none' : '';
   document.getElementById('ef-title').value = '';
   document.getElementById('ef-keywords').value = '';
   initEditor('ef-content-editor', 'ef-rt-toolbar', '');
-  document.getElementById('ef-new-section-num').value = '';
   document.getElementById('ef-new-section-title').value = '';
-  // If a sub-entry ID was suggested, pre-fill it (overrides the auto value from populateSectionSelect)
-  if (presetId) document.getElementById('ef-id').value = presetId;
   document.getElementById('entry-modal-overlay').classList.add('open');
 }
 
@@ -4215,23 +4616,32 @@ function saveEntry() {
   let sectionTitle = null;
 
   if (sectionNum === '__new__') {
-    sectionNum = document.getElementById('ef-new-section-num').value.trim();
     sectionTitle = document.getElementById('ef-new-section-title').value.trim();
-    if (!sectionNum || !sectionTitle) { alert(`Please fill in the new ${base==='projects'?'project':'section'} number and title.`); return; }
-    if (findSection(sectionNum, base)) { alert(`${base==='projects'?'Project':'Section'} ${sectionNum} already exists.`); return; }
-    sectionsOf(base).push({ num: sectionNum, title: sectionTitle, description: '' });
+    if (!sectionTitle) { alert(`Please enter the new ${base==='projects'?'project':'section'} title.`); return; }
+    // Section number is auto-assigned (next available).
+    const nums = sectionsOf(base).map(s => parseInt(s.num)).filter(n => !isNaN(n));
+    sectionNum = String(nums.length ? Math.max(...nums) + 1 : 1);
+    const ns = { num: sectionNum, title: sectionTitle, description: '' };
+    if (base === 'projects') ns.passkey = generatePasskey();
+    sectionsOf(base).push(ns);
   }
 
-  const id = document.getElementById('ef-id').value.trim();
   const title = document.getElementById('ef-title').value.trim();
   const kwRaw = document.getElementById('ef-keywords').value.trim();
   const content = getEditorHTML('ef-content-editor');
 
-  if (!id || !title) { alert('Entry ID and Title are required.'); return; }
+  if (!title) { alert('Title is required.'); return; }
   if (!stripHtml(content)) { alert('Entry content cannot be empty.'); return; }
-  if (sectionNumOf(id) !== sectionNum) {
-    alert(`Entry ID "${id}" doesn't match the selected ${base==='projects'?'project':'section'} number "${sectionNum}". Please adjust.`);
-    return;
+
+  // IDs are auto-assigned: editing keeps the existing id; a new sub-entry uses
+  // its preset (parent-derived) id; a new top-level entry gets next "<section>.<n>".
+  let id;
+  if (editEntryId) id = editEntryId;
+  else if (editEntryPresetId) id = editEntryPresetId;
+  else {
+    const existing = entriesInSection(sectionNum, base).map(e => e.id);
+    let n = 1; while (existing.includes(`${sectionNum}.${n}`)) n++;
+    id = `${sectionNum}.${n}`;
   }
 
   const sec = findSection(sectionNum, base);
@@ -4309,7 +4719,6 @@ function openSectionEditor(num, base) {
   document.getElementById('section-modal-title-text').textContent = base === 'projects' ? 'Edit Project' : 'Edit Section';
   // Delete is admin-only — passkey-unlocked users cannot delete the section.
   document.getElementById('delete-section-btn').style.display = isAdminMode ? '' : 'none';
-  document.getElementById('sef-num').value = sec.num;
   document.getElementById('sef-title').value = sec.title;
   initEditor('sef-desc-editor', 'sef-rt-toolbar', sec.description || '');
   // Passkey row is real-admin only (an unlocked user shouldn't be able to view/change it).
@@ -4327,10 +4736,6 @@ function openNewSectionEditor(base) {
   editSectionBase = base;
   document.getElementById('section-modal-title-text').textContent = base === 'projects' ? 'New Project' : 'New Section';
   document.getElementById('delete-section-btn').style.display = 'none';
-  const list = sectionsOf(base);
-  const nums = list.map(s => parseInt(s.num)).filter(n => !isNaN(n));
-  const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
-  document.getElementById('sef-num').value = String(nextNum);
   document.getElementById('sef-title').value = '';
   initEditor('sef-desc-editor', 'sef-rt-toolbar', '');
   // Show passkey preview for new project sections (will be saved on Save)
@@ -4408,34 +4813,27 @@ function maybeCloseSection(e) { if (_shouldCloseOverlay(e, 'section-modal-overla
 
 function saveSection() {
   const base = editSectionBase || 'handbook';
-  const num = document.getElementById('sef-num').value.trim();
   const title = document.getElementById('sef-title').value.trim();
   const desc = getEditorHTML('sef-desc-editor');
   const passkeyInp = document.getElementById('sef-passkey');
   const passkey = passkeyInp ? passkeyInp.value.trim() : '';
-  if (!num || !title) { alert('Number and title are required.'); return; }
+  if (!title) { alert('Title is required.'); return; }
   const sectionsArr = sectionsOf(base);
   const entriesArr = entriesOf(base);
 
   if (editSectionNum) {
+    // Number is auto-managed and immutable; only title/description/passkey change.
     const sec = findSection(editSectionNum, base);
     if (!sec) return;
-    if (num !== editSectionNum && findSection(num, base)) { alert(`${base==='projects'?'Project':'Section'} ${num} already exists.`); return; }
-    if (num !== editSectionNum) {
-      entriesArr.forEach(e => {
-        if (sectionNumOf(e.id) === editSectionNum) {
-          e.id = num + '.' + e.id.split('.').slice(1).join('.');
-        }
-      });
-      if (currentSectionNum === editSectionNum && currentBase === base) currentSectionNum = num;
-    }
-    sec.num = num; sec.title = title; sec.description = desc;
+    sec.title = title; sec.description = desc;
     if (base === 'projects' && passkey) sec.passkey = passkey;
     entriesArr.forEach(e => {
-      if (sectionNumOf(e.id) === num) e.section = `${num}. ${title}`;
+      if (sectionNumOf(e.id) === editSectionNum) e.section = `${editSectionNum}. ${title}`;
     });
   } else {
-    if (findSection(num, base)) { alert(`${base==='projects'?'Project':'Section'} ${num} already exists.`); return; }
+    // New section number is auto-assigned (next available), never typed.
+    const nums = sectionsArr.map(s => parseInt(s.num)).filter(n => !isNaN(n));
+    const num = String(nums.length ? Math.max(...nums) + 1 : 1);
     const newSec = { num, title, description: desc };
     if (base === 'projects') newSec.passkey = passkey || generatePasskey();
     sectionsArr.push(newSec);
@@ -5192,7 +5590,7 @@ function renderDocView() {
       <div class="dv-title">VL ${escapeHtml(baseLabel)} — Documentation View</div>
       <div class="dv-title-meta">Edit any entry inline. Changes save when you click "Save".</div>
     </div>
-    <button class="btn btn-admin" onclick="openNewSectionEditor('${escAttr(base)}')">＋ New ${escapeHtml(itemLabel)}</button>
+    <button class="btn btn-admin" onclick="dvNewSectionInline('${escAttr(base)}')">＋ New ${escapeHtml(itemLabel)}</button>
   </div>`;
 
   if (sectionsArr.length === 0) {
@@ -5207,7 +5605,7 @@ function renderDocView() {
       <div class="dv-section-header">
         <span class="dv-section-num">${escapeHtml(itemLabel.toUpperCase())} ${escapeHtml(sec.num)}</span>
         <span class="dv-section-title">${escapeHtml(sec.title)}</span>
-        <button class="dv-entry-edit-btn" onclick="openSectionEditor('${escAttr(sec.num)}','${escAttr(base)}')">⚙ Edit</button>
+        <button class="dv-entry-edit-btn" onclick="dvEditSectionInline('${escAttr(sec.num)}','${escAttr(base)}')">⚙ Edit</button>
       </div>
       <div class="dv-section-body">
         <div class="dv-section-desc">${sec.description || '<em style="color:var(--mid)">(no description)</em>'}</div>`;
@@ -5219,15 +5617,14 @@ function renderDocView() {
           <span class="dv-entry-num">${escapeHtml(e.id)}</span>
           <span class="dv-entry-title">${escapeHtml(e.title)}</span>
           <div class="dv-entry-actions">
-            <button class="dv-entry-edit-btn" onclick="openNewSubEntry('${escAttr(e.id)}','${escAttr(base)}')" title="Add a sub-entry under this">＋ Sub</button>
-            <button class="dv-entry-edit-btn" onclick="dvToggleInlineEdit('${escAttr(e.id)}','${escAttr(base)}')">✎ Edit Inline</button>
-            <button class="dv-entry-edit-btn" onclick="openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')">Full Editor</button>
+            <button class="dv-entry-edit-btn" onclick="dvNewSubInline('${escAttr(e.id)}','${escAttr(base)}')" title="Add a sub-entry under this">＋ Sub</button>
+            <button class="dv-entry-edit-btn" onclick="dvEditEntryInline('${escAttr(e.id)}','${escAttr(base)}')">✎ Edit</button>
           </div>
         </div>
         <div class="dv-entry-content" id="dv-content-${escAttr(base)}-${escAttr(e.id)}">${e.content}</div>
       </div>`;
     }
-    ch += `<button class="dv-add-entry-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry to ${escapeHtml(itemLabel)} ${escapeHtml(sec.num)}</button>`;
+    ch += `<button class="dv-add-entry-btn" onclick="dvNewEntryInline('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry to ${escapeHtml(itemLabel)} ${escapeHtml(sec.num)}</button>`;
     ch += `</div></div>`;
   }
 
@@ -5235,39 +5632,273 @@ function renderDocView() {
   content.querySelectorAll('.dv-entry-content img').forEach(i => i.classList.add('entry-img'));
 }
 
-function dvToggleInlineEdit(entryId, base) {
-  base = base || 'handbook';
-  const entry = findEntry(entryId, base);
-  if (!entry) return;
-  const wrap = document.getElementById(`dv-content-${base}-${entryId}`);
-  if (!wrap) return;
-  if (wrap.dataset.editing === '1') return;
+/* ── Documentation-view INLINE editing & creation ──
+   In doc view the editor never uses the modal: editing and creating
+   entries/sections happen inline, in the content column, so the full-width
+   Tiptap editor is usable. (The sidebar and other views still use the modal.)
+   Saves/deletes reuse the same data helpers and globals as the modal. ── */
 
-  wrap.dataset.editing = '1';
-  wrap.innerHTML = `
-    <div class="rt-wrap">
-      <div class="rt-toolbar" id="dv-tb-${escAttr(base)}-${escAttr(entryId)}"></div>
-      <div class="rt-editor" id="dv-ed-${escAttr(base)}-${escAttr(entryId)}" data-placeholder="Write content…"></div>
-    </div>
+// Shared entry form (ID / Title / Keywords / Tiptap content + buttons).
+function dvEntryFormHTML(edId, tbId, titleVal, kwVal, saveOnclick, deleteBtn) {
+  return `<div class="dv-inline-form">
+    <label class="form-label">Title</label>
+    <input class="form-input" id="${edId}__title" value="${escAttr(titleVal)}">
+    <label class="form-label">Keywords</label>
+    <input class="form-input" id="${edId}__kw" value="${escAttr(kwVal)}" placeholder="comma, separated — used by the search engine">
+    <label class="form-label">Content</label>
+    <div class="rt-wrap"><div class="rt-toolbar" id="${tbId}"></div><div class="rt-editor" id="${edId}" data-placeholder="Write the entry content…"></div></div>
     <div class="dv-edit-controls">
-      <button class="btn btn-primary" onclick="dvSaveInline('${escAttr(entryId)}','${escAttr(base)}')">Save</button>
-      <button class="btn btn-secondary" onclick="dvCancelInline('${escAttr(entryId)}','${escAttr(base)}')">Cancel</button>
+      <button class="btn btn-primary" onclick="${saveOnclick}">Save</button>
+      <button class="btn btn-secondary" onclick="renderDocView()">Cancel</button>
+      ${deleteBtn || ''}
     </div>
-  `;
-  initEditor(`dv-ed-${base}-${entryId}`, `dv-tb-${base}-${entryId}`, entry.content);
+  </div>`;
 }
 
-function dvSaveInline(entryId, base) {
+// Validate + persist an entry from an inline form. IDs are auto-assigned —
+// editing keeps the existing id; a new sub-entry uses suggestChildId(parent);
+// a new top-level entry gets the next free "<section>.<n>".
+function _dvCommitEntry(base, edId, origId, ctxSection, ctxParent) {
   base = base || 'handbook';
-  const arr = entriesOf(base);
-  const idx = arr.findIndex(e => e.id === entryId);
-  if (idx === -1) return;
-  arr[idx].content = getEditorHTML(`dv-ed-${base}-${entryId}`);
+  const title = document.getElementById(edId + '__title').value.trim();
+  const kwRaw = document.getElementById(edId + '__kw').value.trim();
+  const content = getEditorHTML(edId);
+  if (!title) { alert('Title is required.'); return; }
+  if (!stripHtml(content)) { alert('Entry content cannot be empty.'); return; }
+  let id;
+  if (origId) id = origId;
+  else if (ctxParent) id = suggestChildId(ctxParent, base);
+  else {
+    const existing = entriesInSection(ctxSection, base).map(e => e.id);
+    let n = 1; while (existing.includes(`${ctxSection}.${n}`)) n++;
+    id = `${ctxSection}.${n}`;
+  }
+  const sec = findSection(sectionNumOf(id), base);
+  if (!sec) { alert('Could not resolve the section for this entry.'); return; }
+  const store = entriesOf(base);
+  const keywords = kwRaw.split(',').map(k => k.trim()).filter(Boolean);
+  const sectionLabel = `${sec.num}. ${sec.title}`;
+  if (origId) {
+    const idx = store.findIndex(e => e.id === origId);
+    if (idx === -1) { alert('Entry not found.'); return; }
+    store[idx] = { id, section: sectionLabel, title, keywords, content };
+  } else {
+    if (store.some(e => e.id === id)) { alert(`An entry with ID "${id}" already exists.`); return; }
+    store.push({ id, section: sectionLabel, title, keywords, content });
+  }
   saveAll('Entry saved');
+  renderSidebar();
   renderDocView();
 }
 
-function dvCancelInline(entryId, base) { renderDocView(); }
+function dvEditEntryInline(id, base) {
+  base = base || 'handbook';
+  const entry = findEntry(id, base); if (!entry) return;
+  const sectionNum = sectionNumOf(id);
+  if (!canEditSection(base, sectionNum)) {
+    if (base === 'projects') promptUnlockProjectSection(sectionNum);
+    else alert('You need Admin Mode to edit handbook entries.');
+    return;
+  }
+  const card = document.getElementById(`dv-en-${base}-${id}`); if (!card) return;
+  const edId = `dvE-ed-${base}-${id}`, tbId = `dvE-tb-${base}-${id}`;
+  const del = `<button class="dv-del-btn" type="button" title="Delete entry" onclick="dvDeleteEntryInline('${escAttr(id)}','${escAttr(base)}')">🗑</button>`;
+  card.innerHTML = dvEntryFormHTML(edId, tbId, entry.title, (entry.keywords || []).join(', '),
+    `_dvCommitEntry('${escAttr(base)}','${escAttr(edId)}','${escAttr(id)}','','')`, del);
+  initEditor(edId, tbId, entry.content);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function dvDeleteEntryInline(id, base) {
+  editEntryId = id; editEntryBase = base || 'handbook'; editEntrySrcSection = sectionNumOf(id);
+  deleteCurrentEntry();   // reuses the modal's delete logic (handles descendants)
+}
+
+function dvNewEntryInline(sectionNum, base) {
+  base = base || 'handbook';
+  if (!canEditSection(base, sectionNum)) {
+    if (base === 'projects') promptUnlockProjectSection(sectionNum);
+    else alert('You need Admin Mode to add entries.');
+    return;
+  }
+  const secEl = document.getElementById(`dv-sec-${base}-${sectionNum}`);
+  const body = secEl ? secEl.querySelector('.dv-section-body') : null;
+  if (!body) return;
+  const edId = `dvNE-ed-${base}-${sectionNum}`, tbId = `dvNE-tb-${base}-${sectionNum}`;
+  if (document.getElementById(`${edId}__wrap`)) { document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior:'smooth' }); return; }
+  const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New entry — ID assigned automatically</div>` +
+    dvEntryFormHTML(edId, tbId, '', '', `_dvCommitEntry('${escAttr(base)}','${escAttr(edId)}','','${escAttr(sectionNum)}','')`, '') + `</div>`;
+  const addBtn = body.querySelector('.dv-add-entry-btn');
+  if (addBtn) addBtn.insertAdjacentHTML('beforebegin', html); else body.insertAdjacentHTML('beforeend', html);
+  initEditor(edId, tbId, '');
+  document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function dvNewSubInline(parentId, base) {
+  base = base || 'handbook';
+  const sectionNum = sectionNumOf(parentId);
+  if (!canEditSection(base, sectionNum)) {
+    if (base === 'projects') promptUnlockProjectSection(sectionNum);
+    else alert('You need edit access to add sub-entries.');
+    return;
+  }
+  const card = document.getElementById(`dv-en-${base}-${parentId}`); if (!card) return;
+  const edId = `dvNS-ed-${base}-${parentId}`, tbId = `dvNS-tb-${base}-${parentId}`;
+  if (document.getElementById(`${edId}__wrap`)) { document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior:'smooth' }); return; }
+  const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New sub-entry under ${escapeHtml(parentId)} — ID assigned automatically</div>` +
+    dvEntryFormHTML(edId, tbId, '', '', `_dvCommitEntry('${escAttr(base)}','${escAttr(edId)}','','','${escAttr(parentId)}')`, '') + `</div>`;
+  card.insertAdjacentHTML('afterend', html);
+  initEditor(edId, tbId, '');
+  document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ── Section inline edit / create ── */
+function dvSectionFormHTML(itemLabel, edId, tbId, titleVal, passkeyHtml, saveOnclick, deleteBtn) {
+  return `<div class="dv-inline-form">
+    <label class="form-label">${escapeHtml(itemLabel)} Title</label>
+    <input class="form-input" id="${edId}__title" value="${escAttr(titleVal)}">
+    <label class="form-label">Description</label>
+    <div class="rt-wrap"><div class="rt-toolbar" id="${tbId}"></div><div class="rt-editor" id="${edId}" data-placeholder="Brief description shown on the section page…"></div></div>
+    ${passkeyHtml || ''}
+    <div class="dv-edit-controls">
+      <button class="btn btn-primary" onclick="${saveOnclick}">Save</button>
+      <button class="btn btn-secondary" onclick="renderDocView()">Cancel</button>
+      ${deleteBtn || ''}
+    </div>
+  </div>`;
+}
+function _dvPasskeyHtml(edId, val) {
+  return `<label class="form-label">Edit Passkey <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--mid)">(share with users who can edit this project)</span></label>
+    <div style="display:flex;gap:6px">
+      <input class="form-input" id="${edId}__pk" readonly value="${escAttr(val)}" style="flex:1;font-family:'Consolas','Courier New',monospace;letter-spacing:0.08em">
+      <button class="btn btn-secondary" type="button" onclick="dvCopyPasskey('${escAttr(edId)}')">Copy</button>
+      <button class="btn btn-secondary" type="button" onclick="dvRegenPasskey('${escAttr(edId)}')">↻ New</button>
+    </div>`;
+}
+function dvCopyPasskey(edId) { const i = document.getElementById(edId + '__pk'); if (i && i.value) navigator.clipboard.writeText(i.value).then(() => showToast('Passkey copied')); }
+function dvRegenPasskey(edId) { if (!confirm('Generate a new passkey? The old one will stop working for anyone using it.')) return; const i = document.getElementById(edId + '__pk'); if (i) i.value = generatePasskey(); }
+
+function dvEditSectionInline(num, base) {
+  base = base || 'handbook';
+  const sec = findSection(num, base); if (!sec) return;
+  if (!isAdminMode && !(base === 'projects' && unlockedProjects.has(String(num)))) {
+    if (base === 'projects') promptUnlockProjectSection(num);
+    else alert('Admin Mode required to edit section info.');
+    return;
+  }
+  const secEl = document.getElementById(`dv-sec-${base}-${num}`); if (!secEl) return;
+  const header = secEl.querySelector('.dv-section-header'); if (!header) return;
+  const descEl = secEl.querySelector('.dv-section-desc'); if (descEl) descEl.style.display = 'none';
+  const itemLabel = base === 'projects' ? 'Project' : 'Section';
+  const edId = `dvS-ed-${base}-${num}`, tbId = `dvS-tb-${base}-${num}`;
+  let pk = '';
+  if ((base === 'projects') && isAdminMode) { if (!sec.passkey) sec.passkey = generatePasskey(); pk = _dvPasskeyHtml(edId, sec.passkey); }
+  const del = isAdminMode ? `<button class="dv-del-btn" type="button" title="Delete ${escapeHtml(itemLabel)}" onclick="dvDeleteSectionInline('${escAttr(num)}','${escAttr(base)}')">🗑</button>` : '';
+  const form = `<div class="dv-inline-new"><div class="dv-inline-new-title">Edit ${escapeHtml(itemLabel)} ${escapeHtml(num)}</div>` +
+    dvSectionFormHTML(itemLabel, edId, tbId, sec.title, pk, `dvSaveSectionInline('${escAttr(num)}','${escAttr(base)}')`, del) + `</div>`;
+  header.outerHTML = form;
+  initEditor(edId, tbId, sec.description || '');
+}
+
+function dvSaveSectionInline(origNum, base) {
+  base = base || 'handbook';
+  const edId = `dvS-ed-${base}-${origNum}`;
+  const title = document.getElementById(edId + '__title').value.trim();
+  const desc = getEditorHTML(edId);
+  const pkInp = document.getElementById(edId + '__pk');
+  const passkey = pkInp ? pkInp.value.trim() : '';
+  if (!title) { alert('Title is required.'); return; }
+  const sec = findSection(origNum, base); if (!sec) return;
+  // Number is auto-managed and immutable; only title/description/passkey change.
+  sec.title = title; sec.description = desc;
+  if (base === 'projects' && passkey) sec.passkey = passkey;
+  entriesOf(base).forEach(e => { if (sectionNumOf(e.id) === origNum) e.section = `${origNum}. ${title}`; });
+  saveAll('Saved');
+  renderSidebar();
+  renderDocView();
+}
+
+function dvDeleteSectionInline(num, base) {
+  editSectionNum = num; editSectionBase = base || 'handbook';
+  deleteCurrentSection();   // reuses the modal's delete logic (admin-only)
+}
+
+function dvNewSectionInline(base) {
+  base = base || 'handbook';
+  const content = document.getElementById('docview-content'); if (!content) return;
+  const itemLabel = base === 'projects' ? 'Project' : 'Section';
+  const edId = `dvNSEC-ed-${base}`, tbId = `dvNSEC-tb-${base}`;
+  if (document.getElementById(`${edId}__wrap`)) { document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior:'smooth' }); return; }
+  const nums = sectionsOf(base).map(s => parseInt(s.num)).filter(n => !isNaN(n));
+  const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
+  const pk = (base === 'projects' && isAdminMode) ? _dvPasskeyHtml(edId, generatePasskey()) : '';
+  const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New ${escapeHtml(itemLabel)} — number ${nextNum} assigned automatically</div>` +
+    dvSectionFormHTML(itemLabel, edId, tbId, '', pk, `dvSaveNewSectionInline('${escAttr(base)}')`, '') + `</div>`;
+  const titleBar = content.querySelector('.dv-title-bar');
+  if (titleBar) titleBar.insertAdjacentHTML('afterend', html); else content.insertAdjacentHTML('afterbegin', html);
+  initEditor(edId, tbId, '');
+  document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function dvSaveNewSectionInline(base) {
+  base = base || 'handbook';
+  const edId = `dvNSEC-ed-${base}`;
+  const title = document.getElementById(edId + '__title').value.trim();
+  const desc = getEditorHTML(edId);
+  const pkInp = document.getElementById(edId + '__pk');
+  const passkey = pkInp ? pkInp.value.trim() : '';
+  if (!title) { alert('Title is required.'); return; }
+  // Section number is auto-assigned (next available), never typed.
+  const nums = sectionsOf(base).map(s => parseInt(s.num)).filter(n => !isNaN(n));
+  const num = String(nums.length ? Math.max(...nums) + 1 : 1);
+  const newSec = { num, title, description: desc };
+  if (base === 'projects') newSec.passkey = passkey || generatePasskey();
+  sectionsOf(base).push(newSec);
+  saveAll('Saved');
+  renderSidebar();
+  renderDocView();
+}
+
+/* ══════════════════════════════════════════
+   UNDER MAINTENANCE overlay
+   Shown whenever the dashboard isn't connected to Firebase (server down,
+   no internet, or unconfigured). An admin can skip it for the session.
+   ══════════════════════════════════════════ */
+let _maintBypassed = false;   // resets on refresh — bypass lasts only this session
+function showMaintenance(state) {
+  if (_maintBypassed) return;
+  const o = document.getElementById('maint-overlay');
+  const sub = document.getElementById('maint-sub');
+  if (sub) sub.textContent = (state === 'connecting')
+    ? 'Connecting to the dashboard…'
+    : 'We can’t reach the dashboard server right now. Please check back soon.';
+  if (o) o.classList.add('open');
+}
+function hideMaintenance() {
+  const o = document.getElementById('maint-overlay');
+  if (o) o.classList.remove('open');
+}
+function maintShowPwd() {
+  const w = document.getElementById('maint-pwd-wrap');
+  w.classList.add('open');
+  const i = document.getElementById('maint-pwd');
+  i.value = ''; i.classList.remove('error');
+  document.getElementById('maint-pwd-err').textContent = '';
+  setTimeout(() => i.focus(), 50);
+}
+function maintTryPwd() {
+  const i = document.getElementById('maint-pwd');
+  if (i.value === ADMIN_PW) {
+    _maintBypassed = true;
+    hideMaintenance();
+    showToast('Maintenance screen bypassed for this session');
+  } else {
+    i.classList.add('error');
+    document.getElementById('maint-pwd-err').textContent = 'Incorrect password.';
+    i.value = '';
+    setTimeout(() => i.classList.remove('error'), 400);
+  }
+}
 
 /* ══════════════════════════════════════════
    KEYBOARD
@@ -5305,20 +5936,31 @@ applyAllSettings();
 renderSidebar();
 renderAnnouncements();
 showHome();
+_rtSetupVideoFallback();   // local-file: swap blocked video embeds for clickable posters
 
-// Attempt Firebase init in the background — non-blocking
+// Attempt Firebase init. The GUI is blocked by the maintenance overlay until we
+// confirm a live connection; an admin can skip it. (Per requirement: block the
+// dashboard whenever it isn't connected — server down, offline, or unconfigured.)
+const _fbDot = document.getElementById('fb-status-dot');
 if (fbConfigured()) {
+  showMaintenance('connecting');
+  let _fbSettled = false;
+  const _fbTimeout = setTimeout(() => { if (!_fbSettled) showMaintenance('down'); }, 12000);
   initFirebase().then(ok => {
+    _fbSettled = true; clearTimeout(_fbTimeout);
     if (ok) {
+      hideMaintenance();
       renderSidebar(); renderAnnouncements();
-      const dot = document.getElementById('fb-status-dot');
-      if (dot) { dot.classList.add('connected'); dot.title = 'Connected to shared dashboard'; }
+      if (_fbDot) { _fbDot.classList.add('connected'); _fbDot.title = 'Connected to shared dashboard'; }
+    } else {
+      showMaintenance('down');
+      if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
     }
   });
 } else {
-  // Show a small "offline" indicator
-  const dot = document.getElementById('fb-status-dot');
-  if (dot) { dot.classList.add('offline'); dot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
+  // Not configured → treat as not connected and block the GUI.
+  showMaintenance('down');
+  if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
 }
 </script>
 </body>
