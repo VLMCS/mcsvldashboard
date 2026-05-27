@@ -831,8 +831,13 @@
   }
   #maint-overlay.open { display: flex; }
   .maint-box { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 420px; }
-  .maint-icon { font-size: 54px; line-height: 1; }
-  .maint-title { font-size: 30px; font-weight: 800; letter-spacing: 0.06em; color: var(--text-body); }
+  .maint-spinner {
+    width: 54px; height: 54px; border-radius: 50%;
+    border: 5px solid var(--border); border-top-color: var(--admin-accent);
+    animation: maint-spin 0.9s linear infinite;
+  }
+  @keyframes maint-spin { to { transform: rotate(360deg); } }
+  .maint-title { font-size: 28px; font-weight: 800; letter-spacing: 0.12em; color: var(--text-body); }
   .maint-sub { font-size: 14px; color: var(--mid); max-width: 360px; line-height: 1.5; }
   .maint-skip {
     margin-top: 8px; width: 46px; height: 46px; border-radius: 50%;
@@ -850,6 +855,23 @@
   #maint-pwd:focus { border-color: var(--black); }
   #maint-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
   .maint-pwd-err { font-size: 11.5px; color: #c0392b; min-height: 14px; }
+
+  /* ── Floating mini video player ── */
+  #mini-player {
+    display: none; position: fixed; right: 18px; bottom: 18px; z-index: 9000;
+    width: 340px; max-width: 44vw; border-radius: 8px; overflow: hidden;
+    background: #000; box-shadow: 0 10px 34px rgba(0,0,0,0.45);
+  }
+  #mini-player.open { display: block; }
+  #mini-player-body { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+  #mini-player-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #mini-player-close {
+    position: absolute; top: 6px; right: 6px; z-index: 2; width: 26px; height: 26px;
+    border: none; border-radius: 50%; background: rgba(0,0,0,0.62); color: #fff;
+    font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s;
+  }
+  #mini-player:hover #mini-player-close { opacity: 1; }
+  #mini-player-close:hover { background: rgba(0,0,0,0.85); }
 
   /* ── LIGHTBOX ── */
   #lightbox-overlay {
@@ -1882,9 +1904,9 @@
 <!-- ── UNDER MAINTENANCE overlay (blocks the GUI while Firebase is unreachable) ── -->
 <div id="maint-overlay">
   <div class="maint-box">
-    <div class="maint-icon">🛠️</div>
-    <div class="maint-title">UNDER MAINTENANCE</div>
-    <div class="maint-sub" id="maint-sub">We can’t reach the dashboard server right now. Please check back soon.</div>
+    <div class="maint-spinner" aria-hidden="true"></div>
+    <div class="maint-title">LOADING…</div>
+    <div class="maint-sub" id="maint-sub">Connecting to the dashboard…</div>
     <button id="maint-skip" class="maint-skip" title="Admin: skip this screen" onclick="maintShowPwd()">⏭</button>
     <div id="maint-pwd-wrap" class="maint-pwd-wrap">
       <input id="maint-pwd" type="password" placeholder="Admin password" autocomplete="off"
@@ -1893,6 +1915,12 @@
       <div id="maint-pwd-err" class="maint-pwd-err"></div>
     </div>
   </div>
+</div>
+
+<!-- ── Floating mini video player (pops out when navigating away from a playing video) ── -->
+<div id="mini-player">
+  <button id="mini-player-close" title="Close" onclick="miniClose()">✕</button>
+  <div id="mini-player-body"></div>
 </div>
 
 <!-- Rich-text editor engine: a vendored, fully-offline Tiptap bundle built from
@@ -2748,6 +2776,7 @@ function updateBreadcrumb() {
 }
 
 function showHome() {
+  miniPromoteIfActive();
   currentSectionNum = null; currentEntryId = null;
   setView('home'); updateBreadcrumb();
   renderAnnouncements();
@@ -2775,6 +2804,7 @@ function entryCardHtml(e, base, canEdit) {
 }
 
 function showSection(num, base) {
+  miniPromoteIfActive();
   base = base || 'handbook';
   currentBase = base;
   currentSectionNum = String(num); currentEntryId = null;
@@ -2821,6 +2851,7 @@ function showSection(num, base) {
 }
 
 function showEntry(id, base) {
+  miniPromoteIfActive();
   base = base || 'handbook';
   // If caller didn't specify base but the id only exists in projects, find it
   if (!findEntry(id, base)) {
@@ -2891,6 +2922,7 @@ let currentCategoryType = null;   // 'kb' or 'links'
 // Show the category overview: a thumbnail card grid of all top-level entries
 // in the given category. catType is 'kb' for sectioned KBs, 'links' for Quick-Links.
 function showCategoryOverview(catId, catType) {
+  miniPromoteIfActive();
   currentCategoryId = catId;
   currentCategoryType = catType;
   currentSectionNum = null; currentEntryId = null;
@@ -5547,6 +5579,7 @@ function dvSetBase(base) {
 }
 
 function renderDocView() {
+  miniPromoteIfActive();
   const outline = document.getElementById('docview-outline');
   const content = document.getElementById('docview-content');
   const base = docViewBase || 'handbook';
@@ -5871,7 +5904,7 @@ function showMaintenance(state) {
   const sub = document.getElementById('maint-sub');
   if (sub) sub.textContent = (state === 'connecting')
     ? 'Connecting to the dashboard…'
-    : 'We can’t reach the dashboard server right now. Please check back soon.';
+    : 'Still trying to reach the server…';
   if (o) o.classList.add('open');
 }
 function hideMaintenance() {
@@ -5898,6 +5931,57 @@ function maintTryPwd() {
     i.value = '';
     setTimeout(() => i.classList.remove('error'), 400);
   }
+}
+
+/* ══════════════════════════════════════════
+   FLOATING MINI VIDEO PLAYER
+   Navigating to different content while you have a video engaged pops it out to
+   a fixed bottom-right mini-player so it keeps playing. "Engaged" = you clicked
+   into the video iframe (heuristic — covers both YouTube and Google Drive).
+   ══════════════════════════════════════════ */
+let _activeVideoEl = null;     // the .rt-video the user last clicked into (live content)
+let _activeVideoSrc = null;
+
+// A click INTO a video iframe moves focus off the window onto the iframe element.
+window.addEventListener('blur', () => {
+  setTimeout(() => {
+    const ae = document.activeElement;
+    if (!ae || ae.tagName !== 'IFRAME') return;
+    const box = ae.closest('.rt-video');
+    if (!box || box.closest('#mini-player')) return;   // ignore the mini-player's own iframe
+    _activeVideoEl = box;
+    _activeVideoSrc = box.getAttribute('data-src') || ae.getAttribute('src') || '';
+    miniClose();   // starting a new video closes any existing mini-player
+  }, 0);
+});
+
+function miniOpen(src) {
+  if (!src) return;
+  const mp = document.getElementById('mini-player');
+  const body = document.getElementById('mini-player-body');
+  if (!mp || !body) return;
+  let playSrc = src;
+  if (/youtube\.com\/embed\//.test(src)) playSrc += (src.indexOf('?') >= 0 ? '&' : '?') + 'autoplay=1';
+  body.innerHTML = '<iframe src="' + escAttr(playSrc) + '" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  mp.classList.add('open');
+}
+function miniClose() {
+  const mp = document.getElementById('mini-player');
+  if (!mp) return;
+  const body = document.getElementById('mini-player-body');
+  if (body) body.innerHTML = '';
+  mp.classList.remove('open');
+}
+// Called at the start of every navigation: if a video was engaged in the content
+// we're leaving, pop it to the mini-player and stop the (now-hidden) inline copy.
+function miniPromoteIfActive() {
+  const el = _activeVideoEl, src = _activeVideoSrc;
+  _activeVideoEl = null; _activeVideoSrc = null;
+  if (!el || !src) return;
+  if (!document.body.contains(el) || el.closest('#mini-player')) return;
+  const ifr = el.querySelector('iframe');
+  if (ifr) ifr.src = 'about:blank';   // stop the hidden inline copy (avoids double audio)
+  miniOpen(src);
 }
 
 /* ══════════════════════════════════════════
