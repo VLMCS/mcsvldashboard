@@ -658,6 +658,37 @@
   .rt-btn.active { background: var(--admin-accent-light); border-color: var(--admin-accent); color: var(--admin-accent); }
   body.dark .rt-btn.active { color: var(--admin-accent); }
   .rt-sep { width: 1px; background: var(--border); margin: 2px 4px; align-self: stretch; }
+  /* Font-size number input in the toolbar */
+  .rt-fontsize-wrap {
+    display: inline-flex; align-items: center; height: 24px;
+    border: 1px solid var(--border); border-radius: 3px;
+    background: var(--bg-form-input); overflow: hidden;
+  }
+  .rt-fontsize-input {
+    font-family: inherit; font-size: 12px; width: 38px; height: 22px;
+    border: none; background: none; color: var(--text-body);
+    text-align: right; padding: 0 2px 0 4px; outline: none;
+    -moz-appearance: textfield;
+  }
+  .rt-fontsize-input::-webkit-outer-spin-button,
+  .rt-fontsize-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .rt-px-suffix { font-size: 10.5px; color: var(--mid); padding: 0 3px 0 1px; user-select: none; }
+  .rt-fontsize-presets {
+    border: none; border-left: 1px solid var(--border);
+    background: none; color: var(--text-body); cursor: pointer;
+    font-size: 10px; height: 22px; width: 22px; padding: 0;
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    text-align: center; text-align-last: center;
+  }
+  .rt-fontsize-presets:hover { background: var(--hover-bg); }
+  /* Highlighter swatch group */
+  .rt-hl-group { display: inline-flex; align-items: center; gap: 3px; }
+  .rt-hl-icon { font-size: 13px; padding: 0 2px; }
+  .rt-hl-swatch {
+    width: 18px; height: 18px; border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 3px; cursor: pointer; padding: 0;
+  }
+  .rt-hl-swatch:hover { transform: scale(1.12); border-color: var(--black); }
   .rt-editor {
     min-height: 180px; max-height: 380px; overflow-y: auto;
     padding: 10px 12px; outline: none;
@@ -673,7 +704,37 @@
   .rt-editor table { border-collapse: collapse; margin: 6px 0; font-size: 12.5px; }
   .rt-editor th, .rt-editor td { border: 1px solid var(--border); padding: 5px 8px; }
   .rt-editor th { background: var(--bg-th); }
-  .rt-editor a { color: var(--admin-accent); text-decoration: underline; }
+
+  /* ── SHARED RICH-CONTENT ELEMENTS ──
+     Applied in the editor AND wherever saved content renders. */
+  .rt-hl { color: #1a1a1a; padding: 0 2px; border-radius: 2px; }   /* highlight: force dark text so it's readable on the light highlight in any theme */
+  .rt-box {
+    border: 1px solid var(--border); border-left: 3px solid var(--admin-accent);
+    border-radius: 6px; padding: 12px 14px; margin: 12px 0;
+    background: var(--bg-card-head);
+  }
+  .rt-box > :first-child { margin-top: 0; }
+  .rt-box > :last-child { margin-bottom: 0; }
+  /* Clickable link "chips" */
+  .rt-link-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 10px 2px; border-radius: 12px;
+    background: var(--admin-accent-light); color: var(--admin-accent) !important;
+    text-decoration: none !important; font-size: 0.9em; font-weight: 600;
+    border: 1px solid var(--admin-accent); line-height: 1.5;
+    transition: background 0.12s, color 0.12s;
+  }
+  .rt-link-chip::before { content: '🔗'; font-size: 0.85em; }
+  .rt-link-chip:hover { background: var(--admin-accent); color: #fff !important; }
+  /* Horizontal rules */
+  .rt-editor hr, .entry-content hr, .dv-entry-content hr, .section-desc hr {
+    border: none; border-top: 1.5px solid var(--border); margin: 16px 0;
+  }
+  /* Scope the box/chip/highlight styling into the live content containers too */
+  .entry-content .rt-box, .dv-entry-content .rt-box, .section-desc .rt-box { background: var(--bg-card-head); }
+  .rt-editor a:not(.rt-link-chip),
+  .entry-content a:not(.rt-link-chip),
+  .dv-entry-content a:not(.rt-link-chip) { color: var(--admin-accent); text-decoration: underline; }
 
   /* Password modal */
   #pwd-modal-overlay { z-index: 3000; }
@@ -3730,20 +3791,33 @@ function resultCardHtml(entry, tokens) {
 /* ══════════════════════════════════════════
    RICH TEXT EDITOR
    ══════════════════════════════════════════ */
+const RT_HIGHLIGHTS = [
+  { c:'#fff176', t:'Yellow' },
+  { c:'#aed581', t:'Green' },
+  { c:'#80deea', t:'Blue' },
+  { c:'#f48fb1', t:'Pink' },
+  { c:'#ffb74d', t:'Orange' }
+];
+
 function buildToolbar(containerId, editorId) {
+  const ed = escAttr(editorId);
   const buttons = [
     { cmd: 'bold',           label: '<b>B</b>',   title: 'Bold (Ctrl+B)',      check: true },
     { cmd: 'italic',         label: '<i>I</i>',   title: 'Italic (Ctrl+I)',    check: true },
     { cmd: 'underline',      label: '<u>U</u>',   title: 'Underline (Ctrl+U)', check: true },
     { sep: true },
+    { fontsize: true },
     { block: 'h3',           label: 'H',          title: 'Heading' },
-    { block: 'p',            label: '¶',          title: 'Paragraph' },
+    { sep: true },
+    { highlight: true },
     { sep: true },
     { cmd: 'insertUnorderedList', label: '• List', title: 'Bullet list' },
     { cmd: 'insertOrderedList',   label: '1. List', title: 'Numbered list' },
     { sep: true },
-    { custom: 'link',  label: '🔗', title: 'Insert link' },
+    { custom: 'link',  label: '🔗', title: 'Insert link (becomes a clickable chip)' },
     { custom: 'image', label: '🖼', title: 'Insert image (or paste from clipboard)' },
+    { custom: 'box',   label: '▭',  title: 'Insert a box around the selected text' },
+    { custom: 'hr',    label: '―',  title: 'Insert a horizontal line' },
     { sep: true },
     // ── Table tools ──
     { custom: 'table-insert',  label: '⊞',  title: 'Insert table' },
@@ -3760,6 +3834,8 @@ function buildToolbar(containerId, editorId) {
   const customMap = {
     'link':         'rtInsertLink',
     'image':        'rtInsertImage',
+    'box':          'rtInsertBox',
+    'hr':           'rtInsertHR',
     'table-insert': 'rtInsertTable',
     'table-row-add':'rtAddRowBelow',
     'table-col-add':'rtAddColRight',
@@ -3771,25 +3847,48 @@ function buildToolbar(containerId, editorId) {
 
   const html = buttons.map(b => {
     if (b.sep) return `<div class="rt-sep"></div>`;
+    if (b.fontsize) {
+      // Google Docs' preset sizes
+      const presets = [6,7,8,9,10,11,12,14,18,24,30,36,48,60,72,96];
+      const opts = presets.map(p => `<option value="${p}">${p}</option>`).join('');
+      return `<span class="rt-fontsize-wrap" title="Font size (px) — type a custom number + Enter, or pick a preset. Applies to selected text.">
+        <input type="number" class="rt-fontsize-input" min="6" max="400" step="1" value="14"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();rtFontSize('${ed}', this.value+'px');}"
+          onchange="rtFontSize('${ed}', this.value+'px')" />
+        <span class="rt-px-suffix">px</span>
+        <select class="rt-fontsize-presets" title="Preset sizes"
+          onchange="if(this.value){var inp=this.parentElement.querySelector('.rt-fontsize-input'); inp.value=this.value; rtFontSize('${ed}', this.value+'px');} this.selectedIndex=0;">
+          <option value="">▾</option>
+          ${opts}
+        </select>
+      </span>`;
+    }
+    if (b.highlight) {
+      const swatches = RT_HIGHLIGHTS.map(h =>
+        `<button class="rt-hl-swatch" type="button" title="Highlight ${h.t}" style="background:${h.c}"
+          onmousedown="event.preventDefault()" onclick="rtHighlight('${ed}','${h.c}')"></button>`
+      ).join('');
+      return `<span class="rt-hl-group"><span class="rt-hl-icon" title="Highlight">🖍</span>${swatches}<button class="rt-btn" type="button" title="Remove highlight" onmousedown="event.preventDefault()" onclick="rtHighlight('${ed}','none')">✕</button></span>`;
+    }
     if (b.cmd) {
       return `<button class="rt-btn" type="button"
         data-cmd="${escAttr(b.cmd)}" data-check="${b.check?'1':'0'}"
-        data-editor="${escAttr(editorId)}"
+        data-editor="${ed}"
         title="${escAttr(b.title)}"
         onmousedown="event.preventDefault()"
-        onclick="rtFmt('${escAttr(b.cmd)}','${escAttr(editorId)}')">${b.label}</button>`;
+        onclick="rtFmt('${escAttr(b.cmd)}','${ed}')">${b.label}</button>`;
     }
     if (b.block) {
       return `<button class="rt-btn" type="button"
-        data-block="${escAttr(b.block)}" data-editor="${escAttr(editorId)}"
+        data-block="${escAttr(b.block)}" data-editor="${ed}"
         title="${escAttr(b.title)}"
         onmousedown="event.preventDefault()"
-        onclick="rtBlock('${escAttr(b.block)}','${escAttr(editorId)}')">${b.label}</button>`;
+        onclick="rtBlock('${escAttr(b.block)}','${ed}')">${b.label}</button>`;
     }
     if (b.custom && customMap[b.custom]) {
       return `<button class="rt-btn rt-btn-${escAttr(b.custom)}" type="button" title="${escAttr(b.title)}"
         onmousedown="event.preventDefault()"
-        onclick="${customMap[b.custom]}('${escAttr(editorId)}')">${b.label}</button>`;
+        onclick="${customMap[b.custom]}('${ed}')">${b.label}</button>`;
     }
     return '';
   }).join('');
@@ -3810,6 +3909,15 @@ function rtBlock(tag, editorId) {
   try { document.execCommand('formatBlock', false, tag); } catch(e){}
 }
 
+// Get the selected HTML fragment as a string (for wrapping operations).
+function _rtSelectionHtml() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return '';
+  const div = document.createElement('div');
+  div.appendChild(sel.getRangeAt(0).cloneContents());
+  return div.innerHTML;
+}
+
 function rtInsertLink(editorId) {
   const ed = document.getElementById(editorId);
   ed.focus();
@@ -3818,16 +3926,85 @@ function rtInsertLink(editorId) {
   const url = prompt('Link URL:', 'https://');
   if (!url) return;
   if (selectedText) {
+    // Wrap the selected text in a chip-styled anchor
     document.execCommand('createLink', false, url);
-    // Add target=_blank to the inserted link
     setTimeout(() => {
-      ed.querySelectorAll('a[href]').forEach(a => { if (!a.target) a.target = '_blank'; });
+      ed.querySelectorAll('a[href]').forEach(a => {
+        if (a.getAttribute('href') === url) { a.target = '_blank'; a.classList.add('rt-link-chip'); }
+        else if (!a.target) a.target = '_blank';
+      });
     }, 0);
   } else {
     const text = prompt('Link text:', url);
     if (text === null) return;
-    document.execCommand('insertHTML', false, `<a href="${escAttr(url)}" target="_blank">${escapeHtml(text || url)}</a>`);
+    document.execCommand('insertHTML', false,
+      `<a href="${escAttr(url)}" target="_blank" class="rt-link-chip">${escapeHtml(text || url)}</a>&nbsp;`);
   }
+}
+
+// ── Font size ── (wraps selection in <span style="font-size:…">)
+function rtFontSize(editorId, px) {
+  if (!px || px === 'px') return;
+  const ed = document.getElementById(editorId);
+  // Restore the selection that existed before the user clicked the size control.
+  rtRestoreSelection(editorId);
+  ed.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) { showToast('Select some text first, then set its size'); return; }
+  // Trick: apply a sentinel font size via execCommand, then rewrite to a styled span.
+  document.execCommand('fontSize', false, '7');
+  ed.querySelectorAll('font[size="7"]').forEach(f => {
+    const span = document.createElement('span');
+    span.style.fontSize = px;
+    span.innerHTML = f.innerHTML;
+    f.replaceWith(span);
+  });
+  // Keep selection on the resized text so the size box reflects the change.
+  rtSaveSelection(editorId);
+  updateRTToolbarState(editorId);
+}
+
+// ── Highlight ── (wraps selection so text stays readable in light + dark)
+function rtHighlight(editorId, color) {
+  const ed = document.getElementById(editorId);
+  rtRestoreSelection(editorId);
+  ed.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) { showToast('Select some text first to highlight'); return; }
+  if (color === 'none') {
+    // Clear any highlight on the selection. Unwrap our rt-hl spans that the
+    // selection touches, then also clear via hiliteColor for browser-native spans.
+    const range = sel.rangeCount ? sel.getRangeAt(0) : null;
+    if (range) {
+      ed.querySelectorAll('span.rt-hl').forEach(s => {
+        if (range.intersectsNode(s)) s.replaceWith(...s.childNodes);
+      });
+    }
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('hiliteColor', false, 'transparent');
+    document.execCommand('styleWithCSS', false, false);
+    return;
+  }
+  const html = _rtSelectionHtml();
+  if (!html) return;
+  document.execCommand('insertHTML', false, `<span class="rt-hl" style="background:${color}">${html}</span>`);
+}
+
+// ── Box (callout) ── wraps selection (or inserts an empty box)
+function rtInsertBox(editorId) {
+  const ed = document.getElementById(editorId);
+  rtRestoreSelection(editorId);
+  ed.focus();
+  const sel = window.getSelection();
+  const inner = (sel && !sel.isCollapsed) ? _rtSelectionHtml() : 'Type inside this box…';
+  document.execCommand('insertHTML', false, `<div class="rt-box">${inner}</div><p><br></p>`);
+}
+
+// ── Horizontal rule ──
+function rtInsertHR(editorId) {
+  const ed = document.getElementById(editorId);
+  ed.focus();
+  document.execCommand('insertHorizontalRule', false, null);
 }
 
 // Image size limits
@@ -4081,6 +4258,24 @@ function updateRTToolbarState(editorId) {
       try { btn.classList.toggle('active', document.queryCommandState(btn.dataset.cmd)); } catch(e){}
     }
   });
+  // Reflect the current text's font size in the size input
+  const fsInput = toolbar.querySelector('.rt-fontsize-input');
+  if (fsInput && document.activeElement !== fsInput) {
+    const px = _currentFontSizePx(ed);
+    if (px != null) fsInput.value = px;
+  }
+}
+
+// Computed font-size (px, rounded) of the text at the current caret/selection.
+function _currentFontSizePx(ed) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  let node = sel.getRangeAt(0).startContainer;
+  if (node && node.nodeType !== 1) node = node.parentNode;
+  if (!node || !ed.contains(node)) return null;
+  const fs = getComputedStyle(node).fontSize; // e.g. "24px"
+  const n = parseFloat(fs);
+  return isNaN(n) ? null : Math.round(n);
 }
 
 function initEditor(editorId, toolbarId, content) {
@@ -4089,11 +4284,41 @@ function initEditor(editorId, toolbarId, content) {
   ed.innerHTML = content || '';
   if (!ed._listenersAdded) {
     ed.addEventListener('paste', e => handleRTPaste(e, editorId));
-    ed.addEventListener('keyup', () => updateRTToolbarState(editorId));
-    ed.addEventListener('mouseup', () => updateRTToolbarState(editorId));
+    ed.addEventListener('keyup', () => { rtSaveSelection(editorId); updateRTToolbarState(editorId); });
+    ed.addEventListener('mouseup', () => { rtSaveSelection(editorId); updateRTToolbarState(editorId); });
     ed._listenersAdded = true;
   }
   setTimeout(() => updateRTToolbarState(editorId), 10);
+}
+
+/* ── SELECTION SAVE / RESTORE ──
+   Toolbar controls that take focus (number input, presets dropdown) steal the
+   editor's text selection. We continuously remember the last selection made
+   inside the editor and restore it before applying a command. */
+let _rtSavedRange = null;
+let _rtSavedEditorId = null;
+function rtSaveSelection(editorId) {
+  const ed = document.getElementById(editorId);
+  const sel = window.getSelection();
+  if (ed && sel && sel.rangeCount) {
+    const r = sel.getRangeAt(0);
+    if (ed.contains(r.commonAncestorContainer)) {
+      _rtSavedRange = r.cloneRange();
+      _rtSavedEditorId = editorId;
+    }
+  }
+}
+function rtRestoreSelection(editorId) {
+  if (_rtSavedRange && _rtSavedEditorId === editorId) {
+    const ed = document.getElementById(editorId);
+    if (!ed) return false;
+    ed.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    try { sel.addRange(_rtSavedRange); } catch(e) { return false; }
+    return true;
+  }
+  return false;
 }
 
 /* ══════════════════════════════════════════
