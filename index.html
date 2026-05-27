@@ -1293,9 +1293,14 @@
       <div class="entry-id-label" id="ev-id">Entry</div>
       <h1 class="entry-title" id="ev-title">Title</h1>
       <div class="entry-actions">
-        <button class="btn btn-secondary" onclick="openEntryEditor(currentEntryId)">✎ Edit Entry</button>
+        <button class="btn btn-secondary" onclick="openEntryEditor(currentEntryId, currentBase)">✎ Edit Entry</button>
       </div>
       <div class="entry-content" id="ev-content"></div>
+      <!-- Sub-entries (direct children of this entry) -->
+      <div id="ev-children-wrap" style="display:none">
+        <div id="ev-children-label" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--mid);font-weight:700;margin:28px 0 12px;border-top:1px solid var(--border);padding-top:20px">Sub-Entries</div>
+        <div class="section-card-grid" id="ev-children-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -2363,6 +2368,64 @@ function entriesOf(base) {
 function findSection(num, base) { return sectionsOf(base).find(s => s.num === String(num)); }
 function findEntry(id, base) { return entriesOf(base).find(e => e.id === id); }
 function entriesInSection(num, base) { return entriesOf(base).filter(e => sectionNumOf(e.id) === String(num)); }
+
+/* ── NESTED-ENTRY HELPERS ──
+   Entry IDs encode the tree: "14" (section) → "14.1" → "14.1.a" → "14.1.a.1".
+   Depth = (# of dot-components) − 1. Section has depth 0.
+*/
+function idComponents(id) { return String(id).split('.'); }
+function parentOf(id) {
+  const c = idComponents(id);
+  if (c.length <= 1) return null;          // section-level, no entry parent
+  return c.slice(0, -1).join('.');
+}
+// Direct children only (one level deeper, same prefix).
+function childrenOf(parentId, base) {
+  const pid = String(parentId);
+  const targetLen = idComponents(pid).length + 1;
+  return entriesOf(base).filter(e => {
+    const c = idComponents(e.id);
+    return c.length === targetLen && e.id.startsWith(pid + '.');
+  });
+}
+// All nested descendants (for delete cascade + counting).
+function descendantsOf(parentId, base) {
+  const prefix = String(parentId) + '.';
+  return entriesOf(base).filter(e => e.id.startsWith(prefix) && e.id !== String(parentId));
+}
+function hasChildren(id, base) { return childrenOf(id, base).length > 0; }
+// Depth-first descendants of a section/entry, in tree order (14.1, 14.1.a, 14.1.a.1, 14.1.b, 14.2…).
+function entriesTreeOrder(parentId, base, acc) {
+  acc = acc || [];
+  for (const c of childrenOf(parentId, base)) { acc.push(c); entriesTreeOrder(c.id, base, acc); }
+  return acc;
+}
+// Relative depth of an entry below its section (14.1 → 0, 14.1.a → 1, 14.1.a.1 → 2).
+function entryDepthBelowSection(id) { return Math.max(0, idComponents(id).length - 2); }
+
+// 0-indexed → a, b, …, z, aa, ab …
+function letterFor(i) {
+  let s = '';
+  do { s = String.fromCharCode(97 + (i % 26)) + s; i = Math.floor(i / 26) - 1; } while (i >= 0);
+  return s;
+}
+// Suggest the next available child ID under parentId. Levels alternate:
+// depth 1 = number (14.1), depth 2 = letter (14.1.a), depth 3 = number (14.1.a.1)…
+function suggestChildId(parentId, base) {
+  const childLen = idComponents(parentId).length + 1; // # components the child will have
+  const useLetter = (childLen % 2 === 1);              // odd length → letter
+  const existing = new Set(childrenOf(parentId, base).map(e => idComponents(e.id).pop()));
+  if (useLetter) {
+    let i = 0;
+    while (existing.has(letterFor(i))) i++;
+    return parentId + '.' + letterFor(i);
+  } else {
+    let n = 1;
+    while (existing.has(String(n))) n++;
+    return parentId + '.' + n;
+  }
+}
+
 function allBaseIds() {
   const out = ['handbook', 'projects'];
   for (const c of (CUSTOM_CATEGORIES || [])) if (c && c.id) out.push(c.id);
@@ -2478,6 +2541,17 @@ function updateBreadcrumb() {
       const sec = findSection(secNum, currentBase);
       parts.push(`<span class="bc-sep">/</span><span class="bc-item">${escapeHtml(baseLabel)}</span>`);
       if (sec) parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showSection('${escAttr(secNum)}','${escAttr(currentBase)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>`);
+      // Walk the ancestor entry chain (e.g. 14.1 → 14.1.a → current) so each level is clickable.
+      const chain = [];
+      let pid = parentOf(entry.id);
+      while (pid && idComponents(pid).length >= 2) { // stop before the section-only id
+        const anc = findEntry(pid, currentBase);
+        if (anc) chain.unshift(anc);
+        pid = parentOf(pid);
+      }
+      for (const anc of chain) {
+        parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showEntry('${escAttr(anc.id)}','${escAttr(currentBase)}')">${escapeHtml(anc.title)}</span>`);
+      }
       parts.push(`<span class="bc-sep">/</span><span class="bc-item active">${escapeHtml(entry.title)}</span>`);
     }
   } else if (currentView === 'docview') {
@@ -2495,6 +2569,24 @@ function showHome() {
 
 function expandKey(base, num) { return (base||'handbook') + ':' + String(num); }
 
+// A clickable card for an entry (used in section view + entry view child grids).
+function entryCardHtml(e, base, canEdit) {
+  const kids = childrenOf(e.id, base).length;
+  const badge = kids ? ` · ${kids} sub-${kids===1?'entry':'entries'}` : '';
+  const excerpt = (() => {
+    const txt = stripHtml(e.content || '');
+    return txt.length > 90 ? txt.slice(0, 90) + '…' : txt;
+  })();
+  return `<div class="section-card" data-entry-id="${escAttr(e.id)}" onclick="showEntry('${escAttr(e.id)}','${escAttr(base)}')">
+    <div class="section-card-id">${escapeHtml(e.id)}${badge}</div>
+    <div class="section-card-title">${escapeHtml(e.title)}</div>
+    ${excerpt ? `<div style="font-size:12px;color:var(--mid);margin-top:5px;line-height:1.4">${escapeHtml(excerpt)}</div>` : ''}
+    ${canEdit ? `<div class="section-card-actions">
+      <button onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit">✎</button>
+    </div>` : ''}
+  </div>`;
+}
+
 function showSection(num, base) {
   base = base || 'handbook';
   currentBase = base;
@@ -2506,18 +2598,12 @@ function showSection(num, base) {
   const svDesc = document.getElementById('sv-desc');
   svDesc.innerHTML = sec.description || '';
   svDesc.querySelectorAll('img').forEach(img => img.classList.add('entry-img'));
-  const entries = entriesInSection(num, base);
+  // Section view shows only DIRECT children of the section (e.g. 14.1, 14.2 — not 14.1.a)
+  const entries = childrenOf(num, base);
   const canEdit = canEditSection(base, num);
   const grid = document.getElementById('sv-grid');
-  grid.innerHTML = entries.map(e => `
-    <div class="section-card" data-entry-id="${escAttr(e.id)}" onclick="showEntry('${escAttr(e.id)}','${escAttr(base)}')">
-      <div class="section-card-id">${escapeHtml(e.id)}</div>
-      <div class="section-card-title">${escapeHtml(e.title)}</div>
-      ${canEdit ? `<div class="section-card-actions">
-        <button onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit">✎</button>
-      </div>` : ''}
-    </div>
-  `).join('') + (canEdit ? `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}','${escAttr(base)}')">＋ Add Entry</div>` : '');
+  grid.innerHTML = entries.map(e => entryCardHtml(e, base, canEdit)).join('')
+    + (canEdit ? `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}','${escAttr(base)}')">＋ Add Entry</div>` : '');
 
   // ── Render the section-actions row based on access level ──
   // Real admin: "Edit Section Info" (incl. passkey + delete)
@@ -2559,7 +2645,7 @@ function showEntry(id, base) {
   if (!entry) { showHome(); return; }
   currentEntryId = id; currentSectionNum = sectionNumOf(id);
 
-  document.getElementById('ev-id').textContent = `${entry.section}`;
+  document.getElementById('ev-id').textContent = `${entry.id} · ${entry.section}`;
   document.getElementById('ev-title').textContent = entry.title;
   const content = document.getElementById('ev-content');
   content.innerHTML = entry.content;
@@ -2571,13 +2657,45 @@ function showEntry(id, base) {
   const editBtn = document.querySelector('#view-entry .entry-actions .btn');
   if (editBtn) editBtn.style.display = canEdit ? 'inline-flex' : 'none';
 
-  expandedSections.add(expandKey(base, currentSectionNum)); saveExpandedOnly();
+  // ── Sub-entries (direct children of this entry) ──
+  const kids = childrenOf(id, base);
+  const childWrap = document.getElementById('ev-children-wrap');
+  const childGrid = document.getElementById('ev-children-grid');
+  if (kids.length || canEdit) {
+    childWrap.style.display = '';
+    childGrid.innerHTML = kids.map(k => entryCardHtml(k, base, canEdit)).join('')
+      + (canEdit ? `<div class="add-card" onclick="openNewSubEntry('${escAttr(id)}','${escAttr(base)}')">＋ Add Sub-Entry</div>` : '');
+    document.getElementById('ev-children-label').style.display = (kids.length || canEdit) ? '' : 'none';
+  } else {
+    childWrap.style.display = 'none';
+  }
+
+  expandedSections.add(expandKey(base, currentSectionNum));
+  expandedSections.add(expandKey(base, id)); // expand this entry's branch in sidebar
+  saveExpandedOnly();
   setView('entry'); updateBreadcrumb(); renderSidebar();
 }
 
+// Back button: go to the entry's PARENT (entry or section), not just the section.
 function backToSection() {
+  if (currentView === 'entry' && currentEntryId) {
+    const pid = parentOf(currentEntryId);
+    if (pid && findEntry(pid, currentBase)) { showEntry(pid, currentBase); return; }
+  }
   if (currentSectionNum) showSection(currentSectionNum, currentBase);
   else showHome();
+}
+
+// Open the entry editor pre-filled to create a child of parentId.
+function openNewSubEntry(parentId, base) {
+  base = base || currentBase || 'handbook';
+  const sectionNum = sectionNumOf(parentId);
+  if (!canEditSection(base, sectionNum)) {
+    if (base === 'projects') promptUnlockProjectSection(sectionNum);
+    else alert('You need edit access to add sub-entries.');
+    return;
+  }
+  openNewEntryEditor(sectionNum, base, suggestChildId(parentId, base));
 }
 
 let currentCategoryId = null;     // id of category currently in overview view
@@ -2939,6 +3057,41 @@ function renderSidebar() {
   }
 }
 
+// Recursively render one entry row + (if expanded) its child branches.
+function _renderEntryBranch(entry, base, canEdit, depth) {
+  const kids = childrenOf(entry.id, base);
+  const hasKids = kids.length > 0;
+  const key = expandKey(base, entry.id);
+  const isExpanded = expandedSections.has(key);
+  const isActive = currentView === 'entry' && currentBase === base && currentEntryId === entry.id;
+  const indent = 8 + depth * 12; // px left padding per nesting level
+
+  const chevron = hasKids
+    ? `<span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escAttr(entry.id)}','${escAttr(base)}')">▶</span>`
+    : `<span class="sb-chevron" style="visibility:hidden">▶</span>`;
+  const editBtn = canEdit
+    ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(entry.id)}','${escAttr(base)}')" title="Edit entry">✎</button>`
+    : '';
+  const addSubBtn = canEdit
+    ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewSubEntry('${escAttr(entry.id)}','${escAttr(base)}')" title="Add sub-entry">＋</button>`
+    : '';
+
+  let html = `<div class="sb-child${isActive?' active':''}" style="padding-left:${indent}px" data-entry-id="${escAttr(entry.id)}" data-section-num="${escAttr(sectionNumOf(entry.id))}" data-base="${escAttr(base)}" ${canEdit?'draggable="true"':''}>
+    ${canEdit ? `<span class="drag-handle" title="Drag to reorder">⠿</span>` : ''}
+    ${chevron}
+    <span class="sb-child-text" onclick="showEntry('${escAttr(entry.id)}','${escAttr(base)}')">${escapeHtml(entry.id + ' ' + entry.title)}</span>
+    ${addSubBtn}
+    ${editBtn}
+  </div>`;
+
+  if (hasKids && isExpanded) {
+    html += `<div class="sb-subchildren${isExpanded?' expanded':''}">`;
+    for (const k of kids) html += _renderEntryBranch(k, base, canEdit, depth + 1);
+    html += `</div>`;
+  }
+  return html;
+}
+
 function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
   // The 'base' value IS the category ID for KB-type sections (handbook/projects/custom).
   const catId = base;
@@ -2954,7 +3107,6 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
     html += `<div style="font-size:12px;color:var(--mid);font-style:italic;padding:2px 8px 4px">${escapeHtml(emptyHint)}</div>`;
   }
   for (const sec of sectionsArr) {
-    const entries = entriesInSection(sec.num, base);
     const key = expandKey(base, sec.num);
     const isExpanded = expandedSections.has(key);
     const isActiveParent = currentView === 'section' && currentBase === base && currentSectionNum === sec.num;
@@ -2979,16 +3131,9 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
       ${addEntryBtn}
     </div>
     <div class="sb-children${isExpanded?' expanded':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}">`;
-    for (const e of entries) {
-      const isActiveChild = currentView === 'entry' && currentBase === base && currentEntryId === e.id;
-      const childEditBtn = canEdit
-        ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit entry">✎</button>`
-        : '';
-      html += `<div class="sb-child${isActiveChild?' active':''}" data-entry-id="${escAttr(e.id)}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}" ${canEdit?'draggable="true"':''}>
-        ${canEdit ? `<span class="drag-handle" title="Drag to reorder">⠿</span>` : ''}
-        <span class="sb-child-text" onclick="showEntry('${escAttr(e.id)}','${escAttr(base)}')">${escapeHtml(e.id + ' ' + e.title)}</span>
-        ${childEditBtn}
-      </div>`;
+    // Render the entry tree recursively (direct children of the section, each expandable)
+    for (const e of childrenOf(sec.num, base)) {
+      html += _renderEntryBranch(e, base, canEdit, 0);
     }
     if (canEdit) html += `<button class="admin-add-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry</button>`;
     html += `</div>`;
@@ -3133,6 +3278,8 @@ function onDropEntry(e) {
   if (srcBase !== tgtBase) { clearDragStyles(); return; } // no cross-base drops
   if (dragSrcSection !== tgtSection) { clearDragStyles(); return; }
   if (dragSrcItemId === tgtEntryId) { clearDragStyles(); return; }
+  // Only allow reordering between true siblings (same parent in the tree).
+  if (String(parentOf(dragSrcItemId)) !== String(parentOf(tgtEntryId))) { clearDragStyles(); return; }
   const arr = entriesOf(tgtBase);
   const srcEntry = arr.find(en => en.id === dragSrcItemId);
   const allIdxOfSrc = arr.findIndex(en => en.id === dragSrcItemId);
@@ -3384,6 +3531,37 @@ function search(query) {
       if (score >= 4) scoredAll.push({ entry: { ...e, __base: base }, score });
     }
   }
+
+  // Also search Quick Links–style link items (SIDEBAR_CFG). These are links, not
+  // content entries, so we score a synthetic entry built from the link text + URL.
+  for (const section of (SIDEBAR_CFG || [])) {
+    if (!section || !Array.isArray(section.items)) continue;
+    for (const item of section.items) {
+      if (!item || !item.id || item.visible === false) continue;
+      const synthetic = {
+        title: item.text || '',
+        section: getCategoryLabel(section.id),
+        keywords: [],
+        content: item.href || ''
+      };
+      const score = scoreEntry(synthetic, q);
+      if (score >= 4) {
+        scoredAll.push({
+          entry: {
+            __link: true,
+            sectionId: section.id,
+            itemId: item.id,
+            id: item.id,
+            title: item.text || '(untitled link)',
+            href: item.href || null,
+            __base: section.id
+          },
+          score
+        });
+      }
+    }
+  }
+
   scoredAll.sort((a, b) => b.score - a.score);
   let results = scoredAll.map(r => r.entry);
 
@@ -3515,6 +3693,21 @@ function resultCardHtml(entry, tokens) {
   const idDisplay = entry.id;
   const base = entry.__base || 'handbook';
   let baseLabel = getCategoryLabel(base).toUpperCase();
+
+  // Quick-Link result — opens the URL (or shows a "coming soon" note if no URL yet)
+  if (entry.__link) {
+    const action = entry.href
+      ? `<button class="result-go-btn" onclick="closeSearchModal();window.open('${escAttr(entry.href)}','_blank','noopener')">Open link ↗</button>`
+      : `<span style="font-size:11px;color:var(--mid);font-style:italic">no link yet</span>`;
+    return `<div class="result-card">
+      <div class="result-card-header">
+        <span class="result-section-id">🔗 ${escapeHtml(baseLabel)}</span>
+        <span class="result-section-title">${escapeHtml(entry.title)}</span>
+        ${action}
+      </div>
+    </div>`;
+  }
+
   if (entry.__section) {
     return `<div class="result-card">
       <div class="result-card-header">
@@ -4007,7 +4200,7 @@ function openEntryEditor(id, base) {
   document.getElementById('entry-modal-overlay').classList.add('open');
 }
 
-function openNewEntryEditor(sectionNum, base) {
+function openNewEntryEditor(sectionNum, base, presetId) {
   base = base || 'handbook';
   if (sectionNum && !canEditSection(base, sectionNum)) {
     if (base === 'projects') promptUnlockProjectSection(sectionNum);
@@ -4017,7 +4210,9 @@ function openNewEntryEditor(sectionNum, base) {
   editEntryId = null;
   editEntryBase = base;
   editEntrySrcSection = null;
-  document.getElementById('entry-modal-title-text').textContent = base === 'projects' ? 'New Project Entry' : 'New Entry';
+  const isSub = presetId && idComponents(presetId).length > 2;
+  document.getElementById('entry-modal-title-text').textContent =
+    isSub ? 'New Sub-Entry' : (base === 'projects' ? 'New Project Entry' : 'New Entry');
   document.getElementById('delete-entry-btn').style.display = 'none';
   const firstSec = sectionsOf(base)[0];
   populateSectionSelect(sectionNum || (firstSec && firstSec.num), base);
@@ -4026,6 +4221,8 @@ function openNewEntryEditor(sectionNum, base) {
   initEditor('ef-content-editor', 'ef-rt-toolbar', '');
   document.getElementById('ef-new-section-num').value = '';
   document.getElementById('ef-new-section-title').value = '';
+  // If a sub-entry ID was suggested, pre-fill it (overrides the auto value from populateSectionSelect)
+  if (presetId) document.getElementById('ef-id').value = presetId;
   document.getElementById('entry-modal-overlay').classList.add('open');
 }
 
@@ -4085,14 +4282,30 @@ function saveEntry() {
 }
 
 function deleteCurrentEntry() {
-  if (!editEntryId || !confirm('Delete this entry permanently?')) return;
+  if (!editEntryId) return;
   const base = editEntryBase || 'handbook';
-  if (base === 'projects') PROJECT_ENTRIES = PROJECT_ENTRIES.filter(e => e.id !== editEntryId);
-  else HANDBOOK = HANDBOOK.filter(e => e.id !== editEntryId);
+  const descCount = descendantsOf(editEntryId, base).length;
+  const msg = descCount
+    ? `Delete this entry AND its ${descCount} nested sub-${descCount===1?'entry':'entries'}? This cannot be undone.`
+    : 'Delete this entry permanently?';
+  if (!confirm(msg)) return;
+  // Remove the entry and every descendant (ids starting with "<id>.")
+  const prefix = editEntryId + '.';
+  const keep = e => e.id !== editEntryId && !e.id.startsWith(prefix);
+  if (base === 'projects') PROJECT_ENTRIES = PROJECT_ENTRIES.filter(keep);
+  else if (base === 'handbook') HANDBOOK = HANDBOOK.filter(keep);
+  else {
+    const cc = CUSTOM_CATEGORIES.find(c => c.id === base);
+    if (cc) cc.entries = cc.entries.filter(keep);
+  }
+  const deletedId = editEntryId;
   closeEntryModal();
   saveAll('Entry deleted');
-  if (currentEntryId === editEntryId && currentBase === base) {
-    if (currentSectionNum) showSection(currentSectionNum, base);
+  if (currentBase === base && (currentEntryId === deletedId || String(currentEntryId).startsWith(prefix))) {
+    // We were viewing the deleted entry (or one of its descendants) — go to its parent
+    const pid = parentOf(deletedId);
+    if (pid && findEntry(pid, base)) showEntry(pid, base);
+    else if (currentSectionNum) showSection(currentSectionNum, base);
     else showHome();
   }
   renderSidebar();
@@ -4982,11 +5195,12 @@ function renderDocView() {
     oh += `<div class="dv-out-parent" onclick="document.getElementById('dv-sec-${escAttr(base)}-${escAttr(sec.num)}').scrollIntoView({behavior:'smooth',block:'start'})">
       ${escapeHtml(sec.num + '. ' + sec.title)}
     </div>`;
-    const entries = entriesInSection(sec.num, base);
+    const entries = entriesTreeOrder(sec.num, base);
     if (entries.length) {
       oh += `<div class="dv-out-children">`;
       for (const e of entries) {
-        oh += `<div class="dv-out-child" onclick="document.getElementById('dv-en-${escAttr(base)}-${escAttr(e.id)}').scrollIntoView({behavior:'smooth',block:'start'})">${escapeHtml(e.id + ' ' + e.title)}</div>`;
+        const ind = entryDepthBelowSection(e.id) * 12;
+        oh += `<div class="dv-out-child" style="padding-left:${6 + ind}px" onclick="document.getElementById('dv-en-${escAttr(base)}-${escAttr(e.id)}').scrollIntoView({behavior:'smooth',block:'start'})">${escapeHtml(e.id + ' ' + e.title)}</div>`;
       }
       oh += `</div>`;
     }
@@ -5018,13 +5232,15 @@ function renderDocView() {
       </div>
       <div class="dv-section-body">
         <div class="dv-section-desc">${sec.description || '<em style="color:var(--mid)">(no description)</em>'}</div>`;
-    const entries = entriesInSection(sec.num, base);
+    const entries = entriesTreeOrder(sec.num, base);
     for (const e of entries) {
-      ch += `<div class="dv-entry" id="dv-en-${escAttr(base)}-${escAttr(e.id)}" data-entry-id="${escAttr(e.id)}" data-base="${escAttr(base)}">
+      const ind = entryDepthBelowSection(e.id) * 22;
+      ch += `<div class="dv-entry" id="dv-en-${escAttr(base)}-${escAttr(e.id)}" data-entry-id="${escAttr(e.id)}" data-base="${escAttr(base)}" style="margin-left:${ind}px${ind?';border-left:2px solid var(--border);padding-left:14px':''}">
         <div class="dv-entry-head">
           <span class="dv-entry-num">${escapeHtml(e.id)}</span>
           <span class="dv-entry-title">${escapeHtml(e.title)}</span>
           <div class="dv-entry-actions">
+            <button class="dv-entry-edit-btn" onclick="openNewSubEntry('${escAttr(e.id)}','${escAttr(base)}')" title="Add a sub-entry under this">＋ Sub</button>
             <button class="dv-entry-edit-btn" onclick="dvToggleInlineEdit('${escAttr(e.id)}','${escAttr(base)}')">✎ Edit Inline</button>
             <button class="dv-entry-edit-btn" onclick="openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')">Full Editor</button>
           </div>
