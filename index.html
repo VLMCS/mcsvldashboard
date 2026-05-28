@@ -782,6 +782,15 @@
     color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; padding-left: 4px;
   }
   .rt-video-label { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  /* Click-to-play poster (http/https): shows the thumbnail + a play button */
+  .rt-video-poster.rt-video-playable {
+    border: 0; padding: 0; width: 100%; background-size: cover; background-position: center;
+  }
+  .rt-video-poster.rt-video-playable::before {
+    content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.28); transition: background 0.15s;
+  }
+  .rt-video-poster.rt-video-playable:hover::before { background: rgba(0,0,0,0.12); }
+  .rt-video-poster.rt-video-playable .rt-video-play { position: relative; z-index: 1; }
 
   /* ── Toolbar dropdown menu (Table) ── */
   .rt-menu { position: relative; display: inline-flex; }
@@ -856,13 +865,15 @@
   #maint-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
   .maint-pwd-err { font-size: 11.5px; color: #c0392b; min-height: 14px; }
 
-  /* ── Floating mini video player ── */
+  /* ── Persistent video portal (docks over its placeholder, else floats corner) ── */
   #mini-player {
-    display: none; position: fixed; right: 18px; bottom: 18px; z-index: 9000;
+    display: none; position: fixed; right: 18px; bottom: 18px; z-index: 1500;
     width: 340px; max-width: 44vw; border-radius: 8px; overflow: hidden;
     background: #000; box-shadow: 0 10px 34px rgba(0,0,0,0.45);
   }
   #mini-player.open { display: block; }
+  /* Docked over an in-page placeholder: inline left/top/width are set in JS */
+  #mini-player.vp-docked { max-width: none; box-shadow: none; }
   #mini-player-body { position: relative; width: 100%; aspect-ratio: 16 / 9; }
   #mini-player-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #mini-player-close {
@@ -1919,7 +1930,7 @@
 
 <!-- ── Floating mini video player (pops out when navigating away from a playing video) ── -->
 <div id="mini-player">
-  <button id="mini-player-close" title="Close" onclick="miniClose()">✕</button>
+  <button id="mini-player-close" title="Close" onclick="vpClose()">✕</button>
   <div id="mini-player-body"></div>
 </div>
 
@@ -2776,7 +2787,6 @@ function updateBreadcrumb() {
 }
 
 function showHome() {
-  miniPromoteIfActive();
   currentSectionNum = null; currentEntryId = null;
   setView('home'); updateBreadcrumb();
   renderAnnouncements();
@@ -2804,7 +2814,6 @@ function entryCardHtml(e, base, canEdit) {
 }
 
 function showSection(num, base) {
-  miniPromoteIfActive();
   base = base || 'handbook';
   currentBase = base;
   currentSectionNum = String(num); currentEntryId = null;
@@ -2851,7 +2860,6 @@ function showSection(num, base) {
 }
 
 function showEntry(id, base) {
-  miniPromoteIfActive();
   base = base || 'handbook';
   // If caller didn't specify base but the id only exists in projects, find it
   if (!findEntry(id, base)) {
@@ -2922,7 +2930,6 @@ let currentCategoryType = null;   // 'kb' or 'links'
 // Show the category overview: a thumbnail card grid of all top-level entries
 // in the given category. catType is 'kb' for sectioned KBs, 'links' for Quick-Links.
 function showCategoryOverview(catId, catType) {
-  miniPromoteIfActive();
   currentCategoryId = catId;
   currentCategoryType = catType;
   currentSectionNum = null; currentEntryId = null;
@@ -4067,33 +4074,106 @@ function _rtVideoPoster(src, asLink) {
   el.innerHTML = '<span class="rt-video-play">▶</span><span class="rt-video-label">' + label + '</span>';
   return el;
 }
-// In read-only views, when running from file:// swap embedded video iframes for
-// the clickable poster (the saved HTML keeps the iframe so it still plays when hosted).
-function _rtSetupVideoFallback() {
-  if (location.protocol !== 'file:') return;          // only needed for local-file viewing
-  if (window._rtVideoFbObserver) return;
+function _rtVideoThumb(src) {
+  const m = (src || '').match(/youtube\.com\/embed\/([A-Za-z0-9_-]+)/);
+  return m ? 'https://img.youtube.com/vi/' + m[1] + '/hqdefault.jpg' : '';
+}
+// A click-to-play poster for read-only views (http/https). Clicking it routes the
+// video into the single persistent portal player (vpPlay), which then docks here.
+function _rtVideoPlayPoster(src) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'rt-video-poster rt-video-playable';
+  const thumb = _rtVideoThumb(src);
+  if (thumb) el.style.backgroundImage = "url('" + thumb + "')";
+  el.innerHTML = '<span class="rt-video-play">▶</span>';
+  el.addEventListener('click', () => vpPlay(src));
+  return el;
+}
+// Turn read-only video embeds into placeholders. On file:// they're "open on
+// YouTube/Drive" links (embeds are blocked); on http/https they're click-to-play
+// posters that hand the video to the persistent portal player.
+function _rtSetupVideoPlaceholders() {
+  if (window._rtVideoObs) return;
+  const isFile = location.protocol === 'file:';
   const hydrate = root => {
-    if (!root || !root.querySelectorAll) return;
-    root.querySelectorAll('.rt-video[data-video-embed]').forEach(box => {
-      if (box.closest('.ProseMirror') || box.dataset.rtFb === '1') return;   // editor handles its own
+    if (!root || root.nodeType !== 1) return;
+    const list = (root.matches && root.matches('.rt-video[data-video-embed]'))
+      ? [root] : (root.querySelectorAll ? root.querySelectorAll('.rt-video[data-video-embed]') : []);
+    list.forEach(box => {
+      if (box.closest('.ProseMirror') || box.dataset.rtHy === '1') return;   // editor manages its own
       const ifr = box.querySelector('iframe');
       const src = box.getAttribute('data-src') || (ifr ? ifr.getAttribute('src') : '');
       if (!src) return;
-      box.dataset.rtFb = '1';
+      box.dataset.rtHy = '1';
       box.innerHTML = '';
-      box.appendChild(_rtVideoPoster(src, true));
+      box.appendChild(isFile ? _rtVideoPoster(src, true) : _rtVideoPlayPoster(src));
     });
   };
   hydrate(document.body);
   const obs = new MutationObserver(muts => {
-    for (const m of muts) for (const n of m.addedNodes) {
-      if (n.nodeType !== 1) continue;
-      if (n.matches && n.matches('.rt-video[data-video-embed]')) hydrate(n.parentNode || n);
-      else hydrate(n);
-    }
+    for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) hydrate(n);
   });
   obs.observe(document.body, { childList: true, subtree: true });
-  window._rtVideoFbObserver = obs;
+  window._rtVideoObs = obs;
+}
+
+/* ── Persistent video portal ──
+   ONE iframe plays the active video and is never reparented/recreated, so it
+   keeps exact progress. Each frame (rAF) it positions itself: docked over its
+   placeholder (.rt-video[data-src] matching the playing src) while that's on
+   screen, otherwise floating in the bottom-right as a mini-player. Returning to
+   the source page re-creates the placeholder, so the portal simply docks back
+   over it — continuing precisely, for both YouTube and Google Drive. */
+let _vpSrc = null, _vpRaf = null;
+function vpPlay(src) {
+  if (!src) return;
+  const mp = document.getElementById('mini-player');
+  const body = document.getElementById('mini-player-body');
+  if (!mp || !body) return;
+  if (_vpSrc !== src) {
+    _vpSrc = src;
+    let playSrc = src;
+    if (/youtube\.com\/embed\//.test(src)) playSrc += (src.indexOf('?') >= 0 ? '&' : '?') + 'autoplay=1';
+    body.innerHTML = '<iframe src="' + escAttr(playSrc) + '" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  }
+  mp.classList.add('open');
+  if (!_vpRaf) _vpRaf = requestAnimationFrame(vpTick);
+}
+function vpClose() {
+  _vpSrc = null;
+  if (_vpRaf) { cancelAnimationFrame(_vpRaf); _vpRaf = null; }
+  const mp = document.getElementById('mini-player');
+  if (!mp) return;
+  const body = document.getElementById('mini-player-body');
+  if (body) body.innerHTML = '';
+  mp.classList.remove('open', 'vp-docked');
+  mp.style.cssText = '';
+}
+function vpTick() {
+  if (!_vpSrc) { _vpRaf = null; return; }
+  const mp = document.getElementById('mini-player');
+  const vh = window.innerHeight, vw = window.innerWidth;
+  let target = null;
+  const cands = document.querySelectorAll('.rt-video[data-src]');
+  for (const el of cands) {
+    if (el === mp || el.closest('#mini-player') || el.closest('.ProseMirror')) continue;
+    if (el.getAttribute('data-src') !== _vpSrc || !el.offsetParent) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.bottom > 80 && r.top < vh - 80 && r.right > 0 && r.left < vw) { target = r; break; }
+  }
+  if (target) {
+    mp.classList.add('vp-docked');
+    mp.style.left = Math.round(target.left) + 'px';
+    mp.style.top = Math.round(target.top) + 'px';
+    mp.style.width = Math.round(target.width) + 'px';
+    mp.style.right = 'auto'; mp.style.bottom = 'auto'; mp.style.height = 'auto';
+  } else {
+    mp.classList.remove('vp-docked');
+    mp.style.cssText = '';   // back to the corner (CSS-driven mini position)
+    mp.classList.add('open');
+  }
+  _vpRaf = requestAnimationFrame(vpTick);
 }
 
 // Shared resize NodeView for media (image / video). Aspect ratio is preserved:
@@ -5579,7 +5659,6 @@ function dvSetBase(base) {
 }
 
 function renderDocView() {
-  miniPromoteIfActive();
   const outline = document.getElementById('docview-outline');
   const content = document.getElementById('docview-content');
   const base = docViewBase || 'handbook';
@@ -5934,57 +6013,6 @@ function maintTryPwd() {
 }
 
 /* ══════════════════════════════════════════
-   FLOATING MINI VIDEO PLAYER
-   Navigating to different content while you have a video engaged pops it out to
-   a fixed bottom-right mini-player so it keeps playing. "Engaged" = you clicked
-   into the video iframe (heuristic — covers both YouTube and Google Drive).
-   ══════════════════════════════════════════ */
-let _activeVideoEl = null;     // the .rt-video the user last clicked into (live content)
-let _activeVideoSrc = null;
-
-// A click INTO a video iframe moves focus off the window onto the iframe element.
-window.addEventListener('blur', () => {
-  setTimeout(() => {
-    const ae = document.activeElement;
-    if (!ae || ae.tagName !== 'IFRAME') return;
-    const box = ae.closest('.rt-video');
-    if (!box || box.closest('#mini-player')) return;   // ignore the mini-player's own iframe
-    _activeVideoEl = box;
-    _activeVideoSrc = box.getAttribute('data-src') || ae.getAttribute('src') || '';
-    miniClose();   // starting a new video closes any existing mini-player
-  }, 0);
-});
-
-function miniOpen(src) {
-  if (!src) return;
-  const mp = document.getElementById('mini-player');
-  const body = document.getElementById('mini-player-body');
-  if (!mp || !body) return;
-  let playSrc = src;
-  if (/youtube\.com\/embed\//.test(src)) playSrc += (src.indexOf('?') >= 0 ? '&' : '?') + 'autoplay=1';
-  body.innerHTML = '<iframe src="' + escAttr(playSrc) + '" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>';
-  mp.classList.add('open');
-}
-function miniClose() {
-  const mp = document.getElementById('mini-player');
-  if (!mp) return;
-  const body = document.getElementById('mini-player-body');
-  if (body) body.innerHTML = '';
-  mp.classList.remove('open');
-}
-// Called at the start of every navigation: if a video was engaged in the content
-// we're leaving, pop it to the mini-player and stop the (now-hidden) inline copy.
-function miniPromoteIfActive() {
-  const el = _activeVideoEl, src = _activeVideoSrc;
-  _activeVideoEl = null; _activeVideoSrc = null;
-  if (!el || !src) return;
-  if (!document.body.contains(el) || el.closest('#mini-player')) return;
-  const ifr = el.querySelector('iframe');
-  if (ifr) ifr.src = 'about:blank';   // stop the hidden inline copy (avoids double audio)
-  miniOpen(src);
-}
-
-/* ══════════════════════════════════════════
    KEYBOARD
    ══════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
@@ -6020,7 +6048,7 @@ applyAllSettings();
 renderSidebar();
 renderAnnouncements();
 showHome();
-_rtSetupVideoFallback();   // local-file: swap blocked video embeds for clickable posters
+_rtSetupVideoPlaceholders();   // turn read-only video embeds into click-to-play placeholders (portal player)
 
 // Attempt Firebase init. The GUI is blocked by the maintenance overlay until we
 // confirm a live connection; an admin can skip it. (Per requirement: block the
