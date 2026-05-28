@@ -782,15 +782,6 @@
     color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; padding-left: 4px;
   }
   .rt-video-label { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
-  /* Click-to-play poster (http/https): shows the thumbnail + a play button */
-  .rt-video-poster.rt-video-playable {
-    border: 0; padding: 0; width: 100%; background-size: cover; background-position: center;
-  }
-  .rt-video-poster.rt-video-playable::before {
-    content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.28); transition: background 0.15s;
-  }
-  .rt-video-poster.rt-video-playable:hover::before { background: rgba(0,0,0,0.12); }
-  .rt-video-poster.rt-video-playable .rt-video-play { position: relative; z-index: 1; }
 
   /* ── Toolbar dropdown menu (Table) ── */
   .rt-menu { position: relative; display: inline-flex; }
@@ -865,24 +856,6 @@
   #maint-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
   .maint-pwd-err { font-size: 11.5px; color: #c0392b; min-height: 14px; }
 
-  /* ── Persistent video portal (docks over its placeholder, else floats corner) ── */
-  #mini-player {
-    display: none; position: fixed; right: 18px; bottom: 18px; z-index: 1500;
-    width: 340px; max-width: 44vw; border-radius: 8px; overflow: hidden;
-    background: #000; box-shadow: 0 10px 34px rgba(0,0,0,0.45);
-  }
-  #mini-player.open { display: block; }
-  /* Docked over an in-page placeholder: inline left/top/width are set in JS */
-  #mini-player.vp-docked { max-width: none; box-shadow: none; }
-  #mini-player-body { position: relative; width: 100%; aspect-ratio: 16 / 9; }
-  #mini-player-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-  #mini-player-close {
-    position: absolute; top: 6px; right: 6px; z-index: 2; width: 26px; height: 26px;
-    border: none; border-radius: 50%; background: rgba(0,0,0,0.62); color: #fff;
-    font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s;
-  }
-  #mini-player:hover #mini-player-close { opacity: 1; }
-  #mini-player-close:hover { background: rgba(0,0,0,0.85); }
 
   /* ── LIGHTBOX ── */
   #lightbox-overlay {
@@ -1372,6 +1345,23 @@
     .tm-schedule-row { grid-template-columns: 1fr; }
   }
 
+  /* AI search indexing indicator (corner badge) */
+  #ai-index-indicator {
+    position: fixed; bottom: 14px; right: 14px; z-index: 9000;
+    background: var(--bg-modal); color: var(--text-body);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 14px 6px 12px; font-size: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    display: none; align-items: center; gap: 8px;
+    pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  }
+  #ai-index-indicator.visible { display: inline-flex; opacity: 1; }
+  #ai-index-indicator .ai-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--admin-accent); animation: ai-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes ai-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
   /* Responsive */
   @media (max-width: 760px) {
     #docview-outline { display: none; }
@@ -1829,6 +1819,18 @@
         💡 To rename a sidebar category (Handbook, Quick Links, Projects, custom), click the ✎ pencil that appears next to its label in the sidebar.
       </div>
 
+      <!-- AI search toggle -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">AI Search</div>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="set-aiSearch" style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+          <div style="flex:1">
+            <div style="font-size:13.5px;font-weight:500">Enable AI-powered semantic search</div>
+            <div class="form-hint" style="margin-top:2px">Blends keyword search with a small in-browser AI model (MiniLM, ~25 MB) so users can find entries by meaning, not just exact words. Runs entirely client-side — no API key, no data leaves the browser. Turn off to fall back to pure keyword search.</div>
+          </div>
+        </label>
+      </div>
+
       <!-- Favicon -->
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
         <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Favicon</div>
@@ -1928,11 +1930,6 @@
   </div>
 </div>
 
-<!-- ── Floating mini video player (pops out when navigating away from a playing video) ── -->
-<div id="mini-player">
-  <button id="mini-player-close" title="Close" onclick="vpClose()">✕</button>
-  <div id="mini-player-body"></div>
-</div>
 
 <!-- Rich-text editor engine: a vendored, fully-offline Tiptap bundle built from
      esm.sh. Defines window.__TIPTAP_BUNDLE. If this file is absent, the editor
@@ -2151,6 +2148,7 @@ const DEFAULT_SITE_SETTINGS = {
   quicklinksLabel: 'Quick Links',
   projectsLabel:   'Projects',
   favicon:         '',  // data URL of an .ico file (empty = use browser default)
+  aiSearchEnabled: true, // hybrid AI search (keyword + semantic embeddings). Falls back to keyword-only when off.
   theme: {
     light: { accent: '#b87c00', bg: '#f5f5f3', text: '#0d0d0d', sidebarBg: '#fafaf8' },
     dark:  { accent: '#d4a843', bg: '#161616', text: '#ededeb', sidebarBg: '#111111' }
@@ -2227,6 +2225,14 @@ let PROJECT_ENTRIES = [];   // Project entries (parallel to HANDBOOK)
 let CUSTOM_CATEGORIES = []; // [{ id, label, sections: [{num,title,description}], entries: [...] }]
 let SITE_SETTINGS = null;   // see DEFAULT_SITE_SETTINGS
 let SIDEBAR_CFG = [];
+// ── AI semantic search state (Transformers.js / MiniLM) ──
+// EMBED_VERSION is bumped if the model or the embed-source format ever changes —
+// any entry with a different _embV is re-embedded on next backfill pass.
+const EMBED_VERSION = 1;
+let EMBEDDER = null;          // singleton Transformers.js pipeline (set once load resolves)
+let EMBEDDER_LOADING = null;  // in-flight Promise during model download; null when idle or ready
+let EMBEDDER_FAILED = false;  // sticky flag: load was attempted and failed (keyword-only forever this session)
+let BACKFILL_RUNNING = false; // prevents two backfill passes overlapping (e.g. user search triggers load while initial backfill is queued)
 let ANNOUNCEMENTS = [];
 let SYNONYMS = [];
 let TEAM_DIRECTORY = [];
@@ -2504,7 +2510,7 @@ function loadFromStorage() {
   if (!Array.isArray(HANDBOOK) || HANDBOOK.length === 0) HANDBOOK = clone(DEFAULT_HANDBOOK);
 }
 
-function saveAll(label) {
+function saveAll(label, opts) {
   localStorage.setItem('vl_sections', JSON.stringify(SECTIONS));
   localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
   localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
@@ -2518,7 +2524,7 @@ function saveAll(label) {
   localStorage.setItem('vl_dis',      JSON.stringify([...dismissedAnns]));
   localStorage.setItem('vl_exp',      JSON.stringify([...expandedSections]));
   fbSync(); // push to Firebase if configured
-  showToast(label || 'Changes saved');
+  if (!opts || !opts.silent) showToast(label || 'Changes saved');
 }
 
 function saveSynonymsOnly() {
@@ -2787,6 +2793,7 @@ function updateBreadcrumb() {
 }
 
 function showHome() {
+  pauseInlineVideos();
   currentSectionNum = null; currentEntryId = null;
   setView('home'); updateBreadcrumb();
   renderAnnouncements();
@@ -2814,6 +2821,7 @@ function entryCardHtml(e, base, canEdit) {
 }
 
 function showSection(num, base) {
+  pauseInlineVideos();
   base = base || 'handbook';
   currentBase = base;
   currentSectionNum = String(num); currentEntryId = null;
@@ -2860,6 +2868,7 @@ function showSection(num, base) {
 }
 
 function showEntry(id, base) {
+  pauseInlineVideos();
   base = base || 'handbook';
   // If caller didn't specify base but the id only exists in projects, find it
   if (!findEntry(id, base)) {
@@ -2930,6 +2939,7 @@ let currentCategoryType = null;   // 'kb' or 'links'
 // Show the category overview: a thumbnail card grid of all top-level entries
 // in the given category. catType is 'kb' for sectioned KBs, 'links' for Quick-Links.
 function showCategoryOverview(catId, catType) {
+  pauseInlineVideos();
   currentCategoryId = catId;
   currentCategoryType = catType;
   currentSectionNum = null; currentEntryId = null;
@@ -3019,6 +3029,7 @@ function openSiteSettings() {
   document.getElementById('set-studioName').value      = s.studioName      || '';
   document.getElementById('set-departmentName').value  = s.departmentName  || '';
   document.getElementById('set-heroSub').value         = s.heroSub         || '';
+  document.getElementById('set-aiSearch').checked      = s.aiSearchEnabled !== false;
 
   // Favicon preview + clear button
   _settingsFaviconDraft = s.favicon || '';
@@ -3066,15 +3077,20 @@ let _settingsFaviconDraft = null;
 let _settingsThemeDraft = null;
 
 function saveSiteSettings() {
+  const wasAiOn = SITE_SETTINGS && SITE_SETTINGS.aiSearchEnabled !== false;
+  const aiOn = document.getElementById('set-aiSearch').checked;
   const next = Object.assign({}, SITE_SETTINGS, {
     siteName:        document.getElementById('set-siteName').value.trim()        || DEFAULT_SITE_SETTINGS.siteName,
     studioName:      document.getElementById('set-studioName').value.trim()      || DEFAULT_SITE_SETTINGS.studioName,
     departmentName:  document.getElementById('set-departmentName').value.trim()  || DEFAULT_SITE_SETTINGS.departmentName,
     heroSub:         document.getElementById('set-heroSub').value.trim()         || DEFAULT_SITE_SETTINGS.heroSub,
+    aiSearchEnabled: aiOn,
     favicon:         _settingsFaviconDraft != null ? _settingsFaviconDraft : (SITE_SETTINGS.favicon || ''),
     theme:           _settingsThemeDraft || SITE_SETTINGS.theme || DEFAULT_SITE_SETTINGS.theme
   });
   SITE_SETTINGS = next;
+  // If AI search was just enabled, start indexing in the background.
+  if (!wasAiOn && aiOn) setTimeout(() => runBackfillEmbeddings(), 300);
   // Close before calling functions that might trigger renders
   document.getElementById('settings-modal-overlay').classList.remove('open');
   saveAll('Site settings saved');
@@ -3543,6 +3559,193 @@ function onDropSI(e) {
 }
 
 /* ══════════════════════════════════════════
+   AI SEMANTIC EMBEDDINGS (Transformers.js + MiniLM)
+   ──────────────────────────────────────────
+   Runs entirely in-browser. The model (~25 MB) loads lazily on first
+   semantic search, then is cached by the browser forever. Embeddings
+   are quantized to int8 (~384 B/entry) and stored on the entry itself
+   as `_emb`, so they ride along through localStorage + Firestore sync.
+   ══════════════════════════════════════════ */
+
+// CDN source for the Transformers.js ESM build. Pinned to a major version.
+const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+const EMBEDDING_MODEL  = 'Xenova/all-MiniLM-L6-v2';
+
+function aiSearchOn() {
+  return !!(SITE_SETTINGS && SITE_SETTINGS.aiSearchEnabled !== false) && !EMBEDDER_FAILED;
+}
+
+// Lazy-load the embedding pipeline. Multiple callers safely share one load.
+async function loadEmbedder() {
+  if (EMBEDDER) return EMBEDDER;
+  if (EMBEDDER_FAILED) return null;
+  if (EMBEDDER_LOADING) return EMBEDDER_LOADING;
+  EMBEDDER_LOADING = (async () => {
+    try {
+      // Dynamic ESM import from CDN — first call downloads the wrapper (~few hundred KB),
+      // then the model weights (~25 MB) stream in via .pipeline(). Both are HTTP-cached.
+      const transformers = await import(/* @vite-ignore */ TRANSFORMERS_CDN + '/dist/transformers.min.js');
+      // Disable the local-files-only mode and let it fetch model files from the HF CDN.
+      if (transformers.env) {
+        transformers.env.allowLocalModels = false;
+        transformers.env.useBrowserCache = true;
+      }
+      EMBEDDER = await transformers.pipeline('feature-extraction', EMBEDDING_MODEL, { quantized: true });
+      return EMBEDDER;
+    } catch (err) {
+      console.warn('[AI search] Embedder failed to load — falling back to keyword-only search.', err);
+      EMBEDDER_FAILED = true;
+      return null;
+    } finally {
+      EMBEDDER_LOADING = null;
+    }
+  })();
+  return EMBEDDER_LOADING;
+}
+
+// Plain-text representation of an entry used as the embedding input.
+function entryEmbedSource(entry) {
+  const stripped = stripHtml(entry.content || '');
+  return [
+    entry.title || '',
+    entry.section || '',
+    (entry.keywords || []).join(' '),
+    stripped
+  ].filter(Boolean).join(' \n ');
+}
+
+// Run the model on a string, return a normalized Float32Array (length 384 for MiniLM).
+async function embedText(text) {
+  const pipe = await loadEmbedder();
+  if (!pipe) return null;
+  // pooling:'mean' averages token vectors; normalize:true gives unit-length output so
+  // cosine similarity is just a dot product.
+  const out = await pipe(text, { pooling: 'mean', normalize: true });
+  // `out.data` is a Float32Array view. Copy so it survives outside the tensor's lifetime.
+  return new Float32Array(out.data);
+}
+
+// Both inputs assumed normalized → cosine similarity = dot product, in [-1, 1].
+function cosineSim(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+}
+
+// Int8 quantization: one shared scale per vector. ~4x smaller, <1% quality loss.
+function quantizeEmbedding(f32) {
+  let max = 0;
+  for (let i = 0; i < f32.length; i++) { const v = Math.abs(f32[i]); if (v > max) max = v; }
+  if (max === 0) return { s: 0, q: new Array(f32.length).fill(0) };
+  const scale = max / 127;
+  const q = new Array(f32.length);
+  for (let i = 0; i < f32.length; i++) q[i] = Math.max(-127, Math.min(127, Math.round(f32[i] / scale)));
+  return { s: scale, q };
+}
+function dequantizeEmbedding(stored) {
+  if (!stored || !Array.isArray(stored.q)) return null;
+  const f32 = new Float32Array(stored.q.length);
+  const s = stored.s || 0;
+  for (let i = 0; i < stored.q.length; i++) f32[i] = stored.q[i] * s;
+  return f32;
+}
+
+// Cached dequantized view on each entry. Avoids re-allocating a Float32Array per search.
+function entryEmbeddingVector(entry) {
+  if (!entry || !entry._emb || entry._embV !== EMBED_VERSION) return null;
+  if (!entry.__embCache) entry.__embCache = dequantizeEmbedding(entry._emb);
+  return entry.__embCache;
+}
+
+// Embed an entry and stash the quantized result on it. Used by both
+// save-time embedding and the on-load backfill pass.
+async function computeEntryEmbedding(entry) {
+  const text = entryEmbedSource(entry);
+  if (!text.trim()) return false;
+  const vec = await embedText(text);
+  if (!vec) return false;
+  entry._emb = quantizeEmbedding(vec);
+  entry._embV = EMBED_VERSION;
+  // Invalidate the cached Float32Array so the next search re-reads from the new _emb.
+  entry.__embCache = null;
+  return true;
+}
+
+// Walk every entry across every base and embed the ones that don't yet have a
+// current-version embedding. Processes in small batches yielding to the event loop
+// so the UI stays responsive. Updates a corner badge with progress.
+async function runBackfillEmbeddings() {
+  if (BACKFILL_RUNNING) return;
+  if (!aiSearchOn()) return;
+
+  const todo = [];
+  for (const base of allBaseIds()) {
+    for (const e of entriesOf(base)) {
+      if (!e._emb || e._embV !== EMBED_VERSION) todo.push(e);
+    }
+  }
+  if (!todo.length) return;
+
+  BACKFILL_RUNNING = true;
+  showBackfillIndicator(0, todo.length);
+  // Load the model up front so the first item doesn't pay a misleadingly large cost.
+  const pipe = await loadEmbedder();
+  if (!pipe) { hideBackfillIndicator(); BACKFILL_RUNNING = false; return; }
+
+  const BATCH = 5;
+  let done = 0;
+  for (let i = 0; i < todo.length; i += BATCH) {
+    const batch = todo.slice(i, i + BATCH);
+    for (const entry of batch) {
+      try { await computeEntryEmbedding(entry); } catch (e) { /* skip bad entries */ }
+      done++;
+      showBackfillIndicator(done, todo.length);
+    }
+    // Yield so the page stays interactive between batches.
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Persist all embeddings (localStorage + Firebase) in one go.
+  saveAll('Indexing complete', { silent: true });
+  hideBackfillIndicator();
+  BACKFILL_RUNNING = false;
+}
+
+function showBackfillIndicator(done, total) {
+  let el = document.getElementById('ai-index-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ai-index-indicator';
+    el.innerHTML = '<span class="ai-dot"></span><span class="ai-text"></span>';
+    document.body.appendChild(el);
+  }
+  el.querySelector('.ai-text').textContent = `Indexing for AI search… ${done}/${total}`;
+  el.classList.add('visible');
+}
+function hideBackfillIndicator() {
+  const el = document.getElementById('ai-index-indicator');
+  if (el) el.classList.remove('visible');
+}
+
+// Fire-and-forget embed for a freshly saved entry. Re-checks the entry is still in
+// place with the same source text before writing — if the user edited again mid-embed,
+// the next attachEmbedding call will handle the new state.
+function attachEmbedding(entry, base) {
+  if (!aiSearchOn()) return;
+  const sourceAtStart = entryEmbedSource(entry);
+  computeEntryEmbedding(entry).then(ok => {
+    if (!ok) return;
+    // Verify the entry still exists in its store and content is unchanged.
+    const store = entriesOf(base);
+    const live = store && store.find(e => e.id === entry.id);
+    if (!live || live !== entry) return; // entry was replaced (re-edited) — leave its newer call to handle it
+    if (entryEmbedSource(live) !== sourceAtStart) return; // content drifted — same reasoning
+    saveAll('Entry indexed', { silent: true });
+  });
+}
+
+/* ══════════════════════════════════════════
    SEARCH (synonyms + stemming + bigrams + section fallback)
    ══════════════════════════════════════════ */
 
@@ -3745,16 +3948,48 @@ function scoreEntry(entry, q) {
   return score;
 }
 
-function search(query) {
+async function search(query) {
   if (!query || !query.trim()) return [];
   const q = buildQuery(query);
+
+  // Semantic side: embed the query if AI search is enabled and the model is
+  // ready (or finishes loading before the user's search). If the model isn't
+  // ready yet (first-ever search), we fire off the load and proceed with
+  // keyword-only this round — the next query will get the full hybrid score.
+  let qEmb = null;
+  if (aiSearchOn()) {
+    if (EMBEDDER) {
+      try { qEmb = await embedText(query); } catch (e) { qEmb = null; }
+    } else {
+      // Kick off the load so subsequent searches will benefit.
+      loadEmbedder();
+    }
+  }
+
   // Search across all knowledge bases. Tag results with __base.
   const scoredAll = [];
   for (const base of allBaseIds()) {
     const arr = entriesOf(base);
     for (const e of arr) {
-      const score = scoreEntry(e, q);
-      if (score >= 4) scoredAll.push({ entry: { ...e, __base: base }, score });
+      const kwScore = scoreEntry(e, q);
+      let semScore = 0;
+      if (qEmb) {
+        const eVec = entryEmbeddingVector(e);
+        if (eVec) {
+          // cosineSim ∈ [-1,1]; scale to a 0–100 range that lives alongside keyword scores.
+          // Floor at 0 so dissimilar entries don't actively suppress keyword matches.
+          const sim = cosineSim(qEmb, eVec);
+          semScore = Math.max(0, sim) * 100;
+        }
+      }
+      // Hybrid: take the stronger signal, then add a small bonus when both agree.
+      // This preserves keyword dominance for exact matches (IDs, names) while letting
+      // pure-semantic results surface, and rewards entries where both signals point the same way.
+      const score = Math.max(kwScore, semScore) + Math.min(kwScore, semScore) * 0.15;
+      // Use a slightly higher floor when only the semantic signal contributed —
+      // raw similarity will produce small nonzero scores for everything.
+      const floor = kwScore > 0 ? 4 : 28;
+      if (score >= floor) scoredAll.push({ entry: { ...e, __base: base }, score });
     }
   }
 
@@ -3860,10 +4095,17 @@ function _shouldCloseOverlay(e, overlayId) {
 
 function maybeCloseSearchModal(e) { if (_shouldCloseOverlay(e, 'search-modal-overlay')) closeSearchModal(); }
 
-function performSearchModal() {
+async function performSearchModal() {
   const q = document.getElementById('search-modal-input').value.trim();
-  if (!q) { document.getElementById('results-list').innerHTML = ''; document.getElementById('results-count').textContent = ''; return; }
-  const results = search(q);
+  const list = document.getElementById('results-list');
+  const count = document.getElementById('results-count');
+  if (!q) { list.innerHTML = ''; count.textContent = ''; return; }
+  // First-ever semantic search downloads ~25MB of model — give the user a hint so the wait isn't silent.
+  if (aiSearchOn() && !EMBEDDER && !EMBEDDER_FAILED) {
+    count.textContent = 'Loading AI model (one-time, ~25MB)…';
+    list.innerHTML = '';
+  }
+  const results = await search(q);
   renderSearchResults(q, results);
 }
 
@@ -4074,40 +4316,24 @@ function _rtVideoPoster(src, asLink) {
   el.innerHTML = '<span class="rt-video-play">▶</span><span class="rt-video-label">' + label + '</span>';
   return el;
 }
-function _rtVideoThumb(src) {
-  const m = (src || '').match(/youtube\.com\/embed\/([A-Za-z0-9_-]+)/);
-  return m ? 'https://img.youtube.com/vi/' + m[1] + '/hqdefault.jpg' : '';
-}
-// A click-to-play poster for read-only views (http/https). Clicking it routes the
-// video into the single persistent portal player (vpPlay), which then docks here.
-function _rtVideoPlayPoster(src) {
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'rt-video-poster rt-video-playable';
-  const thumb = _rtVideoThumb(src);
-  if (thumb) el.style.backgroundImage = "url('" + thumb + "')";
-  el.innerHTML = '<span class="rt-video-play">▶</span>';
-  el.addEventListener('click', () => vpPlay(src));
-  return el;
-}
-// Turn read-only video embeds into placeholders. On file:// they're "open on
-// YouTube/Drive" links (embeds are blocked); on http/https they're click-to-play
-// posters that hand the video to the persistent portal player.
-function _rtSetupVideoPlaceholders() {
+// On file:// only, swap the embedded iframe for a clickable "Watch on YouTube/Drive ↗"
+// link (embeds are blocked from a null origin). On http/https videos render normally
+// as the saved inline iframe — nothing to do.
+function _rtSetupVideoFallback() {
+  if (location.protocol !== 'file:') return;
   if (window._rtVideoObs) return;
-  const isFile = location.protocol === 'file:';
   const hydrate = root => {
     if (!root || root.nodeType !== 1) return;
     const list = (root.matches && root.matches('.rt-video[data-video-embed]'))
       ? [root] : (root.querySelectorAll ? root.querySelectorAll('.rt-video[data-video-embed]') : []);
     list.forEach(box => {
-      if (box.closest('.ProseMirror') || box.dataset.rtHy === '1') return;   // editor manages its own
+      if (box.closest('.ProseMirror') || box.dataset.rtHy === '1') return;
       const ifr = box.querySelector('iframe');
       const src = box.getAttribute('data-src') || (ifr ? ifr.getAttribute('src') : '');
       if (!src) return;
       box.dataset.rtHy = '1';
       box.innerHTML = '';
-      box.appendChild(isFile ? _rtVideoPoster(src, true) : _rtVideoPlayPoster(src));
+      box.appendChild(_rtVideoPoster(src, true));
     });
   };
   hydrate(document.body);
@@ -4118,62 +4344,14 @@ function _rtSetupVideoPlaceholders() {
   window._rtVideoObs = obs;
 }
 
-/* ── Persistent video portal ──
-   ONE iframe plays the active video and is never reparented/recreated, so it
-   keeps exact progress. Each frame (rAF) it positions itself: docked over its
-   placeholder (.rt-video[data-src] matching the playing src) while that's on
-   screen, otherwise floating in the bottom-right as a mini-player. Returning to
-   the source page re-creates the placeholder, so the portal simply docks back
-   over it — continuing precisely, for both YouTube and Google Drive. */
-let _vpSrc = null, _vpRaf = null;
-function vpPlay(src) {
-  if (!src) return;
-  const mp = document.getElementById('mini-player');
-  const body = document.getElementById('mini-player-body');
-  if (!mp || !body) return;
-  if (_vpSrc !== src) {
-    _vpSrc = src;
-    let playSrc = src;
-    if (/youtube\.com\/embed\//.test(src)) playSrc += (src.indexOf('?') >= 0 ? '&' : '?') + 'autoplay=1';
-    body.innerHTML = '<iframe src="' + escAttr(playSrc) + '" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>';
-  }
-  mp.classList.add('open');
-  if (!_vpRaf) _vpRaf = requestAnimationFrame(vpTick);
-}
-function vpClose() {
-  _vpSrc = null;
-  if (_vpRaf) { cancelAnimationFrame(_vpRaf); _vpRaf = null; }
-  const mp = document.getElementById('mini-player');
-  if (!mp) return;
-  const body = document.getElementById('mini-player-body');
-  if (body) body.innerHTML = '';
-  mp.classList.remove('open', 'vp-docked');
-  mp.style.cssText = '';
-}
-function vpTick() {
-  if (!_vpSrc) { _vpRaf = null; return; }
-  const mp = document.getElementById('mini-player');
-  const vh = window.innerHeight, vw = window.innerWidth;
-  let target = null;
-  const cands = document.querySelectorAll('.rt-video[data-src]');
-  for (const el of cands) {
-    if (el === mp || el.closest('#mini-player') || el.closest('.ProseMirror')) continue;
-    if (el.getAttribute('data-src') !== _vpSrc || !el.offsetParent) continue;
-    const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.bottom > 80 && r.top < vh - 80 && r.right > 0 && r.left < vw) { target = r; break; }
-  }
-  if (target) {
-    mp.classList.add('vp-docked');
-    mp.style.left = Math.round(target.left) + 'px';
-    mp.style.top = Math.round(target.top) + 'px';
-    mp.style.width = Math.round(target.width) + 'px';
-    mp.style.right = 'auto'; mp.style.bottom = 'auto'; mp.style.height = 'auto';
-  } else {
-    mp.classList.remove('vp-docked');
-    mp.style.cssText = '';   // back to the corner (CSS-driven mini position)
-    mp.classList.add('open');
-  }
-  _vpRaf = requestAnimationFrame(vpTick);
+// Stop any playing read-only video iframes (set src to about:blank). Called when
+// switching to another section/entry so a hidden view's video doesn't keep playing.
+// The view rebuilds its content on return, so a fresh iframe appears (ready to play).
+function pauseInlineVideos() {
+  document.querySelectorAll('.rt-video[data-video-embed] iframe').forEach(ifr => {
+    if (ifr.closest('.ProseMirror')) return;   // skip the editor's live preview iframe
+    if (ifr.src && ifr.src !== 'about:blank') ifr.src = 'about:blank';
+  });
 }
 
 // Shared resize NodeView for media (image / video). Aspect ratio is preserved:
@@ -4761,21 +4939,26 @@ function saveEntry() {
   const keywords = kwRaw.split(',').map(k => k.trim()).filter(Boolean);
   const store = entriesOf(base);
 
+  let savedEntry;
   if (editEntryId) {
     const idx = store.findIndex(e => e.id === editEntryId);
     if (idx === -1) { alert('Entry not found.'); return; }
     if (id !== editEntryId && store.some(e => e.id === id)) {
       alert(`An entry with ID "${id}" already exists.`); return;
     }
-    store[idx] = { id, section: sectionLabel, title, keywords, content };
+    savedEntry = { id, section: sectionLabel, title, keywords, content };
+    store[idx] = savedEntry;
     if (currentEntryId === editEntryId && currentBase === base) currentEntryId = id;
   } else {
     if (store.some(e => e.id === id)) { alert(`An entry with ID "${id}" already exists.`); return; }
-    store.push({ id, section: sectionLabel, title, keywords, content });
+    savedEntry = { id, section: sectionLabel, title, keywords, content };
+    store.push(savedEntry);
   }
 
   closeEntryModal();
   saveAll('Entry saved');
+  // Embed in background; a second silent saveAll persists the embedding when ready.
+  attachEmbedding(savedEntry, base);
   renderSidebar();
   if (currentView === 'entry' && currentEntryId === id && currentBase === base) showEntry(id, base);
   else if (currentView === 'section' && currentBase === base) showSection(currentSectionNum, base);
@@ -5144,6 +5327,8 @@ function importData(e) {
       TEAM_DIRECTORY = data.team || [];
       dismissedAnns = new Set();
       saveAll('Import complete');
+      // Imported entries likely lack current-version embeddings — backfill in the background.
+      setTimeout(() => runBackfillEmbeddings(), 500);
       applyAllSettings(); renderSidebar(); renderAnnouncements(); showHome();
     } catch(err) { alert('Could not parse file: ' + err.message); }
   };
@@ -5649,6 +5834,7 @@ document.addEventListener('click', e => {
    DOCUMENTATION VIEW
    ══════════════════════════════════════════ */
 function showDocView() {
+  pauseInlineVideos();
   if (!isAdminMode) { showToast('Documentation View requires Admin Mode.'); return; }
   setView('docview'); updateBreadcrumb(); renderDocView();
 }
@@ -5790,15 +5976,19 @@ function _dvCommitEntry(base, edId, origId, ctxSection, ctxParent) {
   const store = entriesOf(base);
   const keywords = kwRaw.split(',').map(k => k.trim()).filter(Boolean);
   const sectionLabel = `${sec.num}. ${sec.title}`;
+  let savedEntry;
   if (origId) {
     const idx = store.findIndex(e => e.id === origId);
     if (idx === -1) { alert('Entry not found.'); return; }
-    store[idx] = { id, section: sectionLabel, title, keywords, content };
+    savedEntry = { id, section: sectionLabel, title, keywords, content };
+    store[idx] = savedEntry;
   } else {
     if (store.some(e => e.id === id)) { alert(`An entry with ID "${id}" already exists.`); return; }
-    store.push({ id, section: sectionLabel, title, keywords, content });
+    savedEntry = { id, section: sectionLabel, title, keywords, content };
+    store.push(savedEntry);
   }
   saveAll('Entry saved');
+  attachEmbedding(savedEntry, base);
   renderSidebar();
   renderDocView();
 }
@@ -6048,7 +6238,7 @@ applyAllSettings();
 renderSidebar();
 renderAnnouncements();
 showHome();
-_rtSetupVideoPlaceholders();   // turn read-only video embeds into click-to-play placeholders (portal player)
+_rtSetupVideoFallback();   // local-file: swap blocked video embeds for clickable posters
 
 // Attempt Firebase init. The GUI is blocked by the maintenance overlay until we
 // confirm a live connection; an admin can skip it. (Per requirement: block the
@@ -6064,6 +6254,8 @@ if (fbConfigured()) {
       hideMaintenance();
       renderSidebar(); renderAnnouncements();
       if (_fbDot) { _fbDot.classList.add('connected'); _fbDot.title = 'Connected to shared dashboard'; }
+      // Backfill any entries that don't yet have embeddings (deferred so the boot is snappy).
+      setTimeout(() => runBackfillEmbeddings(), 1500);
     } else {
       showMaintenance('down');
       if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
