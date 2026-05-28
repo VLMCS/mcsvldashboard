@@ -1046,6 +1046,44 @@
   body.dark #save-toast { background: #e8e8e6; color: #111; }
   #save-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
+  /* ── SAVE-STATUS INDICATOR (persistent until write lands) ── */
+  #save-indicator {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #1a1a1a; color: #fff;
+    padding: 6px 12px; border-radius: 14px; font-size: 11.5px;
+    z-index: 9998; opacity: 0; pointer-events: none;
+    transform: translateY(20px);
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+    font-feature-settings: "tnum";
+    display: flex; align-items: center; gap: 6px;
+  }
+  body.dark #save-indicator { background: #e8e8e6; color: #111; }
+  #save-indicator.show { opacity: 1; transform: translateY(0); }
+  #save-indicator.saved { background: #2c7a3e; color: #fff; }
+  body.dark #save-indicator.saved { background: #6cc886; color: #0a0a0a; }
+  #save-indicator .si-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ffcc44; animation: siPulse 1s ease-in-out infinite;
+  }
+  #save-indicator.saved .si-dot { background: currentColor; animation: none; }
+  @keyframes siPulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.85); }
+    50%      { opacity: 1;   transform: scale(1.1);  }
+  }
+
+  /* ── SEARCH-RESULT FLASH HIGHLIGHT ── */
+  @keyframes searchFlash {
+    0%   { background: rgba(255, 220, 80, 0.95); box-shadow: 0 0 0 2px rgba(255, 220, 80, 0.6); }
+    60%  { background: rgba(255, 220, 80, 0.85); box-shadow: 0 0 0 2px rgba(255, 220, 80, 0.4); }
+    100% { background: rgba(255, 220, 80, 0);    box-shadow: 0 0 0 2px rgba(255, 220, 80, 0);   }
+  }
+  mark.search-flash {
+    background: rgba(255, 220, 80, 0.95);
+    color: inherit; border-radius: 2px; padding: 0 1px;
+    animation: searchFlash 2.4s ease-out forwards;
+  }
+  body.dark mark.search-flash { color: #111; }
+
   /* ── BACK-TO-HOME FAB ── */
   #back-to-home-fab {
     position: fixed; bottom: 24px; right: 24px;
@@ -1923,6 +1961,7 @@
 
 <!-- ── TOAST ── -->
 <div id="save-toast">Changes saved</div>
+<div id="save-indicator"><span class="si-dot"></span><span class="si-label">Saving…</span></div>
 
 <!-- ── UNDER MAINTENANCE overlay (blocks the GUI while Firebase is unreachable) ── -->
 <div id="maint-overlay">
@@ -2345,32 +2384,44 @@ async function initFirebase() {
     _fb_onSnapshot = onSnapshot;
     _fb_getDoc = getDoc;
 
+    // If the previous session had unsaved writes pending (refresh happened
+    // before the debounced fbSync fired or before the network round-trip
+    // completed), the local cache is newer than Firestore for those keys.
+    // Skip pulling them down — and re-push them up after we're ready.
+    let pendingKeys = [];
+    try {
+      const raw = localStorage.getItem('vl_pending');
+      if (raw) pendingKeys = JSON.parse(raw) || [];
+    } catch(e) { pendingKeys = []; }
+    const skip = new Set(pendingKeys);
+
     // First load from Firestore (if doc exists, overwrite local; if not, push local up)
     const snap = await getDoc(_fbDoc);
     if (snap.exists()) {
       const remote = snap.data() || {};
-      if (remote.sections)       SECTIONS        = decodeFromFirestore('sections', remote.sections);
-      if (remote.handbook)       HANDBOOK        = decodeFromFirestore('handbook', remote.handbook);
-      if (remote.projects)       PROJECTS        = decodeFromFirestore('projects', remote.projects);
-      if (remote.projectEntries) PROJECT_ENTRIES = decodeFromFirestore('projectEntries', remote.projectEntries);
-      if (remote.customCategories) CUSTOM_CATEGORIES = decodeFromFirestore('customCategories', remote.customCategories);
-      if (remote.settings)       SITE_SETTINGS   = Object.assign({}, DEFAULT_SITE_SETTINGS, decodeFromFirestore('settings', remote.settings));
-      if (remote.sidebar)        SIDEBAR_CFG     = decodeFromFirestore('sidebar', remote.sidebar);
-      if (remote.announcements)  ANNOUNCEMENTS   = decodeFromFirestore('announcements', remote.announcements);
-      if (remote.synonyms)       SYNONYMS        = decodeFromFirestore('synonyms', remote.synonyms);
-      if (remote.team)           TEAM_DIRECTORY  = decodeFromFirestore('team', remote.team);
-      // Persist what we just fetched to localStorage as cache
+      if (remote.sections         && !skip.has('sections'))         SECTIONS          = decodeFromFirestore('sections', remote.sections);
+      if (remote.handbook         && !skip.has('handbook'))         HANDBOOK          = decodeFromFirestore('handbook', remote.handbook);
+      if (remote.projects         && !skip.has('projects'))         PROJECTS          = decodeFromFirestore('projects', remote.projects);
+      if (remote.projectEntries   && !skip.has('projectEntries'))   PROJECT_ENTRIES   = decodeFromFirestore('projectEntries', remote.projectEntries);
+      if (remote.customCategories && !skip.has('customCategories')) CUSTOM_CATEGORIES = decodeFromFirestore('customCategories', remote.customCategories);
+      if (remote.settings         && !skip.has('settings'))         SITE_SETTINGS     = Object.assign({}, DEFAULT_SITE_SETTINGS, decodeFromFirestore('settings', remote.settings));
+      if (remote.sidebar          && !skip.has('sidebar'))          SIDEBAR_CFG       = decodeFromFirestore('sidebar', remote.sidebar);
+      if (remote.announcements    && !skip.has('announcements'))    ANNOUNCEMENTS     = decodeFromFirestore('announcements', remote.announcements);
+      if (remote.synonyms         && !skip.has('synonyms'))         SYNONYMS          = decodeFromFirestore('synonyms', remote.synonyms);
+      if (remote.team             && !skip.has('team'))             TEAM_DIRECTORY    = decodeFromFirestore('team', remote.team);
+      // Persist what we just fetched to localStorage as cache (only for keys
+      // we actually pulled from remote — leaving locally-dirty keys alone).
       try {
-        localStorage.setItem('vl_sections', JSON.stringify(SECTIONS));
-        localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
-        localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
-        localStorage.setItem('vl_pe',       JSON.stringify(PROJECT_ENTRIES));
-        localStorage.setItem('vl_cats',     JSON.stringify(CUSTOM_CATEGORIES));
-        localStorage.setItem('vl_settings', JSON.stringify(SITE_SETTINGS));
-        localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
-        localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
-        localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
-        localStorage.setItem('vl_team',     JSON.stringify(TEAM_DIRECTORY));
+        if (!skip.has('sections'))         localStorage.setItem('vl_sections', JSON.stringify(SECTIONS));
+        if (!skip.has('handbook'))         localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
+        if (!skip.has('projects'))         localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
+        if (!skip.has('projectEntries'))   localStorage.setItem('vl_pe',       JSON.stringify(PROJECT_ENTRIES));
+        if (!skip.has('customCategories')) localStorage.setItem('vl_cats',     JSON.stringify(CUSTOM_CATEGORIES));
+        if (!skip.has('settings'))         localStorage.setItem('vl_settings', JSON.stringify(SITE_SETTINGS));
+        if (!skip.has('sidebar'))          localStorage.setItem('vl_sb',       JSON.stringify(SIDEBAR_CFG));
+        if (!skip.has('announcements'))    localStorage.setItem('vl_ann',      JSON.stringify(ANNOUNCEMENTS));
+        if (!skip.has('synonyms'))         localStorage.setItem('vl_syn',      JSON.stringify(SYNONYMS));
+        if (!skip.has('team'))             localStorage.setItem('vl_team',     JSON.stringify(TEAM_DIRECTORY));
       } catch(e){}
     } else {
       // First-time: seed Firestore from local
@@ -2428,6 +2479,22 @@ async function initFirebase() {
     });
 
     _fbReady = true;
+
+    // Any keys that were locally-dirty when the previous session ended —
+    // push them up now that Firestore is ready. The current in-memory
+    // values came from localStorage (we deliberately did NOT overwrite
+    // them from the remote snapshot above), so this re-publishes them.
+    if (pendingKeys.length) {
+      const valueFor = {
+        sections: SECTIONS, handbook: HANDBOOK, projects: PROJECTS,
+        projectEntries: PROJECT_ENTRIES, customCategories: CUSTOM_CATEGORIES,
+        settings: SITE_SETTINGS, sidebar: SIDEBAR_CFG,
+        announcements: ANNOUNCEMENTS, synonyms: SYNONYMS, team: TEAM_DIRECTORY
+      };
+      for (const k of pendingKeys) {
+        if (k in valueFor) fbSyncKey(k, valueFor[k]);
+      }
+    }
     return true;
   } catch (err) {
     console.error('Firebase init failed:', err);
@@ -2451,9 +2518,62 @@ function fbSync() {
   fbSyncKey('team', TEAM_DIRECTORY);
 }
 
+// Track which keys have edits that haven't yet landed in Firestore. This
+// flag is also mirrored to localStorage so that if the user refreshes
+// before the debounced write fires, the next session can detect that the
+// local cache is newer than Firestore and push it up instead of being
+// overwritten by stale remote data.
+function _markPending(keys) {
+  try {
+    if (keys && keys.length) localStorage.setItem('vl_pending', JSON.stringify(keys));
+    else                     localStorage.removeItem('vl_pending');
+  } catch(e) {}
+  _renderSaveIndicator(keys && keys.length > 0, false);
+}
+
+function _renderSaveIndicator(saving, justSaved) {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  const label = el.querySelector('.si-label');
+  if (saving) {
+    if (label) label.textContent = 'Saving…';
+    el.classList.add('show'); el.classList.remove('saved');
+    clearTimeout(el._t);
+  } else if (justSaved) {
+    if (label) label.textContent = 'Saved';
+    el.classList.add('show', 'saved');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 1500);
+  } else {
+    el.classList.remove('show', 'saved');
+  }
+}
+
+// Fire the queued payload to Firestore right now, bypassing the debounce.
+// Used by the page-unload handler so a refresh can't drop in-flight edits.
+function _fbFlushNow() {
+  if (!_fbReady || !_fb_setDoc) return;
+  if (_fbWriteTimer) { clearTimeout(_fbWriteTimer); _fbWriteTimer = null; }
+  if (!Object.keys(_fbPendingWrite).length) return;
+  const payload = { ..._fbPendingWrite, _updatedAt: Date.now() };
+  _fbPendingWrite = {};
+  _fbWriting = true;
+  // Fire-and-let-the-browser-finish-it: modern browsers keep this fetch in
+  // flight through unload. We don't await; that would block the unload path.
+  try {
+    _fb_setDoc(_fbDoc, payload, { merge: true })
+      .then(() => { _markPending([]); })
+      .catch(err => console.error('Firestore flush failed:', err))
+      .finally(() => { setTimeout(() => { _fbWriting = false; }, 200); });
+  } catch (err) {
+    console.error('Firestore flush threw:', err);
+  }
+}
+
 function fbSyncKey(key, value) {
   if (!_fbReady) return;
   _fbPendingWrite[key] = encodeForFirestore(key, value);
+  _markPending(Object.keys(_fbPendingWrite));
   if (_fbWriteTimer) clearTimeout(_fbWriteTimer);
   _fbWriteTimer = setTimeout(async () => {
     const payload = { ..._fbPendingWrite, _updatedAt: Date.now() };
@@ -2461,8 +2581,14 @@ function fbSyncKey(key, value) {
     _fbWriting = true;
     try {
       await _fb_setDoc(_fbDoc, payload, { merge: true });
+      // Only clear pending if no NEW writes piled on while we were in flight.
+      if (!Object.keys(_fbPendingWrite).length) {
+        _markPending([]);
+        _renderSaveIndicator(false, true);
+      }
     } catch (err) {
       console.error('Firestore write failed:', err);
+      // Leave the pending flag set so the next session knows local is dirty.
     } finally {
       setTimeout(() => { _fbWriting = false; }, 200);
     }
@@ -2878,7 +3004,7 @@ function showSection(num, base) {
   setView('section'); updateBreadcrumb(); renderSidebar();
 }
 
-function showEntry(id, base) {
+function showEntry(id, base, highlightQuery) {
   pauseInlineVideos();
   base = base || 'handbook';
   // If caller didn't specify base but the id only exists in projects, find it
@@ -2897,6 +3023,10 @@ function showEntry(id, base) {
   content.innerHTML = entry.content;
   // Mark images for lightbox
   content.querySelectorAll('img').forEach(img => img.classList.add('entry-img'));
+
+  // If we arrived here from a search result, briefly flash the matched
+  // tokens inside the entry so the user sees *why* it matched.
+  if (highlightQuery) flashSearchMatches(content, highlightQuery, entry.title);
 
   // Show/hide "Edit Entry" button based on access level for this section
   const canEdit = canEditSection(base, currentSectionNum);
@@ -3812,6 +3942,89 @@ function tokenize(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
 }
 
+// Briefly highlight every occurrence of any query token inside `root`,
+// scroll the first hit into view, then auto-remove the highlights so the
+// entry returns to its normal styling. Called when an entry is opened
+// from a search result so the user can see what part of the article
+// matched their query.
+function flashSearchMatches(root, query, titleForFallback) {
+  if (!root || !query) return;
+  // Stop-words we never want to flash (would just create noise).
+  const STOP = new Set(['the','a','an','and','or','of','to','for','in','on','at','by','is','are','be','this','that','with','as','it']);
+  const tokens = tokenize(query).filter(t => t.length >= 2 && !STOP.has(t));
+  if (!tokens.length) return;
+
+  // Build a single regex that matches any token (longest first so multi-
+  // word phrases or longer terms win over shorter substrings).
+  const escaped = tokens
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp('(' + escaped.join('|') + ')', 'gi');
+
+  // Walk text nodes and wrap matches. Skip <script>/<style>/<mark> and
+  // anything inside an existing flash so we never wrap recursively.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const p = node.parentNode;
+      if (!p) return NodeFilter.FILTER_REJECT;
+      const tag = p.nodeName;
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK') return NodeFilter.FILTER_REJECT;
+      if (p.closest && p.closest('mark.search-flash')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const targets = [];
+  while (walker.nextNode()) targets.push(walker.currentNode);
+
+  let firstMark = null;
+  for (const node of targets) {
+    const text = node.nodeValue;
+    re.lastIndex = 0;
+    if (!re.test(text)) continue;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const mark = document.createElement('mark');
+      mark.className = 'search-flash';
+      mark.textContent = m[0];
+      frag.appendChild(mark);
+      if (!firstMark) firstMark = mark;
+      last = m.index + m[0].length;
+      if (m.index === re.lastIndex) re.lastIndex++; // guard against zero-length
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  }
+
+  if (firstMark) {
+    // Defer to give the layout a tick before scrolling.
+    setTimeout(() => {
+      try { firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+    }, 50);
+  } else if (titleForFallback) {
+    // No body match — maybe it was a title/semantic match. Show a small
+    // toast so the user knows we tried.
+    showToast(`Matched on title or related term — no body text to highlight`);
+  }
+
+  // Strip the wrappers after the animation finishes. We use 2.6s to give
+  // the 2.4s CSS animation a small grace period.
+  setTimeout(() => {
+    root.querySelectorAll('mark.search-flash').forEach(el => {
+      const parent = el.parentNode;
+      if (!parent) return;
+      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      parent.removeChild(el);
+      parent.normalize();
+    });
+  }, 2600);
+}
+
 function stemTokens(tokens) { return tokens.map(stem); }
 
 // Build a flat lookup: term → Set of all related terms (by membership in same group)
@@ -4196,6 +4409,11 @@ function resultCardHtml(entry, tokens) {
   const idDisplay = entry.id;
   const base = entry.__base || 'handbook';
   let baseLabel = getCategoryLabel(base).toUpperCase();
+  // The original query the user typed (re-derived from the search input
+  // so we don't have to thread it through every call site). Used to
+  // briefly highlight the matched keywords inside the opened entry.
+  const _q = (document.getElementById('search-modal-input') || {}).value || '';
+  const qAttr = escAttr(_q);
 
   // Quick-Link result — opens the URL (or shows a "coming soon" note if no URL yet)
   if (entry.__link) {
@@ -4225,7 +4443,7 @@ function resultCardHtml(entry, tokens) {
       <span class="result-section-id">${escapeHtml(baseLabel)} · ${escapeHtml(idDisplay)}</span>
       <span class="result-section-title">${escapeHtml(entry.title)}</span>
       <button class="result-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(entry.id)}','${escAttr(base)}')">✎ Edit</button>
-      <button class="result-go-btn" onclick="closeSearchModal();showEntry('${escAttr(entry.id)}','${escAttr(base)}')">Open →</button>
+      <button class="result-go-btn" onclick="closeSearchModal();showEntry('${escAttr(entry.id)}','${escAttr(base)}','${qAttr}')">Open →</button>
     </div>
   </div>`;
 }
@@ -6301,6 +6519,19 @@ if (fbConfigured()) {
   showMaintenance('down');
   if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
 }
+
+// Flush any debounced Firestore writes before the page unloads. Without
+// this, hitting refresh during the 300ms debounce window (or before the
+// network round-trip completes) drops the queued edit on the floor, and
+// the next session re-pulls the stale remote doc — making the just-added
+// entry vanish until the user waits long enough for the write to land.
+function _fbHandleUnload() {
+  if (_fbWriteTimer || Object.keys(_fbPendingWrite).length) {
+    _fbFlushNow();
+  }
+}
+window.addEventListener('pagehide',     _fbHandleUnload);
+window.addEventListener('beforeunload', _fbHandleUnload);
 </script>
 </body>
 </html>
