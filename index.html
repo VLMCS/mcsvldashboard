@@ -1819,16 +1819,26 @@
         💡 To rename a sidebar category (Handbook, Quick Links, Projects, custom), click the ✎ pencil that appears next to its label in the sidebar.
       </div>
 
-      <!-- AI search toggle -->
+      <!-- Search engine toggles -->
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
-        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">AI Search</div>
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Search</div>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="set-kwSearch" style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+          <div style="flex:1">
+            <div style="font-size:13.5px;font-weight:500">Enable keyword-based search</div>
+            <div class="form-hint" style="margin-top:2px">The classic search path: matches titles, keywords, content, and the Synonyms list (with stemming + bigrams). Best for exact terms, IDs, and acronyms. Also covers Quick Links and section descriptions.</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none;margin-top:10px">
           <input type="checkbox" id="set-aiSearch" style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
           <div style="flex:1">
             <div style="font-size:13.5px;font-weight:500">Enable AI-powered semantic search</div>
-            <div class="form-hint" style="margin-top:2px">Blends keyword search with a small in-browser AI model (MiniLM, ~25 MB) so users can find entries by meaning, not just exact words. Runs entirely client-side — no API key, no data leaves the browser. Turn off to fall back to pure keyword search.</div>
+            <div class="form-hint" style="margin-top:2px">Uses a small in-browser AI model (MiniLM, ~25 MB) to find entries by meaning rather than exact words. Runs fully client-side — no API key, no data leaves the browser. When both toggles are on, the two are blended for the best of each.</div>
           </div>
         </label>
+        <div id="search-both-off-warning" style="display:none;margin-top:10px;padding:8px 12px;background:var(--admin-accent-light);border-left:3px solid var(--admin-accent);border-radius:3px;font-size:12px;color:var(--text-body)">
+          ⚠ Both search modes are off — the search box will return no results until at least one is re-enabled.
+        </div>
       </div>
 
       <!-- Favicon -->
@@ -2148,7 +2158,8 @@ const DEFAULT_SITE_SETTINGS = {
   quicklinksLabel: 'Quick Links',
   projectsLabel:   'Projects',
   favicon:         '',  // data URL of an .ico file (empty = use browser default)
-  aiSearchEnabled: true, // hybrid AI search (keyword + semantic embeddings). Falls back to keyword-only when off.
+  keywordSearchEnabled: true, // classic keyword / synonym / stemming search path
+  aiSearchEnabled:      true, // semantic embedding search (Transformers.js MiniLM, in-browser)
   theme: {
     light: { accent: '#b87c00', bg: '#f5f5f3', text: '#0d0d0d', sidebarBg: '#fafaf8' },
     dark:  { accent: '#d4a843', bg: '#161616', text: '#ededeb', sidebarBg: '#111111' }
@@ -3029,7 +3040,17 @@ function openSiteSettings() {
   document.getElementById('set-studioName').value      = s.studioName      || '';
   document.getElementById('set-departmentName').value  = s.departmentName  || '';
   document.getElementById('set-heroSub').value         = s.heroSub         || '';
-  document.getElementById('set-aiSearch').checked      = s.aiSearchEnabled !== false;
+  document.getElementById('set-kwSearch').checked      = s.keywordSearchEnabled !== false;
+  document.getElementById('set-aiSearch').checked      = s.aiSearchEnabled      !== false;
+  // Live warning when both toggles are off
+  const updateBothOffWarning = () => {
+    const kw = document.getElementById('set-kwSearch').checked;
+    const ai = document.getElementById('set-aiSearch').checked;
+    document.getElementById('search-both-off-warning').style.display = (!kw && !ai) ? 'block' : 'none';
+  };
+  document.getElementById('set-kwSearch').onchange = updateBothOffWarning;
+  document.getElementById('set-aiSearch').onchange = updateBothOffWarning;
+  updateBothOffWarning();
 
   // Favicon preview + clear button
   _settingsFaviconDraft = s.favicon || '';
@@ -3079,12 +3100,14 @@ let _settingsThemeDraft = null;
 function saveSiteSettings() {
   const wasAiOn = SITE_SETTINGS && SITE_SETTINGS.aiSearchEnabled !== false;
   const aiOn = document.getElementById('set-aiSearch').checked;
+  const kwOn = document.getElementById('set-kwSearch').checked;
   const next = Object.assign({}, SITE_SETTINGS, {
     siteName:        document.getElementById('set-siteName').value.trim()        || DEFAULT_SITE_SETTINGS.siteName,
     studioName:      document.getElementById('set-studioName').value.trim()      || DEFAULT_SITE_SETTINGS.studioName,
     departmentName:  document.getElementById('set-departmentName').value.trim()  || DEFAULT_SITE_SETTINGS.departmentName,
     heroSub:         document.getElementById('set-heroSub').value.trim()         || DEFAULT_SITE_SETTINGS.heroSub,
-    aiSearchEnabled: aiOn,
+    keywordSearchEnabled: kwOn,
+    aiSearchEnabled:      aiOn,
     favicon:         _settingsFaviconDraft != null ? _settingsFaviconDraft : (SITE_SETTINGS.favicon || ''),
     theme:           _settingsThemeDraft || SITE_SETTINGS.theme || DEFAULT_SITE_SETTINGS.theme
   });
@@ -3574,6 +3597,9 @@ const EMBEDDING_MODEL  = 'Xenova/all-MiniLM-L6-v2';
 function aiSearchOn() {
   return !!(SITE_SETTINGS && SITE_SETTINGS.aiSearchEnabled !== false) && !EMBEDDER_FAILED;
 }
+function keywordSearchOn() {
+  return !!(SITE_SETTINGS && SITE_SETTINGS.keywordSearchEnabled !== false);
+}
 
 // Lazy-load the embedding pipeline. Multiple callers safely share one load.
 async function loadEmbedder() {
@@ -3952,26 +3978,30 @@ async function search(query) {
   if (!query || !query.trim()) return [];
   const q = buildQuery(query);
 
-  // Semantic side: embed the query if AI search is enabled and the model is
-  // ready (or finishes loading before the user's search). If the model isn't
-  // ready yet (first-ever search), we fire off the load and proceed with
-  // keyword-only this round — the next query will get the full hybrid score.
+  const kwOn = keywordSearchOn();
+
+  // Semantic side: embed the query if AI search is enabled. Two cases:
+  //  • Both modes on (default): if the model isn't loaded yet, kick off the load
+  //    in the background and return keyword-only results this round — the user
+  //    sees something immediately and gets the full hybrid score next time.
+  //  • Keyword off, AI on: we MUST await the model load, because there's no
+  //    other path to results. The caller already shows a "loading model" hint.
   let qEmb = null;
   if (aiSearchOn()) {
     if (EMBEDDER) {
       try { qEmb = await embedText(query); } catch (e) { qEmb = null; }
+    } else if (!kwOn) {
+      try { qEmb = await embedText(query); } catch (e) { qEmb = null; }
     } else {
-      // Kick off the load so subsequent searches will benefit.
-      loadEmbedder();
+      loadEmbedder(); // background warmup for the next query
     }
   }
-
   // Search across all knowledge bases. Tag results with __base.
   const scoredAll = [];
   for (const base of allBaseIds()) {
     const arr = entriesOf(base);
     for (const e of arr) {
-      const kwScore = scoreEntry(e, q);
+      const kwScore = kwOn ? scoreEntry(e, q) : 0;
       let semScore = 0;
       if (qEmb) {
         const eVec = entryEmbeddingVector(e);
@@ -3995,30 +4025,34 @@ async function search(query) {
 
   // Also search Quick Links–style link items (SIDEBAR_CFG). These are links, not
   // content entries, so we score a synthetic entry built from the link text + URL.
-  for (const section of (SIDEBAR_CFG || [])) {
-    if (!section || !Array.isArray(section.items)) continue;
-    for (const item of section.items) {
-      if (!item || !item.id || item.visible === false) continue;
-      const synthetic = {
-        title: item.text || '',
-        section: getCategoryLabel(section.id),
-        keywords: [],
-        content: item.href || ''
-      };
-      const score = scoreEntry(synthetic, q);
-      if (score >= 4) {
-        scoredAll.push({
-          entry: {
-            __link: true,
-            sectionId: section.id,
-            itemId: item.id,
-            id: item.id,
-            title: item.text || '(untitled link)',
-            href: item.href || null,
-            __base: section.id
-          },
-          score
-        });
+  // Quick Links have no content to embed semantically, so they're skipped entirely
+  // when keyword search is off.
+  if (kwOn) {
+    for (const section of (SIDEBAR_CFG || [])) {
+      if (!section || !Array.isArray(section.items)) continue;
+      for (const item of section.items) {
+        if (!item || !item.id || item.visible === false) continue;
+        const synthetic = {
+          title: item.text || '',
+          section: getCategoryLabel(section.id),
+          keywords: [],
+          content: item.href || ''
+        };
+        const score = scoreEntry(synthetic, q);
+        if (score >= 4) {
+          scoredAll.push({
+            entry: {
+              __link: true,
+              sectionId: section.id,
+              itemId: item.id,
+              id: item.id,
+              title: item.text || '(untitled link)',
+              href: item.href || null,
+              __base: section.id
+            },
+            score
+          });
+        }
       }
     }
   }
@@ -4027,7 +4061,8 @@ async function search(query) {
   let results = scoredAll.map(r => r.entry);
 
   // ─── SECTION-LEVEL FALLBACK ───
-  if (results.length < 2) {
+  // Pure keyword path; section descriptions aren't embedded, so skip when kw is off.
+  if (kwOn && results.length < 2) {
     const sectionResults = [];
     const scanSections = (arr, base) => {
       for (const sec of arr) {
