@@ -3026,7 +3026,7 @@ function showEntry(id, base, highlightQuery) {
 
   // If we arrived here from a search result, briefly flash the matched
   // tokens inside the entry so the user sees *why* it matched.
-  if (highlightQuery) flashSearchMatches(content, highlightQuery, entry.title);
+  if (highlightQuery) flashSearchMatches(content, highlightQuery);
 
   // Show/hide "Edit Entry" button based on access level for this section
   const canEdit = canEditSection(base, currentSectionNum);
@@ -3946,8 +3946,10 @@ function tokenize(s) {
 // scroll the first hit into view, then auto-remove the highlights so the
 // entry returns to its normal styling. Called when an entry is opened
 // from a search result so the user can see what part of the article
-// matched their query.
-function flashSearchMatches(root, query, titleForFallback) {
+// matched their query. If no body match is found, falls back to
+// flashing the entry title (which is the most likely thing that matched
+// when the body has no literal token hit).
+function flashSearchMatches(root, query) {
   if (!root || !query) return;
   // Stop-words we never want to flash (would just create noise).
   const STOP = new Set(['the','a','an','and','or','of','to','for','in','on','at','by','is','are','be','this','that','with','as','it']);
@@ -3962,65 +3964,76 @@ function flashSearchMatches(root, query, titleForFallback) {
     .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const re = new RegExp('(' + escaped.join('|') + ')', 'gi');
 
-  // Walk text nodes and wrap matches. Skip <script>/<style>/<mark> and
-  // anything inside an existing flash so we never wrap recursively.
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      const p = node.parentNode;
-      if (!p) return NodeFilter.FILTER_REJECT;
-      const tag = p.nodeName;
-      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK') return NodeFilter.FILTER_REJECT;
-      if (p.closest && p.closest('mark.search-flash')) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
+  // Wrap all matches inside `node`, returning the first <mark> created
+  // (or null if nothing matched). Skips <script>/<style>/<mark> and
+  // never wraps inside an existing flash mark.
+  function wrapMatches(node) {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const p = n.parentNode;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        const tag = p.nodeName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK') return NodeFilter.FILTER_REJECT;
+        if (p.closest && p.closest('mark.search-flash')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const targets = [];
+    while (walker.nextNode()) targets.push(walker.currentNode);
+    let first = null;
+    for (const tn of targets) {
+      const text = tn.nodeValue;
+      re.lastIndex = 0;
+      if (!re.test(text)) continue;
+      re.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'search-flash';
+        mark.textContent = m[0];
+        frag.appendChild(mark);
+        if (!first) first = mark;
+        last = m.index + m[0].length;
+        if (m.index === re.lastIndex) re.lastIndex++;
+      }
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      tn.parentNode.replaceChild(frag, tn);
     }
-  });
-  const targets = [];
-  while (walker.nextNode()) targets.push(walker.currentNode);
+    return first;
+  }
 
-  let firstMark = null;
-  for (const node of targets) {
-    const text = node.nodeValue;
-    re.lastIndex = 0;
-    if (!re.test(text)) continue;
-    re.lastIndex = 0;
-    const frag = document.createDocumentFragment();
-    let last = 0;
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const mark = document.createElement('mark');
-      mark.className = 'search-flash';
-      mark.textContent = m[0];
-      frag.appendChild(mark);
-      if (!firstMark) firstMark = mark;
-      last = m.index + m[0].length;
-      if (m.index === re.lastIndex) re.lastIndex++; // guard against zero-length
-    }
-    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-    node.parentNode.replaceChild(frag, node);
+  let firstMark = wrapMatches(root);
+
+  // No body match? The hit was probably on the title (or a synonym/
+  // semantic match). Flash the title element itself instead.
+  const titleEl = document.getElementById('ev-title');
+  const cleanupRoots = [root];
+  if (!firstMark && titleEl) {
+    const titleMark = wrapMatches(titleEl);
+    if (titleMark) { firstMark = titleMark; cleanupRoots.push(titleEl); }
   }
 
   if (firstMark) {
-    // Defer to give the layout a tick before scrolling.
     setTimeout(() => {
       try { firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
     }, 50);
-  } else if (titleForFallback) {
-    // No body match — maybe it was a title/semantic match. Show a small
-    // toast so the user knows we tried.
-    showToast(`Matched on title or related term — no body text to highlight`);
   }
 
-  // Strip the wrappers after the animation finishes. We use 2.6s to give
-  // the 2.4s CSS animation a small grace period.
+  // Strip the wrappers after the animation finishes. 2.6s gives the
+  // 2.4s CSS animation a small grace period.
   setTimeout(() => {
-    root.querySelectorAll('mark.search-flash').forEach(el => {
-      const parent = el.parentNode;
-      if (!parent) return;
-      while (el.firstChild) parent.insertBefore(el.firstChild, el);
-      parent.removeChild(el);
-      parent.normalize();
+    cleanupRoots.forEach(r => {
+      r.querySelectorAll('mark.search-flash').forEach(el => {
+        const parent = el.parentNode;
+        if (!parent) return;
+        while (el.firstChild) parent.insertBefore(el.firstChild, el);
+        parent.removeChild(el);
+        parent.normalize();
+      });
     });
   }, 2600);
 }
