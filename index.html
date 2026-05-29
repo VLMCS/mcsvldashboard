@@ -393,7 +393,20 @@
     background: var(--bg-card-head); position: relative;
   }
   .section-card:hover { border-color: var(--black); transform: translateY(-1px); }
-  .section-card-id { font-size: 10.5px; color: var(--mid); font-weight: 600; letter-spacing: 0.1em; margin-bottom: 4px; }
+  /* The id row is a two-column flex line so the section number sits at the
+     start and the entry count is pinned at the end. Splitting them prevents
+     "1 · 2 entries" from reading like a decimal section number ("1.2"). */
+  .section-card-id {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    font-size: 10.5px; color: var(--mid); font-weight: 600; letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    /* Leave room on the right for the absolutely-positioned ✎ admin button
+       that floats in on hover (top:6px right:6px) so the entry-count text
+       doesn't sit underneath it. */
+    padding-right: 22px;
+  }
+  .section-card-num     { flex-shrink: 0; }
+  .section-card-entries { flex-shrink: 0; opacity: 0.8; font-weight: 500; letter-spacing: 0.04em; }
   .section-card-title { font-size: 14px; font-weight: 600; color: var(--black); line-height: 1.35; }
   /* .section-card-actions and .add-card visibility is controlled by JS
      (only rendered into the DOM when the user has edit access — admin
@@ -3419,7 +3432,10 @@ function showCategoryOverview(catId, catType) {
       const descText = stripHtml(sec.description || '');
       const excerpt = descText.length > 130 ? descText.substring(0, 130) + '…' : descText;
       return `<div class="section-card" onclick="showSection('${escJsAttr(sec.num)}','${escJsAttr(catId)}')">
-        <div class="section-card-id">${escapeHtml(sec.num)} · ${childCount} ${childCount === 1 ? 'entry' : 'entries'}</div>
+        <div class="section-card-id">
+          <span class="section-card-num">${escapeHtml(sec.num)}</span>
+          <span class="section-card-entries">${childCount} ${childCount === 1 ? 'entry' : 'entries'}</span>
+        </div>
         <div class="section-card-title">${escapeHtml(sec.title)}</div>
         ${excerpt ? `<div style="font-size:12px;color:var(--mid);margin-top:6px;line-height:1.45">${escapeHtml(excerpt)}</div>` : ''}
         ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSectionEditor('${escJsAttr(sec.num)}','${escJsAttr(catId)}')" title="Edit">✎</button></div>` : ''}
