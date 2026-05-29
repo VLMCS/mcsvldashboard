@@ -7339,9 +7339,10 @@ function hideLogin() {
   setTimeout(() => { o.classList.remove('open'); o.classList.remove('fading-out'); }, 460);
 }
 
-function loginTry() {
+async function loginTry() {
   const inp = document.getElementById('login-pwd');
   const err = document.getElementById('login-err');
+  const submitBtn = document.getElementById('login-submit');
   const remember = !!document.getElementById('login-remember').checked;
   const raw = (inp.value || '').trim();
   if (!raw) {
@@ -7350,16 +7351,12 @@ function loginTry() {
   }
 
   // 1) Admin password — bypass without attaching a specific user identity.
-  //    (Per spec: when someone doesn't have a passkey yet, the admin password
-  //    overrides the login screen, same password used elsewhere for admin.)
+  //    No Firebase dependency, no team-directory lookup; just unlock & flag.
   if (raw === ADMIN_PW) {
-    // Don't persist admin-bypass to localStorage — admin should re-auth each
-    // session intentionally (and exitAdminMode shouldn't kick them to login).
     currentUser = null;
     currentUserPersistent = false;
     try { localStorage.removeItem(LOGIN_KEY); } catch(e){}
     try { sessionStorage.removeItem(LOGIN_KEY); } catch(e){}
-    // Auto-enter admin mode so they don't have to click the lock afterwards.
     isAdminMode = true;
     document.body.classList.add('admin-mode');
     _swapAdminIcons(true);
@@ -7367,17 +7364,39 @@ function loginTry() {
     return;
   }
 
-  // 2) Team-member passkey
-  const member = _findMemberByPasskey(raw);
+  // 2) Team-member passkey — first try local cache (fast path).
+  let member = _findMemberByPasskey(raw);
+
+  // 2a) If the local cache misses but Firebase is still loading, wait for
+  //     it before declaring the passkey invalid. This is what makes cross-
+  //     browser logins work: a profile created in Opera lives on Firebase,
+  //     not yet in this Chrome's localStorage — so we MUST give the remote
+  //     pull a chance to complete before saying "incorrect passkey."
+  if (!member && _fbInitResult === null) {
+    const origText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Syncing with team…';
+    err.textContent = '';
+    try { await _fbInitPromise; } catch(e) {}
+    submitBtn.disabled = false;
+    submitBtn.textContent = origText;
+    member = _findMemberByPasskey(raw);
+  }
+
   if (member) {
     setCurrentUser(member, remember);
     _bootProceedAfterLogin({ slackName: member.slackName || member.realName || '', isAdmin: false });
     return;
   }
 
-  // 3) Anything else — shake + error message
+  // 3) Failed — distinguish "couldn't reach server" from "wrong code" so the
+  //    user knows whether to retry the code or check their connection.
   inp.classList.add('error');
-  err.textContent = 'Incorrect passkey. Try again, or use the admin password.';
+  if (_fbInitResult === false) {
+    err.textContent = "Couldn't reach the team server. Check your connection, or use the admin password.";
+  } else {
+    err.textContent = 'Incorrect passkey. Try again, or use the admin password.';
+  }
   inp.value = '';
   setTimeout(() => inp.classList.remove('error'), 400);
   inp.focus();
@@ -7459,12 +7478,21 @@ document.addEventListener('keydown', e => {
    INIT
    The boot sequence is now:
      1. loadFromStorage()                    — populates SITE_SETTINGS / TEAM_DIRECTORY etc.
-     2. Apply theme + render sidebar offscreen (so the dashboard exists in the DOM
-        but the user can't interact with it — the login overlay sits on top).
-     3. If a valid currentUser is restored from storage → skip login, jump
-        straight to _runMainBootstrap(). Otherwise show the login screen.
-     4. After login (or instant resume) → _runMainBootstrap() handles the
-        maintenance/loading overlay + Firebase init + final renders.
+     2. Apply theme + render sidebar (login overlay sits on top).
+     3. _startFirebaseInBackground()         — kicks off Firebase init NON-BLOCKINGLY.
+        Why up here instead of after login: a fresh browser (e.g. you created
+        your profile in Opera, then opened Chrome) has no cached TEAM_DIRECTORY
+        in localStorage, so the login passkey lookup would miss every time.
+        Pre-fetching the remote team data in parallel with showing the login
+        screen fixes that — by the time the user types their code, the
+        directory is available. Refreshes also no longer flash a blocking
+        "LOADING…" overlay; the maintenance overlay only appears if Firebase
+        actually fails for an extended period.
+     4. Decide login vs resume:
+          - Session restored from sessionStorage → just paint the dashboard.
+          - Otherwise                            → show the login screen.
+     5. loginTry awaits the Firebase fetch when the local lookup misses, so
+        cross-browser logins always see the latest team list.
    ══════════════════════════════════════════ */
 loadFromStorage();
 if (sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');
@@ -7475,51 +7503,90 @@ renderAnnouncements();
 showHome();
 _rtSetupVideoFallback();   // local-file: swap blocked video embeds for clickable posters
 
-// Decide login vs resume. If the user clicked "Stay signed in" last time and
-// the stored member still exists with the same passkey, we restore the
-// session silently and skip both the login screen and the welcome fade —
-// refreshes shouldn't feel like a re-login.
+// Background Firebase pre-fetch — sets _fbInitPromise / _fbInitResult so
+// loginTry can await it. Surfaces status via the #fb-status-dot in the
+// sidebar; only escalates to the blocking "LOADING…" maintenance overlay
+// on hard failure (after a grace period) or hang (12s timeout).
+let _fbInitPromise = null;
+let _fbInitResult  = null;  // null = pending, true = ok, false = failed
+function _startFirebaseInBackground() {
+  if (_fbInitPromise) return _fbInitPromise;
+
+  const _fbDot = document.getElementById('fb-status-dot');
+  if (_fbDot) {
+    _fbDot.classList.remove('connected', 'offline');
+    _fbDot.title = 'Connecting to shared dashboard…';
+  }
+
+  if (!fbConfigured()) {
+    _fbInitResult = false;
+    if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
+    // Surface the "down" overlay shortly after boot so the user understands
+    // why nothing is syncing — but don't BLOCK the page on it.
+    setTimeout(() => { if (_fbInitResult === false && !_maintBypassed) showMaintenance('down'); }, 4000);
+    _fbInitPromise = Promise.resolve(false);
+    return _fbInitPromise;
+  }
+
+  _fbInitPromise = initFirebase().then(ok => {
+    _fbInitResult = !!ok;
+    if (ok) {
+      // Hide the maintenance overlay if it had been escalated.
+      hideMaintenance();
+      // Repaint anything that may have changed from the remote pull —
+      // sidebar (entries / projects / sections), announcements, and the
+      // sign-out chip (slack name may have been edited remotely).
+      renderSidebar();
+      renderAnnouncements();
+      _renderSignOutChip();
+      if (_fbDot) { _fbDot.classList.add('connected'); _fbDot.title = 'Connected to shared dashboard'; }
+      // Backfill any entries missing embeddings, deferred so boot stays snappy.
+      setTimeout(() => runBackfillEmbeddings(), 1500);
+    } else {
+      if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
+      // Give the user a moment with whatever local data we have, then surface
+      // the down overlay so it's clear something's wrong. Admin can bypass.
+      setTimeout(() => { if (_fbInitResult === false && !_maintBypassed) showMaintenance('down'); }, 6000);
+    }
+    return ok;
+  }).catch(e => {
+    _fbInitResult = false;
+    if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Firebase init error.'; }
+    return false;
+  });
+
+  // Hard hang: if neither path settles in 12s, escalate to the overlay so
+  // the user has the admin-bypass affordance and isn't staring at a dead UI.
+  setTimeout(() => {
+    if (_fbInitResult === null && !_maintBypassed) showMaintenance('down');
+  }, 12000);
+
+  return _fbInitPromise;
+}
+
+// Kick off Firebase NOW — non-blocking. The login screen will show
+// immediately on top while this loads in the background.
+_startFirebaseInBackground();
+
+// Decide login vs resume. sessionStorage-scoped session: same tab refresh
+// keeps the session; closing the browser ends it (per "Stay signed in for
+// this session").
 const _restored = loadCurrentUser();
 if (_restored) {
   _renderSignOutChip();
-  _runMainBootstrap();
+  // No login overlay, no welcome fade — straight to the dashboard. Firebase
+  // is loading in the background; the status dot reflects connection state.
 } else {
-  // First-time visitor (or session expired / member deleted / passkey rotated).
   showLogin();
 }
 
-// The Firebase + maintenance bootstrap is wrapped so it runs ONLY after the
-// login gate is passed. Pulling Firebase data before login would be wasteful
-// (and would briefly show team data on screen before the login overlay paints
-// on some browsers).
-let _mainBootstrapRan = false;
+// Kept as a stub for the post-login welcome handoff (called from
+// _bootProceedAfterLogin). Firebase already started; just refresh chrome
+// in case the post-login state needs a final render.
 function _runMainBootstrap() {
-  if (_mainBootstrapRan) return;
-  _mainBootstrapRan = true;
-
-  const _fbDot = document.getElementById('fb-status-dot');
-  if (fbConfigured()) {
-    showMaintenance('connecting');
-    let _fbSettled = false;
-    const _fbTimeout = setTimeout(() => { if (!_fbSettled) showMaintenance('down'); }, 12000);
-    initFirebase().then(ok => {
-      _fbSettled = true; clearTimeout(_fbTimeout);
-      if (ok) {
-        hideMaintenance();
-        renderSidebar(); renderAnnouncements();
-        _renderSignOutChip();  // slack name may have refreshed from remote
-        if (_fbDot) { _fbDot.classList.add('connected'); _fbDot.title = 'Connected to shared dashboard'; }
-        setTimeout(() => runBackfillEmbeddings(), 1500);
-      } else {
-        showMaintenance('down');
-        if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
-      }
-    });
-  } else {
-    // Not configured → treat as not connected and block the GUI.
-    showMaintenance('down');
-    if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
-  }
+  renderSidebar();
+  renderAnnouncements();
+  _renderSignOutChip();
 }
 
 // Flush any debounced Firestore writes before the page unloads. Without
