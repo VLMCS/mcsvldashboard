@@ -856,6 +856,160 @@
   #maint-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
   .maint-pwd-err { font-size: 11.5px; color: #c0392b; min-height: 14px; }
 
+  /* ── LOGIN overlay (passkey gate before the dashboard loads) ── */
+  /* Sits ABOVE the maintenance overlay (z-index 100000 > 99999). On load it
+     covers the whole page until the user enters a valid team-member passkey
+     OR the admin password. Successful login → welcome fade → maintenance/
+     loading overlay → home. */
+  #login-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100000;
+    background: var(--white); color: var(--black);
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 28px;
+  }
+  #login-overlay.open { display: flex; }
+  #login-overlay.fading-out { animation: login-fadeout 0.45s ease forwards; }
+  @keyframes login-fadeout { to { opacity: 0; pointer-events: none; } }
+  .login-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    max-width: 380px; width: 100%;
+  }
+  .login-logo {
+    font-size: 30px; font-weight: 800; letter-spacing: 0.04em;
+    color: var(--text-body); margin-bottom: 0;
+  }
+  .login-sub-logo { font-size: 13px; color: var(--mid); margin-top: -6px; letter-spacing: 0.06em; }
+  .login-title { font-size: 14px; color: var(--mid); margin-top: 12px; }
+  #login-pwd {
+    width: 240px; padding: 11px 14px; font-family: 'Consolas','Courier New',monospace;
+    font-size: 16px; letter-spacing: 0.18em; text-align: center; text-transform: uppercase;
+    border: 1.5px solid var(--border); border-radius: 6px;
+    background: var(--bg-form-input); color: var(--black); outline: none;
+  }
+  #login-pwd:focus { border-color: var(--admin-accent); }
+  #login-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
+  .login-err { font-size: 12px; color: #c0392b; min-height: 16px; }
+  .login-remember {
+    display: flex; align-items: center; gap: 6px; font-size: 12px;
+    color: var(--mid); user-select: none; cursor: pointer;
+  }
+  .login-remember input { cursor: pointer; }
+  .login-helper {
+    font-size: 11.5px; color: var(--mid); max-width: 320px; line-height: 1.5;
+    margin-top: 4px; font-style: italic;
+  }
+  #login-submit { width: 240px; }
+
+  /* ── WELCOME fade (post-login, pre-maintenance) ── */
+  #welcome-overlay {
+    display: none; position: fixed; inset: 0; z-index: 99998;
+    background: var(--white); color: var(--black);
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; opacity: 0; pointer-events: none;
+  }
+  #welcome-overlay.open { display: flex; animation: welcome-cycle 1.7s ease forwards; }
+  @keyframes welcome-cycle {
+    0%   { opacity: 0; }
+    20%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .welcome-msg {
+    font-size: 32px; font-weight: 800; letter-spacing: 0.02em;
+    color: var(--text-body);
+  }
+  .welcome-sub { font-size: 13px; color: var(--mid); margin-top: 8px; letter-spacing: 0.06em; }
+
+  /* ── CUSTOM ALERT / CONFIRM / PROMPT — top-of-stack overlay ── */
+  /* Custom-modal must sit ABOVE every other modal in the app (team directory,
+     tm-detail, admin modals, etc.) so a confirm/alert/prompt is never hidden
+     behind whatever modal triggered it. Below the login + maintenance + new-
+     passkey overlays, which are full-screen blockers higher up the stack. */
+  #custom-modal-overlay { z-index: 50000 !important; }
+
+  /* All Passkeys admin lookup modal: bumped above tm-detail (2600) and team
+     (2500) so even if it ever co-exists with them it appears in front. */
+  #pk-modal-overlay { z-index: 3000 !important; }
+
+  /* ── ALL PASSKEYS admin modal ── */
+  .pk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pk-table th, .pk-table td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle;
+  }
+  .pk-table th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--mid); background: var(--bg-card-head); position: sticky; top: 0;
+  }
+  .pk-table tr:hover td { background: var(--hover-bg); }
+  .pk-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--bg-card-head); }
+  .pk-code {
+    font-family: 'Consolas','Courier New',monospace; letter-spacing: 0.14em;
+    background: var(--bg-form-input); padding: 4px 8px; border-radius: 4px;
+    border: 1px solid var(--border); user-select: all;
+  }
+  .pk-actions { display: flex; gap: 6px; }
+  .pk-mini-btn {
+    padding: 4px 8px; font-size: 11.5px; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--bg-card-head);
+    color: var(--text-body); cursor: pointer;
+  }
+  .pk-mini-btn:hover { background: var(--hover-bg); }
+  .pk-mini-btn.danger { color: #c0392b; border-color: #e0b0ac; }
+  .pk-mini-btn.danger:hover { background: #fdf0f0; }
+  body.dark .pk-mini-btn.danger:hover { background: #2a0a0a; }
+  .pk-search-row {
+    display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
+  }
+  .pk-search-row .form-input { flex: 1; }
+  .pk-empty { padding: 20px; text-align: center; color: var(--mid); font-style: italic; }
+
+  /* ── NEW PROFILE — passkey notice (one-time at creation) ── */
+  /* Layered above the team detail modal so it appears AFTER profile save, on
+     top of everything else. The user must acknowledge before dismissing. */
+  #new-pk-overlay {
+    display: none; position: fixed; inset: 0; z-index: 12000;
+    background: rgba(20,20,25,0.55); align-items: center; justify-content: center; padding: 24px;
+  }
+  #new-pk-overlay.open { display: flex; }
+  .new-pk-card {
+    background: var(--bg-modal); color: var(--text-body);
+    border-radius: 10px; max-width: 460px; width: 100%;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    border: 2px solid var(--admin-accent);
+    padding: 22px 24px 20px;
+    text-align: center;
+  }
+  .new-pk-title {
+    font-size: 20px; font-weight: 800; letter-spacing: 0.02em;
+    color: var(--admin-accent); margin-bottom: 8px;
+  }
+  .new-pk-intro { font-size: 13px; line-height: 1.5; margin-bottom: 6px; }
+  .new-pk-warn {
+    font-size: 12px; color: var(--mid); line-height: 1.5;
+    background: var(--admin-accent-light); padding: 8px 10px; border-radius: 5px;
+    margin: 10px 0 14px;
+  }
+  .new-pk-code {
+    font-family: 'Consolas','Courier New',monospace; font-size: 26px;
+    letter-spacing: 0.22em; text-align: center; padding: 12px 8px;
+    background: var(--bg-form-input); color: var(--black);
+    border: 1.5px solid var(--border); border-radius: 6px;
+    user-select: all; -webkit-user-select: all;
+  }
+  .new-pk-actions { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+
+  /* ── Sign-out chip (visible whenever a user is logged in) ── */
+  #signout-chip {
+    display: none; align-items: center; gap: 6px;
+    padding: 4px 9px; border-radius: 999px; cursor: pointer;
+    font-size: 11.5px; color: var(--mid); border: 1px solid var(--border);
+    background: var(--bg-card-head); transition: background 0.12s, border-color 0.12s, color 0.12s;
+    user-select: none; white-space: nowrap; max-width: 100%; overflow: hidden;
+  }
+  #signout-chip.visible { display: inline-flex; }
+  #signout-chip:hover { color: #c0392b; border-color: #c0392b; }
+  #signout-chip .so-name { font-weight: 600; color: var(--text-body); text-overflow: ellipsis; overflow: hidden; }
+  #signout-chip:hover .so-name { color: #c0392b; }
 
   /* ── LIGHTBOX ── */
   #lightbox-overlay {
@@ -1473,6 +1627,10 @@
       Search
       <span class="search-shortcut">/</span>
     </button>
+    <!-- Sign-out chip: visible whenever a user is logged in via passkey. Shown
+         to the left of the admin lock button so the current identity (and the
+         way out) is always reachable from the top bar. -->
+    <div id="signout-chip" onclick="signOut()" title="Sign out of this account"></div>
     <button id="admin-btn" onclick="openAdminAuth()" title="Admin Mode">
       <svg id="admin-icon-locked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -1766,6 +1924,7 @@
         Team Directory
       </div>
       <div id="team-modal-actions">
+        <button class="btn btn-admin" id="team-passkeys-btn" onclick="openAllPasskeys()" style="display:none">🔑 All Passkeys</button>
         <button class="btn btn-primary" onclick="openNewTeamMember()">＋ Add Team Member</button>
         <button class="btn btn-secondary" onclick="closeTeamModal()">Close</button>
       </div>
@@ -1793,6 +1952,32 @@
         <button class="btn btn-secondary" onclick="closeTmDetail()">Close</button>
         <button class="btn btn-primary" id="tm-save-btn" onclick="saveTm()" style="display:none">Save</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ALL PASSKEYS modal (admin only) — quick lookup + rotation ── -->
+<div id="pk-modal-overlay" class="admin-modal-overlay" onclick="maybeClosePk(event)">
+  <div class="admin-modal" style="max-width:760px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">🔑 All Passkeys <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeAllPasskeys()">✕</button>
+    </div>
+    <div class="admin-modal-body" style="max-height:70vh">
+      <div class="syn-help">
+        Quick reference for support: every team member has a unique 8-char passkey that lets them edit their own profile.
+        Use 📋 to copy a code (e.g. to paste into a DM), or ↻ to rotate one if it was compromised.
+        Rotating instantly invalidates the old code.
+      </div>
+      <div class="pk-search-row">
+        <input class="form-input" id="pk-filter" type="text" placeholder="Filter by name, slack, or passkey…"
+          oninput="renderPasskeysTable()" autocomplete="off"/>
+      </div>
+      <div id="pk-table-wrap"></div>
+    </div>
+    <div class="admin-modal-footer">
+      <div style="font-size:11.5px;color:var(--mid)">Codes are stored in the same backup as the rest of the directory.</div>
+      <button class="btn btn-primary" onclick="closeAllPasskeys()">Close</button>
     </div>
   </div>
 </div>
@@ -1975,6 +2160,82 @@
         onkeydown="if(event.key==='Enter'){event.preventDefault();maintTryPwd();}" />
       <button class="btn btn-primary" onclick="maintTryPwd()">Enter</button>
       <div id="maint-pwd-err" class="maint-pwd-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOGIN overlay (passkey gate, first gate before the dashboard) ── -->
+<!-- Shown on every load until a team-member passkey OR the admin password is
+     entered. Successful entry → "Welcome, [Slack Name]!" fade → maintenance/
+     loading overlay → home. -->
+<div id="login-overlay" role="dialog" aria-label="Sign in">
+  <div class="login-box">
+    <div class="login-logo" id="login-site-name">VL Dashboard</div>
+    <div class="login-sub-logo" id="login-studio-name">Mega Cat Studios</div>
+    <div class="login-title">Enter your passkey to sign in</div>
+    <!-- Passkeys are short shared 8-char codes, not user-private secrets — they
+         live in the admin's "All Passkeys" lookup. Showing the characters as
+         the user types makes login easier and avoids the usual typo-in-a-
+         masked-field frustration. -->
+    <input id="login-pwd" type="text" placeholder="Your passkey" autocomplete="off"
+      autocapitalize="characters" spellcheck="false" maxlength="64"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();loginTry();}" />
+    <div class="login-err" id="login-err"></div>
+    <label class="login-remember">
+      <input type="checkbox" id="login-remember" checked />
+      Stay signed in for this session
+    </label>
+    <button class="btn btn-primary" id="login-submit" onclick="loginTry()">Sign in</button>
+    <div class="login-helper">
+      No passkey yet? Ask your direct report to add you to the directory.
+    </div>
+  </div>
+</div>
+
+<!-- ── WELCOME fade (post-login transition) ── -->
+<div id="welcome-overlay" aria-hidden="true">
+  <div class="welcome-msg" id="welcome-msg">Welcome!</div>
+  <div class="welcome-sub" id="welcome-sub"></div>
+</div>
+
+<!-- ── CUSTOM ALERT / CONFIRM / PROMPT MODAL ──
+     Single shared modal element that replaces the browser's native alert(),
+     confirm(), and prompt() dialogs. Coherent with the dashboard styling
+     (reuses .admin-modal*) and supports keyboard-driven flow (Enter = OK,
+     Esc = Cancel). The body innerHTML is set via the helper so callers can
+     pass minimal HTML (e.g. <strong>) — they should NOT pass user-controlled
+     strings unsanitized; the helper auto-escapes plain-text messages. -->
+<div id="custom-modal-overlay" class="admin-modal-overlay" onclick="_customModalBackdropClick(event)">
+  <div class="admin-modal" style="max-width:440px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title" id="custom-modal-title">Confirm</div>
+      <button class="admin-modal-close" onclick="_customModalResolve(null)" type="button">✕</button>
+    </div>
+    <div class="admin-modal-body" style="padding-top:14px;padding-bottom:14px">
+      <div id="custom-modal-message" style="font-size:13.5px;line-height:1.55;color:var(--text-body);white-space:pre-wrap"></div>
+      <input class="form-input" id="custom-modal-input" type="text" style="display:none;margin-top:12px"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_customModalResolve(true);}"/>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-secondary" id="custom-modal-cancel" onclick="_customModalResolve(null)" type="button">Cancel</button>
+      <button class="btn btn-primary"   id="custom-modal-ok"     onclick="_customModalResolve(true)" type="button">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── NEW PROFILE PASSKEY notice (one-time, shown after profile creation) ── -->
+<div id="new-pk-overlay" role="dialog" aria-modal="true" aria-labelledby="new-pk-title-el">
+  <div class="new-pk-card">
+    <div class="new-pk-title" id="new-pk-title-el">🔑 Save This Passkey!</div>
+    <div class="new-pk-intro" id="new-pk-intro">Profile saved.</div>
+    <div class="new-pk-code" id="new-pk-code">— — — — — — — —</div>
+    <div class="new-pk-warn">
+      This is the ONLY way to edit your profile later. <strong>Copy it somewhere safe</strong> — a password manager,
+      a note to yourself, anywhere. If you lose it, an admin will need to regenerate it for you.
+    </div>
+    <div class="new-pk-actions">
+      <button id="new-pk-copy-btn" class="btn btn-primary" onclick="copyNewPasskey()">📋 Copy passkey</button>
+      <button class="btn btn-secondary" onclick="closeNewPasskey()">I saved it</button>
     </div>
   </div>
 </div>
@@ -2291,6 +2552,21 @@ let expandedSections = new Set();  // tracks expanded sidebar groups — keys ar
 let collapsedCategories = new Set();  // main category IDs the user has collapsed in the sidebar
 let unlockedProjects = new Set();     // project section nums where user entered the correct passkey this session
 
+// ── Login / current user ──────────────────────────────────────────────────
+// currentUser is the team member whose passkey was used at login (or null if
+// the dashboard was unlocked via admin password without a specific identity).
+// Only the holder of a profile's passkey can edit it; admins can edit anyone.
+//
+// Persistence: "Stay signed in for this session" stores in **sessionStorage** —
+// survives refresh + same-tab navigation, ends when the browser is closed.
+// Unchecked → no storage at all, so every refresh requires re-login (a strict
+// opt-in for shared/public devices). localStorage is intentionally NOT used;
+// a one-shot legacy migration in loadCurrentUser folds older localStorage
+// sessions forward so existing users aren't surprise-signed-out.
+let currentUser = null;             // { tmId, slackName, passkey } | null
+let currentUserPersistent = false;  // true → stored in sessionStorage; false → not stored
+const LOGIN_KEY = 'vl_session_user';
+
 let isAdminMode = false;
 let sidebarCollapsed = false;
 let isDark = false;
@@ -2409,6 +2685,7 @@ async function initFirebase() {
       if (remote.announcements    && !skip.has('announcements'))    ANNOUNCEMENTS     = decodeFromFirestore('announcements', remote.announcements);
       if (remote.synonyms         && !skip.has('synonyms'))         SYNONYMS          = decodeFromFirestore('synonyms', remote.synonyms);
       if (remote.team             && !skip.has('team'))             TEAM_DIRECTORY    = decodeFromFirestore('team', remote.team);
+      if (!skip.has('team')) _ensureTeamPasskeys();  // backfill any pre-passkey rows in the remote doc
       // Persist what we just fetched to localStorage as cache (only for keys
       // we actually pulled from remote — leaving locally-dirty keys alone).
       try {
@@ -2467,7 +2744,7 @@ async function initFirebase() {
       if (remote.sidebar          && JSON.stringify(remote.sidebar)          !== JSON.stringify(SIDEBAR_CFG))       { SIDEBAR_CFG = remote.sidebar; changed = true; }
       if (remote.announcements    && JSON.stringify(remote.announcements)    !== JSON.stringify(ANNOUNCEMENTS))     { ANNOUNCEMENTS = remote.announcements; changed = true; }
       if (remote.synonyms         && JSON.stringify(remote.synonyms)         !== JSON.stringify(SYNONYMS))          { SYNONYMS = remote.synonyms; changed = true; }
-      if (remote.team             && JSON.stringify(remote.team)             !== JSON.stringify(TEAM_DIRECTORY))    { TEAM_DIRECTORY = remote.team; changed = true; }
+      if (remote.team             && JSON.stringify(remote.team)             !== JSON.stringify(TEAM_DIRECTORY))    { TEAM_DIRECTORY = remote.team; changed = true; _ensureTeamPasskeys(); }
       if (changed) {
         applyAllSettings();
         renderSidebar();
@@ -2645,6 +2922,11 @@ function loadFromStorage() {
   }
   if (!Array.isArray(SECTIONS) || SECTIONS.length === 0) SECTIONS = clone(DEFAULT_SECTIONS);
   if (!Array.isArray(HANDBOOK) || HANDBOOK.length === 0) HANDBOOK = clone(DEFAULT_HANDBOOK);
+
+  // Backfill passkeys for any existing team members that pre-date the passkey
+  // system. New members get one in blankTm() so this is only relevant for
+  // upgrade — but is also safe to run on every boot (no-op if all have one).
+  _ensureTeamPasskeys();
 }
 
 function saveAll(label, opts) {
@@ -2716,6 +2998,38 @@ function navigateCategory(catId, type) {
    ══════════════════════════════════════════ */
 function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s)    { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+// Safe for embedding inside an onclick="foo('___')" style handler — survives BOTH
+// HTML-attribute parsing AND the inner JS-string parsing. `escAttr` alone has a
+// subtle bug: in `onclick="foo('${escJsAttr(s)}')"` it emits `&#39;` for `'`, but
+// the HTML parser decodes that back to a bare `'` before handing the value to
+// the JS parser, which then sees a prematurely-terminated string literal — the
+// handler silently breaks (clicking does nothing). Encoding troublesome chars
+// as JS escape sequences (`\xNN` / `\uNNNN`) avoids HTML decoding altogether —
+// they reach the JS parser as escape sequences and evaluate to the right char.
+function escJsAttr(s) {
+  var out = '';
+  var str = String(s);
+  for (var i = 0; i < str.length; i++) {
+    var code = str.charCodeAt(i);
+    var ch   = str.charAt(i);
+    // Escape: backslash, both quote styles, newline, CR, tab, < > & (HTML-attr
+    // boundary safety), and the JS-line-terminators U+2028 / U+2029.
+    if (ch === '\\' || ch === "'" || ch === '"' ||
+        code === 0x0A || code === 0x0D || code === 0x09 ||
+        ch === '<'  || ch === '>'  || ch === '&' ||
+        code === 0x2028 || code === 0x2029) {
+      var hex = code.toString(16);
+      if (code <= 0xff) {
+        out += '\\x' + (hex.length < 2 ? '0' + hex : hex);
+      } else {
+        out += '\\u' + ('0000' + hex).slice(-4);
+      }
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
 function stripHtml(h)  { const d=document.createElement('div'); d.innerHTML=h; return (d.textContent||d.innerText||'').replace(/\s+/g,' ').trim(); }
 function sectionNumOf(entryId) { return String(entryId).split('.')[0]; }
 // Generalized helpers — accept an optional `base` ID:
@@ -2909,7 +3223,7 @@ function updateBreadcrumb() {
       const secNum = sectionNumOf(entry.id);
       const sec = findSection(secNum, currentBase);
       parts.push(`<span class="bc-sep">/</span><span class="bc-item">${escapeHtml(baseLabel)}</span>`);
-      if (sec) parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showSection('${escAttr(secNum)}','${escAttr(currentBase)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>`);
+      if (sec) parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showSection('${escJsAttr(secNum)}','${escJsAttr(currentBase)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>`);
       // Walk the ancestor entry chain (e.g. 14.1 → 14.1.a → current) so each level is clickable.
       const chain = [];
       let pid = parentOf(entry.id);
@@ -2919,7 +3233,7 @@ function updateBreadcrumb() {
         pid = parentOf(pid);
       }
       for (const anc of chain) {
-        parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showEntry('${escAttr(anc.id)}','${escAttr(currentBase)}')">${escapeHtml(anc.title)}</span>`);
+        parts.push(`<span class="bc-sep">/</span><span class="bc-item" onclick="showEntry('${escJsAttr(anc.id)}','${escJsAttr(currentBase)}')">${escapeHtml(anc.title)}</span>`);
       }
       parts.push(`<span class="bc-sep">/</span><span class="bc-item active">${escapeHtml(entry.title)}</span>`);
     }
@@ -2947,12 +3261,12 @@ function entryCardHtml(e, base, canEdit) {
     const txt = stripHtml(e.content || '');
     return txt.length > 90 ? txt.slice(0, 90) + '…' : txt;
   })();
-  return `<div class="section-card" data-entry-id="${escAttr(e.id)}" onclick="showEntry('${escAttr(e.id)}','${escAttr(base)}')">
+  return `<div class="section-card" data-entry-id="${escAttr(e.id)}" onclick="showEntry('${escJsAttr(e.id)}','${escJsAttr(base)}')">
     <div class="section-card-id">${escapeHtml(e.id)}${badge}</div>
     <div class="section-card-title">${escapeHtml(e.title)}</div>
     ${excerpt ? `<div style="font-size:12px;color:var(--mid);margin-top:5px;line-height:1.4">${escapeHtml(excerpt)}</div>` : ''}
     ${canEdit ? `<div class="section-card-actions">
-      <button onclick="event.stopPropagation();openEntryEditor('${escAttr(e.id)}','${escAttr(base)}')" title="Edit">✎</button>
+      <button onclick="event.stopPropagation();openEntryEditor('${escJsAttr(e.id)}','${escJsAttr(base)}')" title="Edit">✎</button>
     </div>` : ''}
   </div>`;
 }
@@ -2974,7 +3288,7 @@ function showSection(num, base) {
   const canEdit = canEditSection(base, num);
   const grid = document.getElementById('sv-grid');
   grid.innerHTML = entries.map(e => entryCardHtml(e, base, canEdit)).join('')
-    + (canEdit ? `<div class="add-card" onclick="openNewEntryEditor('${escAttr(num)}','${escAttr(base)}')">＋ Add Entry</div>` : '');
+    + (canEdit ? `<div class="add-card" onclick="openNewEntryEditor('${escJsAttr(num)}','${escJsAttr(base)}')">＋ Add Entry</div>` : '');
 
   // ── Render the section-actions row based on access level ──
   // Real admin: "Edit Section Info" (incl. passkey + delete)
@@ -2986,16 +3300,16 @@ function showSection(num, base) {
   const actionsEl = document.getElementById('sv-actions');
   let actionsHtml = '';
   if (isAdminMode) {
-    actionsHtml = `<button class="btn btn-secondary" onclick="openSectionEditor('${escAttr(num)}','${escAttr(base)}')">⚙ Edit Section Info</button>`;
+    actionsHtml = `<button class="btn btn-secondary" onclick="openSectionEditor('${escJsAttr(num)}','${escJsAttr(base)}')">⚙ Edit Section Info</button>`;
   } else if (base === 'projects') {
     if (unlockedProjects.has(String(num))) {
       actionsHtml = `
         <span class="edit-mode-active">Edit Mode Active for this section</span>
-        <button class="btn btn-secondary" onclick="openSectionEditor('${escAttr(num)}','${escAttr(base)}')">⚙ Edit Section Info</button>
-        <button class="btn btn-secondary" onclick="lockProjectSection('${escAttr(num)}')">🔒 Exit Edit Mode</button>
+        <button class="btn btn-secondary" onclick="openSectionEditor('${escJsAttr(num)}','${escJsAttr(base)}')">⚙ Edit Section Info</button>
+        <button class="btn btn-secondary" onclick="lockProjectSection('${escJsAttr(num)}')">🔒 Exit Edit Mode</button>
       `;
     } else {
-      actionsHtml = `<button class="btn btn-cta-edit" onclick="promptUnlockProjectSection('${escAttr(num)}')">🔑 Enter Edit Mode</button>`;
+      actionsHtml = `<button class="btn btn-cta-edit" onclick="promptUnlockProjectSection('${escJsAttr(num)}')">🔑 Enter Edit Mode</button>`;
     }
   }
   actionsEl.innerHTML = actionsHtml;
@@ -3040,7 +3354,7 @@ function showEntry(id, base, highlightQuery) {
   if (kids.length || canEdit) {
     childWrap.style.display = '';
     childGrid.innerHTML = kids.map(k => entryCardHtml(k, base, canEdit)).join('')
-      + (canEdit ? `<div class="add-card" onclick="openNewSubEntry('${escAttr(id)}','${escAttr(base)}')">＋ Add Sub-Entry</div>` : '');
+      + (canEdit ? `<div class="add-card" onclick="openNewSubEntry('${escJsAttr(id)}','${escJsAttr(base)}')">＋ Add Sub-Entry</div>` : '');
     document.getElementById('ev-children-label').style.display = (kids.length || canEdit) ? '' : 'none';
   } else {
     childWrap.style.display = 'none';
@@ -3098,24 +3412,24 @@ function showCategoryOverview(catId, catType) {
     labelEl.textContent = friendlyLabel;
     titleEl.textContent = `${friendlyLabel} — Overview`;
     descEl.innerHTML = `<span style="color:var(--mid)">All ${escapeHtml(friendlyLabel.toLowerCase())} sections at a glance. Click a card to dive in.</span>`
-      + (isCustom && isAdminMode ? `<div style="margin-top:10px"><button class="btn btn-secondary" onclick="openEditCategoryModal('${escAttr(catId)}')">⚙ Rename / Delete Category</button></div>` : '');
+      + (isCustom && isAdminMode ? `<div style="margin-top:10px"><button class="btn btn-secondary" onclick="openEditCategoryModal('${escJsAttr(catId)}')">⚙ Rename / Delete Category</button></div>` : '');
 
     let cards = sectionsArr.map(sec => {
       const childCount = entriesInSection(sec.num, catId).length;
       const descText = stripHtml(sec.description || '');
       const excerpt = descText.length > 130 ? descText.substring(0, 130) + '…' : descText;
-      return `<div class="section-card" onclick="showSection('${escAttr(sec.num)}','${escAttr(catId)}')">
+      return `<div class="section-card" onclick="showSection('${escJsAttr(sec.num)}','${escJsAttr(catId)}')">
         <div class="section-card-id">${escapeHtml(sec.num)} · ${childCount} ${childCount === 1 ? 'entry' : 'entries'}</div>
         <div class="section-card-title">${escapeHtml(sec.title)}</div>
         ${excerpt ? `<div style="font-size:12px;color:var(--mid);margin-top:6px;line-height:1.45">${escapeHtml(excerpt)}</div>` : ''}
-        ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSectionEditor('${escAttr(sec.num)}','${escAttr(catId)}')" title="Edit">✎</button></div>` : ''}
+        ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSectionEditor('${escJsAttr(sec.num)}','${escJsAttr(catId)}')" title="Edit">✎</button></div>` : ''}
       </div>`;
     }).join('');
     if (sectionsArr.length === 0) {
       cards = `<div style="grid-column:1/-1;text-align:center;color:var(--mid);padding:30px 0;font-style:italic">No ${escapeHtml(friendlyLabel.toLowerCase())} sections yet.</div>`;
     }
     if (isAdminMode) {
-      cards += `<div class="add-card" onclick="openNewSectionEditor('${escAttr(catId)}')">＋ Add ${escapeHtml(friendlyLabel === 'Projects' ? 'Project' : 'Section')}</div>`;
+      cards += `<div class="add-card" onclick="openNewSectionEditor('${escJsAttr(catId)}')">＋ Add ${escapeHtml(friendlyLabel === 'Projects' ? 'Project' : 'Section')}</div>`;
     }
     grid.innerHTML = cards;
   } else if (catType === 'links') {
@@ -3131,20 +3445,20 @@ function showCategoryOverview(catId, catType) {
     let cards = items.map(item => {
       const isPlaceholder = !item.href;
       const onclick = item.href
-        ? `window.open('${escAttr(item.href)}', '_blank', 'noopener')`
+        ? `window.open('${escJsAttr(item.href)}', '_blank', 'noopener')`
         : '';
       return `<div class="section-card${isPlaceholder?' add-card':''}" ${onclick?`onclick="${onclick}"`:''} style="${isPlaceholder?'cursor:default':''}">
         <div class="section-card-id">${isPlaceholder ? 'placeholder' : '🔗 link'}</div>
         <div class="section-card-title">${escapeHtml(item.text)}</div>
         ${item.href ? `<div style="font-size:11px;color:var(--mid);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.href)}</div>` : ''}
-        ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSIEditor('${escAttr(catId)}','${escAttr(item.id)}')" title="Edit">✎</button></div>` : ''}
+        ${isAdminMode ? `<div class="section-card-actions"><button onclick="event.stopPropagation();openSIEditor('${escJsAttr(catId)}','${escJsAttr(item.id)}')" title="Edit">✎</button></div>` : ''}
       </div>`;
     }).join('');
     if (items.length === 0) {
       cards = `<div style="grid-column:1/-1;text-align:center;color:var(--mid);padding:30px 0;font-style:italic">No links yet.</div>`;
     }
     if (isAdminMode) {
-      cards += `<div class="add-card" onclick="openNewSIEditor('${escAttr(catId)}')">＋ Add Link</div>`;
+      cards += `<div class="add-card" onclick="openNewSIEditor('${escJsAttr(catId)}')">＋ Add Link</div>`;
     }
     grid.innerHTML = cards;
   }
@@ -3252,8 +3566,8 @@ function saveSiteSettings() {
   updateBreadcrumb();
   if (currentView === 'category' && currentCategoryId) showCategoryOverview(currentCategoryId, currentCategoryType);
 }
-function resetSiteSettings() {
-  if (!confirm('Reset all site settings (including theme + favicon) to defaults? Your customizations will be lost.')) return;
+async function resetSiteSettings() {
+  if (!await customConfirm('Reset all site settings (including theme + favicon) to defaults? Your customizations will be lost.', { danger: true, confirmLabel: 'Reset' })) return;
   SITE_SETTINGS = clone(DEFAULT_SITE_SETTINGS);
   closeSettingsModal();
   saveAll('Reset to defaults');
@@ -3310,10 +3624,12 @@ function _renderFaviconPreview() {
 }
 
 // ── Inline category rename (admin only) ──
-function renameCategoryInline(catId) {
+async function renameCategoryInline(catId) {
   if (!isAdminMode) return;
   const currentLabel = getCategoryLabel(catId);
-  const next = prompt(`Rename "${currentLabel}" to:`, currentLabel);
+  const next = await customPrompt(`Rename "${currentLabel}" to:`, currentLabel, {
+    title: 'Rename category', placeholder: 'New name', confirmLabel: 'Rename'
+  });
   if (next === null) return;
   const trimmed = next.trim();
   if (!trimmed) { alert('Category name cannot be empty.'); return; }
@@ -3418,7 +3734,7 @@ function saveCategory() {
   saveAll('Category saved');
   renderSidebar();
 }
-function deleteCurrentCategory() {
+async function deleteCurrentCategory() {
   if (!_editingCategoryId) return;
   const cc = CUSTOM_CATEGORIES.find(c => c.id === _editingCategoryId);
   if (!cc) return;
@@ -3426,7 +3742,7 @@ function deleteCurrentCategory() {
   const msg = hasContent
     ? `Category "${cc.label}" contains ${cc.sections.length} section(s) and ${cc.entries.length} entries. Delete EVERYTHING in this category permanently?`
     : `Delete category "${cc.label}"?`;
-  if (!confirm(msg)) return;
+  if (!await customConfirm(msg, { danger: true, confirmLabel: 'Delete category' })) return;
   CUSTOM_CATEGORIES = CUSTOM_CATEGORIES.filter(c => c.id !== _editingCategoryId);
   if (currentBase === _editingCategoryId) showHome();
   closeCatModal();
@@ -3462,19 +3778,19 @@ function _renderEntryBranch(entry, base, canEdit, depth) {
   const indent = 8 + depth * 12; // px left padding per nesting level
 
   const chevron = hasKids
-    ? `<span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escAttr(entry.id)}','${escAttr(base)}')">▶</span>`
+    ? `<span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escJsAttr(entry.id)}','${escJsAttr(base)}')">▶</span>`
     : `<span class="sb-chevron" style="visibility:hidden">▶</span>`;
   const editBtn = canEdit
-    ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(entry.id)}','${escAttr(base)}')" title="Edit entry">✎</button>`
+    ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escJsAttr(entry.id)}','${escJsAttr(base)}')" title="Edit entry">✎</button>`
     : '';
   const addSubBtn = canEdit
-    ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewSubEntry('${escAttr(entry.id)}','${escAttr(base)}')" title="Add sub-entry">＋</button>`
+    ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewSubEntry('${escJsAttr(entry.id)}','${escJsAttr(base)}')" title="Add sub-entry">＋</button>`
     : '';
 
   let html = `<div class="sb-child${isActive?' active':''}" style="padding-left:${indent}px" data-entry-id="${escAttr(entry.id)}" data-section-num="${escAttr(sectionNumOf(entry.id))}" data-base="${escAttr(base)}" ${canEdit?'draggable="true"':''}>
     ${canEdit ? `<span class="drag-handle" title="Drag to reorder">⠿</span>` : ''}
     ${chevron}
-    <span class="sb-child-text" onclick="showEntry('${escAttr(entry.id)}','${escAttr(base)}')">${escapeHtml(entry.id + ' ' + entry.title)}</span>
+    <span class="sb-child-text" onclick="showEntry('${escJsAttr(entry.id)}','${escJsAttr(base)}')">${escapeHtml(entry.id + ' ' + entry.title)}</span>
     ${addSubBtn}
     ${editBtn}
   </div>`;
@@ -3492,10 +3808,10 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
   const catId = base;
   const collapsed = collapsedCategories.has(catId);
   let html = `<div class="sidebar-section">
-    <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(catId)}','kb')">
-      <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(catId)}')">▶</span>
+    <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escJsAttr(catId)}','kb')">
+      <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escJsAttr(catId)}')">▶</span>
       <span class="sb-cat-text">${escapeHtml(label)}</span>
-      <button class="sb-cat-rename" onclick="event.stopPropagation();renameCategoryInline('${escAttr(catId)}')" title="Rename this category">✎</button>
+      <button class="sb-cat-rename" onclick="event.stopPropagation();renameCategoryInline('${escJsAttr(catId)}')" title="Rename this category">✎</button>
     </div>
     <div class="sb-cat-body${collapsed?' collapsed':''}">`;
   if (sectionsArr.length === 0 && !isAdminMode) {
@@ -3509,18 +3825,18 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
     const isProjectsNonAdmin = base === 'projects' && !isAdminMode;
     const lockBtn = isProjectsNonAdmin
       ? (unlockedProjects.has(String(sec.num))
-          ? `<button class="sb-lock-btn unlocked" onclick="event.stopPropagation();lockProjectSection('${escAttr(sec.num)}')" title="Click to lock this section's edit access">🔓</button>`
-          : `<button class="sb-lock-btn" onclick="event.stopPropagation();promptUnlockProjectSection('${escAttr(sec.num)}')" title="Enter passkey to edit this section">🔒</button>`)
+          ? `<button class="sb-lock-btn unlocked" onclick="event.stopPropagation();lockProjectSection('${escJsAttr(sec.num)}')" title="Click to lock this section's edit access">🔓</button>`
+          : `<button class="sb-lock-btn" onclick="event.stopPropagation();promptUnlockProjectSection('${escJsAttr(sec.num)}')" title="Enter passkey to edit this section">🔒</button>`)
       : '';
     const sectionEditBtn = isAdminMode
-      ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openSectionEditor('${escAttr(sec.num)}','${escAttr(base)}')" title="Edit section info (admin only)">⚙</button>`
+      ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openSectionEditor('${escJsAttr(sec.num)}','${escJsAttr(base)}')" title="Edit section info (admin only)">⚙</button>`
       : '';
     const addEntryBtn = canEdit
-      ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')" title="Add entry">＋</button>`
+      ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escJsAttr(sec.num)}','${escJsAttr(base)}')" title="Add entry">＋</button>`
       : '';
     html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}">
-      <span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escAttr(sec.num)}','${escAttr(base)}')">▶</span>
-      <span class="sb-parent-text" onclick="showSection('${escAttr(sec.num)}','${escAttr(base)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>
+      <span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escJsAttr(sec.num)}','${escJsAttr(base)}')">▶</span>
+      <span class="sb-parent-text" onclick="showSection('${escJsAttr(sec.num)}','${escJsAttr(base)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>
       ${lockBtn}
       ${sectionEditBtn}
       ${addEntryBtn}
@@ -3530,11 +3846,11 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
     for (const e of childrenOf(sec.num, base)) {
       html += _renderEntryBranch(e, base, canEdit, 0);
     }
-    if (canEdit) html += `<button class="admin-add-btn" onclick="openNewEntryEditor('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry</button>`;
+    if (canEdit) html += `<button class="admin-add-btn" onclick="openNewEntryEditor('${escJsAttr(sec.num)}','${escJsAttr(base)}')">＋ Add Entry</button>`;
     html += `</div>`;
   }
   // Adding a new TOP-LEVEL section/project is admin-only (passkey unlock is scoped to one section).
-  if (isAdminMode) html += `<button class="admin-add-btn" onclick="openNewSectionEditor('${escAttr(base)}')">＋ ${escapeHtml(addLabel)}</button>`;
+  if (isAdminMode) html += `<button class="admin-add-btn" onclick="openNewSectionEditor('${escJsAttr(base)}')">＋ ${escapeHtml(addLabel)}</button>`;
   html += `</div></div><div class="sb-divider"></div>`;
   return html;
 }
@@ -3552,10 +3868,10 @@ function _renderSidebarUnsafe() {
     if (!section || !Array.isArray(section.items) || !section.id) continue;
     const collapsed = collapsedCategories.has(section.id);
     html += `<div class="sidebar-section">
-      <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escAttr(section.id)}','links')">
-        <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escAttr(section.id)}')">▶</span>
+      <div class="sidebar-section-label sb-cat-label" onclick="event.stopPropagation();navigateCategory('${escJsAttr(section.id)}','links')">
+        <span class="sb-cat-chevron${collapsed?'':' expanded'}" onclick="event.stopPropagation();toggleCategoryCollapsed('${escJsAttr(section.id)}')">▶</span>
         <span class="sb-cat-text">${escapeHtml(getCategoryLabel(section.id) || section.label || '')}</span>
-        <button class="sb-cat-rename" onclick="event.stopPropagation();renameCategoryInline('${escAttr(section.id)}')" title="Rename this category">✎</button>
+        <button class="sb-cat-rename" onclick="event.stopPropagation();renameCategoryInline('${escJsAttr(section.id)}')" title="Rename this category">✎</button>
       </div>
       <div class="sb-cat-body${collapsed?' collapsed':''}">`;
     for (const item of section.items) {
@@ -3566,7 +3882,7 @@ function _renderSidebarUnsafe() {
         : `<span class="sb-link-text placeholder">${escapeHtml(item.text)}</span>`;
       // Admin-only affordances for Quick Links (drag + edit)
       const adminAffordances = isAdminMode ? `<span class="drag-handle" title="Drag to reorder">⠿</span>` : '';
-      const editBtn = isAdminMode ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openSIEditor('${escAttr(section.id)}','${escAttr(item.id)}')" title="Edit link">✎</button>` : '';
+      const editBtn = isAdminMode ? `<button class="sb-edit-btn" onclick="event.stopPropagation();openSIEditor('${escJsAttr(section.id)}','${escJsAttr(item.id)}')" title="Edit link">✎</button>` : '';
       html += `<div class="sb-link" data-section-id="${escAttr(section.id)}" data-item-id="${escAttr(item.id)}" ${isAdminMode?'draggable="true"':''}>
         ${adminAffordances}
         ${inner}
@@ -3574,7 +3890,7 @@ function _renderSidebarUnsafe() {
       </div>`;
     }
     if (isAdminMode) {
-      html += `<button class="admin-add-btn" onclick="openNewSIEditor('${escAttr(section.id)}')">＋ Add Link</button>`;
+      html += `<button class="admin-add-btn" onclick="openNewSIEditor('${escJsAttr(section.id)}')">＋ Add Link</button>`;
     }
     html += `</div></div><div class="sb-divider"></div>`;
   }
@@ -4354,6 +4670,147 @@ function _shouldCloseOverlay(e, overlayId) {
   return _overlayMdTarget === overlayId && e.target.id === overlayId;
 }
 
+/* ══════════════════════════════════════════
+   CUSTOM ALERT / CONFIRM / PROMPT
+   Drop-in replacements for window.alert / confirm / prompt with the dashboard's
+   own styling. Promise-based so callers do `await customConfirm(...)` instead
+   of relying on synchronous browser dialogs. window.alert is overridden below
+   so existing fire-and-forget alert() callers continue to work unchanged.
+   ══════════════════════════════════════════ */
+let _customModalResolver = null;     // active Promise resolve fn
+let _customModalKeyHandler = null;   // active document keydown handler
+
+function _customModalResolve(value) {
+  // Centralized close: resolves the active Promise with `value`, hides the
+  // overlay, and tears down the keyboard handler. value semantics differ per
+  // helper — alert always resolves true (no cancel button), confirm resolves
+  // true or false, prompt resolves the typed string or null (cancelled).
+  const overlay = document.getElementById('custom-modal-overlay');
+  const inputEl = document.getElementById('custom-modal-input');
+  let resolved = value;
+  // Prompt → string-or-null. Anything else → boolean.
+  if (overlay && overlay.dataset.kind === 'prompt') {
+    if (value === true)       resolved = inputEl ? inputEl.value : '';
+    else if (value === null)  resolved = null;
+    else                      resolved = value;
+  } else {
+    resolved = (value === true);
+  }
+  if (overlay) {
+    overlay.classList.remove('open');
+    overlay.dataset.kind = '';
+  }
+  if (_customModalKeyHandler) {
+    document.removeEventListener('keydown', _customModalKeyHandler, true);
+    _customModalKeyHandler = null;
+  }
+  const resolver = _customModalResolver;
+  _customModalResolver = null;
+  if (resolver) resolver(resolved);
+}
+
+function _customModalBackdropClick(e) {
+  // Treat backdrop-click as cancel only when the click started AND ended on
+  // the overlay element (so dragging text inside the modal body doesn't
+  // accidentally dismiss). Reuses the same _overlayMdTarget machinery as the
+  // other overlays via _shouldCloseOverlay().
+  if (_shouldCloseOverlay(e, 'custom-modal-overlay')) _customModalResolve(null);
+}
+
+function _openCustomModal(opts) {
+  // Resolve any pre-existing modal first so we don't strand a Promise.
+  if (_customModalResolver) _customModalResolve(null);
+  return new Promise(resolve => {
+    _customModalResolver = resolve;
+    const overlay   = document.getElementById('custom-modal-overlay');
+    const titleEl   = document.getElementById('custom-modal-title');
+    const bodyEl    = document.getElementById('custom-modal-message');
+    const inputEl   = document.getElementById('custom-modal-input');
+    const okBtn     = document.getElementById('custom-modal-ok');
+    const cancelBtn = document.getElementById('custom-modal-cancel');
+
+    const kind = opts.kind || 'confirm';   // 'alert' | 'confirm' | 'prompt'
+    overlay.dataset.kind = kind;
+
+    // Title — defaults vary by kind. Plain text only.
+    const defaultTitle = kind === 'alert' ? 'Notice'
+                       : kind === 'prompt' ? 'Enter a value'
+                       : 'Confirm';
+    titleEl.textContent = opts.title || defaultTitle;
+
+    // Message body. Allow HTML when caller explicitly opts in (e.g. for bold).
+    if (opts.html) {
+      bodyEl.innerHTML = opts.html;
+    } else {
+      bodyEl.textContent = opts.message || '';
+    }
+
+    // Input field — only visible for prompt.
+    if (kind === 'prompt') {
+      inputEl.style.display = '';
+      inputEl.value = opts.defaultValue != null ? String(opts.defaultValue) : '';
+      inputEl.placeholder = opts.placeholder || '';
+    } else {
+      inputEl.style.display = 'none';
+      inputEl.value = '';
+    }
+
+    // Buttons — alert is single-button (no Cancel).
+    cancelBtn.style.display = kind === 'alert' ? 'none' : '';
+    cancelBtn.textContent   = opts.cancelLabel || 'Cancel';
+    okBtn.textContent       = opts.confirmLabel || (kind === 'alert' ? 'OK' : kind === 'prompt' ? 'Submit' : 'Confirm');
+
+    // Visual hint for destructive actions — switches OK to red.
+    okBtn.classList.remove('btn-primary', 'btn-danger');
+    okBtn.classList.add(opts.danger ? 'btn-danger' : 'btn-primary');
+
+    overlay.classList.add('open');
+    setTimeout(() => {
+      if (kind === 'prompt') { inputEl.focus(); inputEl.select(); }
+      else                   { okBtn.focus(); }
+    }, 60);
+
+    // Keyboard shortcuts. Use capture phase so we beat the global Esc handler
+    // that would otherwise close the next-modal-in-the-list and leave ours up.
+    _customModalKeyHandler = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault(); e.stopPropagation();
+        _customModalResolve(null);
+      } else if (e.key === 'Enter' && kind !== 'prompt') {
+        // Prompt has its own Enter handler on the input itself.
+        if (e.target && e.target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        _customModalResolve(true);
+      }
+    };
+    document.addEventListener('keydown', _customModalKeyHandler, true);
+  });
+}
+
+// Public API. Always returns a Promise. Callers can pass either a plain
+// message string or an options object as the second arg.
+function customAlert(message, opts) {
+  return _openCustomModal({ ...(opts || {}), kind: 'alert', message: String(message ?? '') });
+}
+function customConfirm(message, opts) {
+  return _openCustomModal({ ...(opts || {}), kind: 'confirm', message: String(message ?? '') });
+}
+function customPrompt(message, defaultValue, opts) {
+  return _openCustomModal({ ...(opts || {}), kind: 'prompt', message: String(message ?? ''), defaultValue: defaultValue ?? '' });
+}
+
+// window.alert override: existing call sites in the dashboard are
+// fire-and-forget (they don't read alert()'s return), so we can replace the
+// browser dialog with our custom modal transparently. We do NOT override
+// window.confirm / window.prompt because those are synchronous and return
+// values — replacing them with async Promises would break callers. Those
+// call sites are refactored explicitly to use customConfirm / customPrompt.
+const _origWindowAlert = window.alert ? window.alert.bind(window) : null;
+window.alert = function(msg) {
+  try { customAlert(msg); }
+  catch(e) { if (_origWindowAlert) _origWindowAlert(msg); }
+};
+
 function maybeCloseSearchModal(e) { if (_shouldCloseOverlay(e, 'search-modal-overlay')) closeSearchModal(); }
 
 async function performSearchModal() {
@@ -4426,12 +4883,12 @@ function resultCardHtml(entry, tokens) {
   // so we don't have to thread it through every call site). Used to
   // briefly highlight the matched keywords inside the opened entry.
   const _q = (document.getElementById('search-modal-input') || {}).value || '';
-  const qAttr = escAttr(_q);
+  const qAttr = escJsAttr(_q);  // embedded inside an onclick="...showEntry('…','…','${qAttr}')" JS string — must use the JS-string-safe encoder so apostrophes & other special chars in the user's query don't break the handler
 
   // Quick-Link result — opens the URL (or shows a "coming soon" note if no URL yet)
   if (entry.__link) {
     const action = entry.href
-      ? `<button class="result-go-btn" onclick="closeSearchModal();window.open('${escAttr(entry.href)}','_blank','noopener')">Open link ↗</button>`
+      ? `<button class="result-go-btn" onclick="closeSearchModal();window.open('${escJsAttr(entry.href)}','_blank','noopener')">Open link ↗</button>`
       : `<span style="font-size:11px;color:var(--mid);font-style:italic">no link yet</span>`;
     return `<div class="result-card">
       <div class="result-card-header">
@@ -4447,7 +4904,7 @@ function resultCardHtml(entry, tokens) {
       <div class="result-card-header">
         <span class="result-section-id">${escapeHtml(baseLabel)} · ${escapeHtml(idDisplay)}</span>
         <span class="result-section-title">${escapeHtml(entry.title)}</span>
-        <button class="result-go-btn" onclick="closeSearchModal();showSection('${escAttr(entry.num)}','${escAttr(base)}')">Open ${base==='projects'?'project':'section'} →</button>
+        <button class="result-go-btn" onclick="closeSearchModal();showSection('${escJsAttr(entry.num)}','${escJsAttr(base)}')">Open ${base==='projects'?'project':'section'} →</button>
       </div>
     </div>`;
   }
@@ -4455,8 +4912,8 @@ function resultCardHtml(entry, tokens) {
     <div class="result-card-header">
       <span class="result-section-id">${escapeHtml(baseLabel)} · ${escapeHtml(idDisplay)}</span>
       <span class="result-section-title">${escapeHtml(entry.title)}</span>
-      <button class="result-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escAttr(entry.id)}','${escAttr(base)}')">✎ Edit</button>
-      <button class="result-go-btn" onclick="closeSearchModal();showEntry('${escAttr(entry.id)}','${escAttr(base)}','${qAttr}')">Open →</button>
+      <button class="result-edit-btn" onclick="event.stopPropagation();openEntryEditor('${escJsAttr(entry.id)}','${escJsAttr(base)}')">✎ Edit</button>
+      <button class="result-go-btn" onclick="closeSearchModal();showEntry('${escJsAttr(entry.id)}','${escJsAttr(base)}','${qAttr}')">Open →</button>
     </div>
   </div>`;
 }
@@ -4842,10 +5299,12 @@ function rtSetHeading(editorId, level) {
   else c.toggleHeading({ level: parseInt(level, 10) }).run();
   rtUpdateToolbar(editorId);
 }
-function rtSetLink(editorId) {
+async function rtSetLink(editorId) {
   const e = RT_EDITORS[editorId]; if (!e) return;
   const prev = e.getAttributes('link').href || '';
-  const url = prompt('Link URL (leave empty to remove the link):', prev || 'https://');
+  const url = await customPrompt('Link URL (leave empty to remove the link):', prev || 'https://', {
+    title: 'Insert / edit link', placeholder: 'https://…', confirmLabel: 'Apply link'
+  });
   if (url === null) return;
   if (url.trim() === '') e.chain().focus().extendMarkRange('link').unsetLink().run();
   else e.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
@@ -4937,9 +5396,11 @@ function _rtVideoEmbedSrc(url) {
   if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
   return null;
 }
-function rtInsertVideo(editorId) {
+async function rtInsertVideo(editorId) {
   const e = RT_EDITORS[editorId]; if (!e) return;
-  const url = prompt('Paste a YouTube or Google Drive link:', '');
+  const url = await customPrompt('Paste a YouTube or Google Drive link:', '', {
+    title: 'Embed video', placeholder: 'https://youtu.be/… or https://drive.google.com/…', confirmLabel: 'Embed'
+  });
   if (url === null) return;
   const src = _rtVideoEmbedSrc(url);
   if (!src) { alert('Could not recognize that as a YouTube or Google Drive video link.'); return; }
@@ -4949,9 +5410,9 @@ function rtInsertVideo(editorId) {
 /* ── Toolbar ── */
 function rtBtn(editorId, action, label, title, arg) {
   const ed = escAttr(editorId);
-  const argCall = arg !== undefined ? `,'${escAttr(arg)}'` : '';
+  const argCall = arg !== undefined ? `,'${escJsAttr(arg)}'` : '';
   const argAttr = arg !== undefined ? ` data-arg="${escAttr(arg)}"` : '';
-  return `<button class="rt-btn" type="button" data-act="${escAttr(action)}"${argAttr} title="${escAttr(title)}" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','${escAttr(action)}'${argCall})">${label}</button>`;
+  return `<button class="rt-btn" type="button" data-act="${escAttr(action)}"${argAttr} title="${escAttr(title)}" onmousedown="event.preventDefault()" onclick="rtCmd('${ed}','${escJsAttr(action)}'${argCall})">${label}</button>`;
 }
 function rtBuildToolbar(toolbarId, editorId) {
   const ed = escAttr(editorId);
@@ -5085,6 +5546,86 @@ function exitAdminMode() {
   if (currentView === 'docview') showHome();
   renderSidebar(); renderAnnouncements();
   showToast('Admin mode exited');
+}
+
+/* ══════════════════════════════════════════
+   LOGIN / CURRENT USER
+   The dashboard sits behind a passkey login. Each TEAM_DIRECTORY member has a
+   unique 8-char passkey (auto-generated on profile creation). Entering that
+   passkey at the login screen identifies that person as `currentUser` — they
+   can then edit their own profile and (in the future) view information that
+   only they should see. The admin password (ADMIN_PW) also bypasses login but
+   without attaching a specific identity; it just turns Admin Mode on.
+   ══════════════════════════════════════════ */
+function _findMemberByPasskey(code) {
+  if (!code) return null;
+  const norm = String(code).trim().toUpperCase();
+  if (!norm) return null;
+  return (TEAM_DIRECTORY || []).find(m => m && m.passkey && String(m.passkey).toUpperCase() === norm) || null;
+}
+
+function setCurrentUser(member, remember) {
+  currentUser = member ? {
+    tmId: member.id,
+    slackName: member.slackName || '',
+    passkey: member.passkey || ''
+  } : null;
+  currentUserPersistent = !!remember;
+  const payload = currentUser ? JSON.stringify(currentUser) : '';
+  // Always clear any legacy localStorage copy so older "remember on this
+  // device" data doesn't shadow the new session-scoped storage.
+  try { localStorage.removeItem(LOGIN_KEY); } catch(e){}
+  try {
+    if (remember && payload) sessionStorage.setItem(LOGIN_KEY, payload);
+    else                     sessionStorage.removeItem(LOGIN_KEY);
+  } catch(e){}
+}
+
+function loadCurrentUser() {
+  // Session-scoped: read from sessionStorage only. (Closing the browser ends
+  // the session — same-tab refresh keeps it.) Legacy migration: if an older
+  // build stashed creds in localStorage, fold them forward into sessionStorage
+  // ONCE so the existing user isn't bounced back to login on this load.
+  let raw = '';
+  try { raw = sessionStorage.getItem(LOGIN_KEY) || ''; } catch(e){}
+  if (!raw) {
+    try {
+      const legacy = localStorage.getItem(LOGIN_KEY);
+      if (legacy) {
+        raw = legacy;
+        try { sessionStorage.setItem(LOGIN_KEY, legacy); } catch(e){}
+        try { localStorage.removeItem(LOGIN_KEY); } catch(e){}
+      }
+    } catch(e){}
+  }
+  if (!raw) return null;
+  let stored = null;
+  try { stored = JSON.parse(raw); } catch(e){ return null; }
+  if (!stored || !stored.tmId) return null;
+  // Validate against TEAM_DIRECTORY: if the member was deleted OR their passkey
+  // was rotated (by an admin), the stored creds no longer count — re-prompt.
+  const member = (TEAM_DIRECTORY || []).find(m => m && m.id === stored.tmId);
+  if (!member) return null;
+  if (!member.passkey || String(member.passkey).toUpperCase() !== String(stored.passkey || '').toUpperCase()) return null;
+  currentUser = { tmId: member.id, slackName: member.slackName || '', passkey: member.passkey };
+  currentUserPersistent = true;
+  return currentUser;
+}
+
+function signOut() {
+  currentUser = null;
+  currentUserPersistent = false;
+  try { localStorage.removeItem(LOGIN_KEY); } catch(e){}
+  try { sessionStorage.removeItem(LOGIN_KEY); } catch(e){}
+  // Also exit admin mode on sign-out (clean slate) and reload to surface the
+  // login screen, which is the cleanest way to reset all view state.
+  if (isAdminMode) { isAdminMode = false; document.body.classList.remove('admin-mode'); }
+  location.reload();
+}
+
+// True if the currently logged-in identity owns this team member profile.
+function isOwnerOfProfile(m) {
+  return !!(currentUser && m && currentUser.tmId === m.id);
 }
 
 /* ══════════════════════════════════════════
@@ -5231,14 +5772,14 @@ function saveEntry() {
   else if (currentView === 'docview') renderDocView();
 }
 
-function deleteCurrentEntry() {
+async function deleteCurrentEntry() {
   if (!editEntryId) return;
   const base = editEntryBase || 'handbook';
   const descCount = descendantsOf(editEntryId, base).length;
   const msg = descCount
     ? `Delete this entry AND its ${descCount} nested sub-${descCount===1?'entry':'entries'}? This cannot be undone.`
     : 'Delete this entry permanently?';
-  if (!confirm(msg)) return;
+  if (!await customConfirm(msg, { danger: true, confirmLabel: 'Delete entry' })) return;
   // Remove the entry and every descendant (ids starting with "<id>.")
   const prefix = editEntryId + '.';
   const keep = e => e.id !== editEntryId && !e.id.startsWith(prefix);
@@ -5330,16 +5871,18 @@ function _saveUnlocks() {
   try { sessionStorage.setItem('vl_unlocked', JSON.stringify([...unlockedProjects])); } catch(e){}
 }
 
-function promptUnlockProjectSection(num) {
+async function promptUnlockProjectSection(num) {
   const sec = findSection(num, 'projects');
   if (!sec) return;
   if (!sec.passkey) {
-    if (confirm(`Project "${sec.title}" has no passkey set. Only admins can edit it. Continue to Section view?`)) {
+    if (await customConfirm(`Project "${sec.title}" has no passkey set. Only admins can edit it. Continue to Section view?`, { confirmLabel: 'Continue' })) {
       showSection(num, 'projects');
     }
     return;
   }
-  const entered = prompt(`Enter the edit passkey for "${sec.num}. ${sec.title}":`);
+  const entered = await customPrompt(`Enter the edit passkey for "${sec.num}. ${sec.title}":`, '', {
+    title: 'Unlock project section', placeholder: 'Passkey', confirmLabel: 'Unlock'
+  });
   if (entered === null) return;
   if (entered.trim().toUpperCase() === sec.passkey.toUpperCase()) {
     unlockedProjects.add(String(num));
@@ -5365,8 +5908,8 @@ function copySectionPasskey() {
   if (!inp.value) return;
   navigator.clipboard.writeText(inp.value).then(() => showToast('Passkey copied'));
 }
-function regenerateSectionPasskey() {
-  if (!confirm('Generate a new passkey? The old one will no longer work for anyone using it.')) return;
+async function regenerateSectionPasskey() {
+  if (!await customConfirm('Generate a new passkey? The old one will no longer work for anyone using it.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
   document.getElementById('sef-passkey').value = generatePasskey();
 }
 function closeSectionModal() { document.getElementById('section-modal-overlay').classList.remove('open'); }
@@ -5407,14 +5950,14 @@ function saveSection() {
   else if (currentView === 'docview') renderDocView();
 }
 
-function deleteCurrentSection() {
+async function deleteCurrentSection() {
   if (!editSectionNum) return;
   if (!isAdminMode) { alert('Deleting a section requires real Admin Mode (the passkey only grants edit access within the section).'); return; }
   const base = editSectionBase || 'handbook';
   const label = base === 'projects' ? 'Project' : 'Section';
   const hasEntries = entriesInSection(editSectionNum, base).length > 0;
-  if (hasEntries && !confirm(`${label} ${editSectionNum} has entries. Delete the ${label.toLowerCase()} AND all its entries permanently?`)) return;
-  if (!hasEntries && !confirm(`Delete ${label.toLowerCase()} ${editSectionNum}?`)) return;
+  if (hasEntries && !await customConfirm(`${label} ${editSectionNum} has entries. Delete the ${label.toLowerCase()} AND all its entries permanently?`, { danger: true, confirmLabel: 'Delete ' + label.toLowerCase() })) return;
+  if (!hasEntries && !await customConfirm(`Delete ${label.toLowerCase()} ${editSectionNum}?`, { danger: true, confirmLabel: 'Delete ' + label.toLowerCase() })) return;
   if (base === 'projects') {
     PROJECT_ENTRIES = PROJECT_ENTRIES.filter(e => sectionNumOf(e.id) !== editSectionNum);
     PROJECTS = PROJECTS.filter(s => s.num !== editSectionNum);
@@ -5466,8 +6009,9 @@ function saveSidebarItem() {
   }
   closeSIModal(); saveSidebarOnly(); renderSidebar();
 }
-function deleteSidebarItem() {
-  if (!editSIItemId || !confirm('Remove this sidebar item?')) return;
+async function deleteSidebarItem() {
+  if (!editSIItemId) return;
+  if (!await customConfirm('Remove this sidebar item?', { danger: true, confirmLabel: 'Remove' })) return;
   const sec = SIDEBAR_CFG.find(s => s.id === editSISection);
   if (sec) sec.items = sec.items.filter(i => i.id !== editSIItemId);
   closeSIModal(); saveSidebarOnly(); renderSidebar();
@@ -5490,8 +6034,8 @@ function renderAnnouncements() {
       </div>
       <div class="ann-actions">
         ${isAdminMode ? `
-          <button class="ann-edit-btn" onclick="openAnnEditor('${escAttr(a.id)}')" title="Edit">✎</button>
-          <button class="ann-dismiss-btn" onclick="deleteAnnouncementAdmin('${escAttr(a.id)}')" title="Delete announcement (visible to everyone)">🗑</button>
+          <button class="ann-edit-btn" onclick="openAnnEditor('${escJsAttr(a.id)}')" title="Edit">✎</button>
+          <button class="ann-dismiss-btn" onclick="deleteAnnouncementAdmin('${escJsAttr(a.id)}')" title="Delete announcement (visible to everyone)">🗑</button>
         ` : ''}
       </div>
     </div>
@@ -5501,9 +6045,9 @@ function renderAnnouncements() {
     ${itemsHtml}${visible.length === 0 && isAdminMode ? '<div style="font-size:12px;color:var(--mid)">No announcements yet.</div>' : ''}`;
 }
 function dismissAnn(id) { /* deprecated — kept for back-compat */ dismissedAnns.add(id); saveAnnsOnly(); renderAnnouncements(); }
-function deleteAnnouncementAdmin(id) {
+async function deleteAnnouncementAdmin(id) {
   if (!isAdminMode) return;
-  if (!confirm('Delete this announcement for everyone? This cannot be undone.')) return;
+  if (!await customConfirm('Delete this announcement for everyone? This cannot be undone.', { danger: true, confirmLabel: 'Delete announcement' })) return;
   ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== id);
   dismissedAnns.delete(id);
   saveAnnsOnly();
@@ -5546,8 +6090,9 @@ function saveAnn() {
   closeAnnModal(); saveAnnsOnly(); renderAnnouncements();
   showToast('Announcement posted');
 }
-function deleteCurrentAnn() {
-  if (!editAnnId || !confirm('Delete this announcement?')) return;
+async function deleteCurrentAnn() {
+  if (!editAnnId) return;
+  if (!await customConfirm('Delete this announcement?', { danger: true, confirmLabel: 'Delete' })) return;
   ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== editAnnId);
   dismissedAnns.delete(editAnnId);
   closeAnnModal(); saveAnnsOnly(); renderAnnouncements();
@@ -5576,11 +6121,11 @@ function exportData() {
 function importData(e) {
   const file = e.target.files[0]; if (!file) return;
   const r = new FileReader();
-  r.onload = ev => {
+  r.onload = async ev => {
     try {
       const data = JSON.parse(ev.target.result);
       if (!data.handbook) { alert('Invalid backup file.'); return; }
-      if (!confirm('This will replace all data (handbook, projects, sidebar, announcements, synonyms, team). Continue?')) return;
+      if (!await customConfirm('This will replace all data (handbook, projects, sidebar, announcements, synonyms, team). Continue?', { danger: true, confirmLabel: 'Replace all data' })) return;
       SECTIONS = data.sections || clone(DEFAULT_SECTIONS);
       HANDBOOK = data.handbook;
       PROJECTS = data.projects || [];
@@ -5645,8 +6190,8 @@ function saveSynonyms() {
   saveSynonymsOnly();
   closeSynModal();
 }
-function resetSynonymsToDefault() {
-  if (!confirm('Reset all synonyms to defaults? Your custom groups will be lost.')) return;
+async function resetSynonymsToDefault() {
+  if (!await customConfirm('Reset all synonyms to defaults? Your custom groups will be lost.', { danger: true, confirmLabel: 'Reset synonyms' })) return;
   _synWorking = JSON.parse(JSON.stringify(DEFAULT_SYNONYMS));
   renderSynGroups();
 }
@@ -5703,6 +6248,10 @@ let _tmDraft = null; // draft of current edit
 
 function openTeamDirectory() {
   renderTeamRoster();
+  // Show the admin-only "All Passkeys" button when admin mode is on so admins
+  // can quickly look up / rotate codes when teammates DM "I lost my passkey".
+  const pkBtn = document.getElementById('team-passkeys-btn');
+  if (pkBtn) pkBtn.style.display = isAdminMode ? '' : 'none';
   document.getElementById('team-modal-overlay').classList.add('open');
 }
 function closeTeamModal() { document.getElementById('team-modal-overlay').classList.remove('open'); }
@@ -5711,7 +6260,7 @@ function maybeCloseTeamModal(e) { if (_shouldCloseOverlay(e, 'team-modal-overlay
 function renderTeamRoster() {
   const grid = document.getElementById('team-roster-grid');
   const cards = TEAM_DIRECTORY.map(m => `
-    <div class="tm-card" onclick="openTmDetail('${escAttr(m.id)}')">
+    <div class="tm-card" onclick="openTmDetail('${escJsAttr(m.id)}')">
       <div class="tm-card-avatar">
         ${m.image ? `<img src="${escAttr(m.image)}" alt="${escAttr(m.realName||'')}"/>` : defaultPersonIconSvg(40)}
       </div>
@@ -5748,9 +6297,47 @@ function blankTm() {
     favoriteGenre: '',
     favoriteGames: '',
     portfolio: '',
+    // Each profile gets a unique 8-char passkey on creation. Only the holder
+    // of this code can edit/update the profile (unless admin mode is on).
+    // Visible to the owner once at creation time via a "Save this passkey!"
+    // modal, and to admins via the bottom of the profile view in admin mode.
+    passkey: generatePasskey(),
     _createdAt: Date.now(),
     _updatedAt: Date.now()
   };
+}
+
+// Backfill: any team member without a passkey gets one. Returns true if any
+// member was updated, so the caller can re-persist + push to Firebase. Also
+// regenerates duplicates so login-by-passkey is unambiguous.
+function _ensureTeamPasskeys() {
+  if (!Array.isArray(TEAM_DIRECTORY)) return false;
+  let changed = false;
+  const seen = new Set();
+  for (const m of TEAM_DIRECTORY) {
+    if (!m || typeof m !== 'object') continue;
+    if (!m.passkey || seen.has(m.passkey.toUpperCase())) {
+      // Rotate until we land on something globally unique within the directory.
+      do { m.passkey = generatePasskey(); } while (seen.has(m.passkey.toUpperCase()));
+      changed = true;
+    }
+    seen.add(m.passkey.toUpperCase());
+  }
+  if (changed) {
+    try { localStorage.setItem('vl_team', JSON.stringify(TEAM_DIRECTORY)); } catch(e){}
+    if (typeof fbSyncKey === 'function') { try { fbSyncKey('team', TEAM_DIRECTORY); } catch(e){} }
+  }
+  return changed;
+}
+
+// Ownership / edit-permission check for a team-member profile.
+// Admin can always edit; the holder of the profile's passkey (= currentUser)
+// can edit their own profile; everyone else gets a view-only experience.
+function canEditTm(m) {
+  if (isAdminMode) return true;
+  if (!m) return false;
+  if (currentUser && currentUser.tmId === m.id) return true;
+  return false;
 }
 
 function openTmDetail(id) {
@@ -5760,7 +6347,9 @@ function openTmDetail(id) {
   _tmDraft = JSON.parse(JSON.stringify(m));
   tmEditMode = false;
   document.getElementById('tm-detail-title').textContent = m.realName || 'Team Member';
-  document.getElementById('tm-delete-btn').style.display = '';
+  // Delete is owner-or-admin; hide otherwise. renderTmDetail() reasserts this
+  // each render so we stay correct after admin-mode toggle while open.
+  document.getElementById('tm-delete-btn').style.display = canEditTm(m) ? '' : 'none';
   renderTmDetail();
   document.getElementById('tm-detail-overlay').classList.add('open');
 }
@@ -5784,20 +6373,40 @@ function maybeCloseTmDetail(e) {
 }
 
 function toggleTmEditMode() {
+  // Guard: a non-owner non-admin shouldn't be able to flip into edit mode even
+  // if they craft a click. The Edit toggle is hidden via CSS for them, but
+  // defense-in-depth keeps state consistent.
+  if (!canEditTm(_tmDraft)) { tmEditMode = false; renderTmDetail(); return; }
   tmEditMode = !tmEditMode;
   renderTmDetail();
 }
 
 function renderTmDetail() {
   const m = _tmDraft;
+  // Force view-only if the current viewer doesn't own this profile and isn't
+  // an admin. They can still browse but can never enter edit mode.
+  if (!canEditTm(m)) tmEditMode = false;
   const editing = tmEditMode;
+  const canEdit = canEditTm(m);
   const body = document.getElementById('tm-detail-body');
 
-  // Mode toggle button label + save button visibility
+  // Mode toggle button: visible only when the viewer can edit. Save button is
+  // visible only when in edit mode. Delete button mirrors edit permission.
   const modeBtn = document.getElementById('tm-mode-btn');
-  modeBtn.textContent = editing ? '👁 View Mode' : '✎ Edit';
-  modeBtn.classList.toggle('editing', editing);
+  if (canEdit) {
+    modeBtn.style.display = '';
+    modeBtn.textContent = editing ? '👁 View Mode' : '✎ Edit';
+    modeBtn.classList.toggle('editing', editing);
+  } else {
+    modeBtn.style.display = 'none';
+  }
   document.getElementById('tm-save-btn').style.display = editing ? 'inline-block' : 'none';
+  // Hide delete unless owner/admin AND the profile already exists (i.e. has an id in the directory).
+  const delBtn = document.getElementById('tm-delete-btn');
+  if (delBtn) {
+    const existsInDir = editingTmId && (TEAM_DIRECTORY || []).some(x => x.id === editingTmId);
+    delBtn.style.display = (canEdit && existsInDir) ? '' : 'none';
+  }
 
   // `filled` indicates whether the field currently has data. When true (and not
   // in edit mode), we hide the helper description so the card reads cleanly.
@@ -5960,8 +6569,65 @@ function renderTmDetail() {
         })}
       </div>
     </div>
+
+    ${isAdminMode && m.passkey ? `
+    <!-- ── PASSKEY (admin-only view) ── -->
+    <!-- The owner saw this code once at creation time. This section lets admins
+         look it up later (e.g. when someone DMs "I lost my passkey") and rotate
+         it if needed — rotating invalidates the old code immediately. -->
+    <div class="tm-section">
+      <div class="tm-section-header">
+        <div class="tm-section-icon">🔑</div>
+        <div class="tm-section-title">Passkey <span class="admin-tag" style="margin-left:6px">Admin</span></div>
+      </div>
+      <div class="tm-section-body">
+        <div class="tm-field-desc">Only this person (with this passkey) can edit their profile. Share securely if they lost it; rotate if compromised.</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
+          <input class="form-input" id="tm-pk-display" readonly value="${escAttr(m.passkey)}"
+            style="flex:1;font-family:'Consolas','Courier New',monospace;letter-spacing:0.12em;font-size:15px;text-align:center"/>
+          <button type="button" class="btn btn-secondary" onclick="copyTmPasskey()">📋 Copy</button>
+          <button type="button" class="btn btn-secondary" onclick="regenerateTmPasskey()" title="Generate a new passkey — the old one stops working immediately">↻ New</button>
+        </div>
+      </div>
+    </div>
+    ` : ''}
   `;
   body.innerHTML = html;
+}
+
+// Copy / rotate handlers for the admin-only passkey section.
+function copyTmPasskey() {
+  const inp = document.getElementById('tm-pk-display');
+  if (!inp || !inp.value) return;
+  navigator.clipboard.writeText(inp.value).then(
+    () => showToast('Passkey copied'),
+    () => { inp.select(); document.execCommand && document.execCommand('copy'); showToast('Passkey copied'); }
+  );
+}
+async function regenerateTmPasskey() {
+  if (!isAdminMode) return;
+  if (!_tmDraft) return;
+  if (!await customConfirm('Generate a new passkey for this profile? The old one will stop working immediately, including for any existing logged-in session.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
+  // New code, globally unique within the directory.
+  const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+  let next;
+  do { next = generatePasskey(); } while (used.has(next.toUpperCase()));
+  _tmDraft.passkey = next;
+  // Persist immediately to TEAM_DIRECTORY (so refresh / reopen sees it), even
+  // if the admin doesn't click Save on other field edits. Keeps the rotation
+  // atomic and surprise-free.
+  const idx = (TEAM_DIRECTORY || []).findIndex(x => x.id === editingTmId);
+  if (idx >= 0) {
+    TEAM_DIRECTORY[idx].passkey = next;
+    saveTeamOnly();
+  }
+  // If we just rotated the CURRENT user's own passkey, refresh their stored
+  // creds so they don't get bounced to the login screen on next reload.
+  if (currentUser && currentUser.tmId === editingTmId) {
+    setCurrentUser({ id: currentUser.tmId, slackName: currentUser.slackName, passkey: next }, currentUserPersistent);
+  }
+  renderTmDetail();
+  showToast('Passkey rotated');
 }
 
 function addTmProject(value) {
@@ -6003,6 +6669,15 @@ function uploadTmImage() {
 function clearTmImage() { _tmDraft.image = ''; renderTmDetail(); }
 
 function saveTm() {
+  // Permission check (defense in depth — UI hides the Save button for viewers
+  // who can't edit, but make sure a programmatic call can't bypass).
+  if (editingTmId) {
+    const existing = (TEAM_DIRECTORY || []).find(x => x.id === editingTmId);
+    if (existing && !canEditTm(existing)) {
+      alert('You can only edit your own profile (or sign in as admin).');
+      return;
+    }
+  }
   // Pull in-edit-mode values from inputs into draft
   if (tmEditMode) {
     const get = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
@@ -6034,6 +6709,10 @@ function saveTm() {
 
   _tmDraft._updatedAt = Date.now();
 
+  // Track first-save (= profile creation) so we can show the one-time
+  // "Save this passkey!" notice to the new owner.
+  const isFirstSave = !editingTmId || !TEAM_DIRECTORY.some(m => m.id === editingTmId);
+
   if (editingTmId) {
     const idx = TEAM_DIRECTORY.findIndex(m => m.id === editingTmId);
     if (idx === -1) { TEAM_DIRECTORY.push(_tmDraft); }
@@ -6043,20 +6722,179 @@ function saveTm() {
     editingTmId = _tmDraft.id;
   }
 
+  // Make sure the new profile got a passkey (blankTm() always does, but in
+  // case a future code path constructs one without going through blankTm).
+  if (isFirstSave && !_tmDraft.passkey) {
+    const used = new Set(TEAM_DIRECTORY.map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+    do { _tmDraft.passkey = generatePasskey(); } while (used.has(_tmDraft.passkey.toUpperCase()));
+  }
+
   saveTeamOnly();
   tmEditMode = false;
+
+  // On profile creation: auto-sign-in the new owner so the next thing they do
+  // (edit their own profile, see "their" pages) just works. Only do this if
+  // nobody is currently signed in (otherwise this would hijack the session of
+  // whoever opened the "Add Team Member" card — e.g. an admin onboarding a
+  // teammate, where the admin should remain admin).
+  if (isFirstSave && !currentUser && !isAdminMode) {
+    setCurrentUser(_tmDraft, true /* stay signed in by default after creation */);
+    _renderSignOutChip();
+  }
+
   renderTmDetail();
   renderTeamRoster();
   document.getElementById('tm-detail-title').textContent = _tmDraft.realName || 'Team Member';
+
+  // Show the one-time passkey notice AFTER persisting and re-rendering, so the
+  // user sees their card already updated underneath the modal.
+  if (isFirstSave) showNewProfilePasskey(_tmDraft);
 }
 
-function deleteCurrentTm() {
+async function deleteCurrentTm() {
   if (!editingTmId) return;
-  if (!confirm('Remove this team member profile? This cannot be undone.')) return;
+  const m = (TEAM_DIRECTORY || []).find(x => x.id === editingTmId);
+  if (!m) return;
+  if (!canEditTm(m)) { alert('You can only delete your own profile (or sign in as admin).'); return; }
+  if (!await customConfirm('Remove this team member profile? This cannot be undone — and the passkey will stop working.', { danger: true, confirmLabel: 'Delete profile' })) return;
+  const wasSelf = currentUser && currentUser.tmId === editingTmId;
   TEAM_DIRECTORY = TEAM_DIRECTORY.filter(m => m.id !== editingTmId);
   saveTeamOnly();
   renderTeamRoster();
   closeTmDetail();
+  // If the user just deleted their own profile, sign them out so they don't
+  // sit on a phantom session pointing at a missing member.
+  if (wasSelf) signOut();
+}
+
+// One-time "save this passkey!" notice shown right after profile creation.
+// The owner sees their 8-char code in big mono, can copy it to clipboard,
+// and must acknowledge before dismissing. After this they only see it again
+// at creation in this same modal — admins can look it up later via the
+// admin-only passkey section at the bottom of the profile.
+function showNewProfilePasskey(m) {
+  if (!m || !m.passkey) return;
+  const overlay = document.getElementById('new-pk-overlay');
+  if (!overlay) return;
+  const code  = document.getElementById('new-pk-code');
+  const intro = document.getElementById('new-pk-intro');
+  if (code)  code.textContent  = m.passkey;
+  if (intro) intro.innerHTML   = 'Profile saved for <strong>' +
+    escapeHtml(m.slackName ? '@' + String(m.slackName).replace(/^@/, '') : (m.realName || 'this team member')) +
+    '</strong>.';
+  overlay.classList.add('open');
+  // Auto-focus the Copy button so Enter copies + closes is one fast path.
+  setTimeout(() => {
+    const btn = document.getElementById('new-pk-copy-btn');
+    if (btn) btn.focus();
+  }, 80);
+}
+function copyNewPasskey() {
+  const t = document.getElementById('new-pk-code');
+  if (!t || !t.textContent) return;
+  navigator.clipboard.writeText(t.textContent).then(
+    () => showToast('Passkey copied — paste it somewhere safe!'),
+    () => showToast('Could not copy automatically — select and copy manually.')
+  );
+}
+function closeNewPasskey() {
+  const overlay = document.getElementById('new-pk-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+/* ── ALL PASSKEYS admin lookup ───────────────────────────────────────────
+   A searchable table of every team member + their passkey, with quick copy
+   and rotate buttons. Built for the "I forgot my passkey, can you help?"
+   support flow — admins can grab the code and DM it back in a few seconds. */
+function openAllPasskeys() {
+  if (!isAdminMode) { showToast('Admin only'); return; }
+  // The All Passkeys page is a focused admin workspace — close the Team
+  // Directory window underneath so the user isn't stacking two related
+  // panels. The 🔑 button in the team directory header is the only way in,
+  // so dismissing the parent is safe and reduces visual clutter.
+  closeTeamModal();
+  const inp = document.getElementById('pk-filter');
+  if (inp) inp.value = '';
+  renderPasskeysTable();
+  document.getElementById('pk-modal-overlay').classList.add('open');
+  setTimeout(() => { if (inp) inp.focus(); }, 60);
+}
+function closeAllPasskeys() { document.getElementById('pk-modal-overlay').classList.remove('open'); }
+function maybeClosePk(e)    { if (_shouldCloseOverlay(e, 'pk-modal-overlay')) closeAllPasskeys(); }
+
+function renderPasskeysTable() {
+  const wrap = document.getElementById('pk-table-wrap');
+  if (!wrap) return;
+  const q = (document.getElementById('pk-filter')?.value || '').trim().toLowerCase();
+  const rows = (TEAM_DIRECTORY || [])
+    .filter(m => m && m.id)
+    .filter(m => {
+      if (!q) return true;
+      const hay = [m.slackName, m.realName, m.passkey, ...(m.projects || [])]
+        .filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    })
+    .sort((a, b) => String(a.realName || a.slackName || '').localeCompare(String(b.realName || b.slackName || '')));
+
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="pk-empty">${q ? 'No matches.' : 'No team members yet.'}</div>`;
+    return;
+  }
+  const html = `<table class="pk-table">
+    <thead><tr>
+      <th style="width:36px"></th>
+      <th>Slack</th>
+      <th>Real Name</th>
+      <th>Passkey</th>
+      <th style="width:1px;white-space:nowrap">Actions</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(m => `<tr>
+        <td>${m.image ? `<img class="pk-avatar" src="${escAttr(m.image)}" alt=""/>` : `<div class="pk-avatar"></div>`}</td>
+        <td>${m.slackName ? escapeHtml('@' + m.slackName.replace(/^@/, '')) : '<span style="color:var(--mid)">(no slack)</span>'}</td>
+        <td>${m.realName ? escapeHtml(m.realName) : '<span style="color:var(--mid)">(unnamed)</span>'}</td>
+        <td><span class="pk-code">${escapeHtml(m.passkey || '—')}</span></td>
+        <td><div class="pk-actions">
+          <button class="pk-mini-btn" title="Copy passkey to clipboard"
+                  onclick="copyPasskeyForId('${escJsAttr(m.id)}')">📋 Copy</button>
+          <button class="pk-mini-btn danger" title="Rotate — old code stops working immediately"
+                  onclick="rotatePasskeyForId('${escJsAttr(m.id)}')">↻ Rotate</button>
+        </div></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+  wrap.innerHTML = html;
+}
+
+function copyPasskeyForId(id) {
+  const m = (TEAM_DIRECTORY || []).find(x => x.id === id);
+  if (!m || !m.passkey) return;
+  navigator.clipboard.writeText(m.passkey).then(
+    () => showToast('Passkey copied for ' + (m.slackName ? '@' + m.slackName.replace(/^@/, '') : (m.realName || 'member'))),
+    () => showToast('Could not copy — select and copy manually.')
+  );
+}
+
+async function rotatePasskeyForId(id) {
+  if (!isAdminMode) return;
+  const m = (TEAM_DIRECTORY || []).find(x => x.id === id);
+  if (!m) return;
+  const who = m.slackName ? '@' + m.slackName.replace(/^@/, '') : (m.realName || 'this member');
+  if (!await customConfirm('Rotate passkey for ' + who + '? The old code will stop working immediately.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
+  const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+  let next;
+  do { next = generatePasskey(); } while (used.has(next.toUpperCase()));
+  m.passkey = next;
+  saveTeamOnly();
+  // If we're rotating the open profile, keep the drafts in sync so the admin
+  // sees the new value if they pop the detail open afterwards.
+  if (editingTmId === id && _tmDraft) _tmDraft.passkey = next;
+  // If we just rotated the CURRENT user's own passkey, refresh their session.
+  if (currentUser && currentUser.tmId === id) {
+    setCurrentUser(m, currentUserPersistent);
+  }
+  renderPasskeysTable();
+  showToast('Passkey rotated');
 }
 
 /* ══════════════════════════════════════════
@@ -6123,7 +6961,7 @@ function renderDocView() {
     <button class="dv-tab${base==='projects'?' active':''}" onclick="dvSetBase('projects')">🗂 ${escapeHtml(getCategoryLabel('projects'))}</button>`;
   for (const cc of (CUSTOM_CATEGORIES || [])) {
     if (!cc || !cc.id) continue;
-    tabsHtml += `<button class="dv-tab${base===cc.id?' active':''}" onclick="dvSetBase('${escAttr(cc.id)}')">📂 ${escapeHtml(cc.label)}</button>`;
+    tabsHtml += `<button class="dv-tab${base===cc.id?' active':''}" onclick="dvSetBase('${escJsAttr(cc.id)}')">📂 ${escapeHtml(cc.label)}</button>`;
   }
   let oh = `<div class="dv-outline-heading">Outline</div>
     <div class="dv-base-toggle" style="flex-wrap:wrap">
@@ -6154,7 +6992,7 @@ function renderDocView() {
       <div class="dv-title">VL ${escapeHtml(baseLabel)} — Documentation View</div>
       <div class="dv-title-meta">Edit any entry inline. Changes save when you click "Save".</div>
     </div>
-    <button class="btn btn-admin" onclick="dvNewSectionInline('${escAttr(base)}')">＋ New ${escapeHtml(itemLabel)}</button>
+    <button class="btn btn-admin" onclick="dvNewSectionInline('${escJsAttr(base)}')">＋ New ${escapeHtml(itemLabel)}</button>
   </div>`;
 
   if (sectionsArr.length === 0) {
@@ -6169,7 +7007,7 @@ function renderDocView() {
       <div class="dv-section-header">
         <span class="dv-section-num">${escapeHtml(itemLabel.toUpperCase())} ${escapeHtml(sec.num)}</span>
         <span class="dv-section-title">${escapeHtml(sec.title)}</span>
-        <button class="dv-entry-edit-btn" onclick="dvEditSectionInline('${escAttr(sec.num)}','${escAttr(base)}')">⚙ Edit</button>
+        <button class="dv-entry-edit-btn" onclick="dvEditSectionInline('${escJsAttr(sec.num)}','${escJsAttr(base)}')">⚙ Edit</button>
       </div>
       <div class="dv-section-body">
         <div class="dv-section-desc">${sec.description || '<em style="color:var(--mid)">(no description)</em>'}</div>`;
@@ -6181,14 +7019,14 @@ function renderDocView() {
           <span class="dv-entry-num">${escapeHtml(e.id)}</span>
           <span class="dv-entry-title">${escapeHtml(e.title)}</span>
           <div class="dv-entry-actions">
-            <button class="dv-entry-edit-btn" onclick="dvNewSubInline('${escAttr(e.id)}','${escAttr(base)}')" title="Add a sub-entry under this">＋ Sub</button>
-            <button class="dv-entry-edit-btn" onclick="dvEditEntryInline('${escAttr(e.id)}','${escAttr(base)}')">✎ Edit</button>
+            <button class="dv-entry-edit-btn" onclick="dvNewSubInline('${escJsAttr(e.id)}','${escJsAttr(base)}')" title="Add a sub-entry under this">＋ Sub</button>
+            <button class="dv-entry-edit-btn" onclick="dvEditEntryInline('${escJsAttr(e.id)}','${escJsAttr(base)}')">✎ Edit</button>
           </div>
         </div>
         <div class="dv-entry-content" id="dv-content-${escAttr(base)}-${escAttr(e.id)}">${e.content}</div>
       </div>`;
     }
-    ch += `<button class="dv-add-entry-btn" onclick="dvNewEntryInline('${escAttr(sec.num)}','${escAttr(base)}')">＋ Add Entry to ${escapeHtml(itemLabel)} ${escapeHtml(sec.num)}</button>`;
+    ch += `<button class="dv-add-entry-btn" onclick="dvNewEntryInline('${escJsAttr(sec.num)}','${escJsAttr(base)}')">＋ Add Entry to ${escapeHtml(itemLabel)} ${escapeHtml(sec.num)}</button>`;
     ch += `</div></div>`;
   }
 
@@ -6270,9 +7108,9 @@ function dvEditEntryInline(id, base) {
   }
   const card = document.getElementById(`dv-en-${base}-${id}`); if (!card) return;
   const edId = `dvE-ed-${base}-${id}`, tbId = `dvE-tb-${base}-${id}`;
-  const del = `<button class="dv-del-btn" type="button" title="Delete entry" onclick="dvDeleteEntryInline('${escAttr(id)}','${escAttr(base)}')">🗑</button>`;
+  const del = `<button class="dv-del-btn" type="button" title="Delete entry" onclick="dvDeleteEntryInline('${escJsAttr(id)}','${escJsAttr(base)}')">🗑</button>`;
   card.innerHTML = dvEntryFormHTML(edId, tbId, entry.title, (entry.keywords || []).join(', '),
-    `_dvCommitEntry('${escAttr(base)}','${escAttr(edId)}','${escAttr(id)}','','')`, del);
+    `_dvCommitEntry('${escJsAttr(base)}','${escJsAttr(edId)}','${escJsAttr(id)}','','')`, del);
   initEditor(edId, tbId, entry.content);
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -6295,7 +7133,7 @@ function dvNewEntryInline(sectionNum, base) {
   const edId = `dvNE-ed-${base}-${sectionNum}`, tbId = `dvNE-tb-${base}-${sectionNum}`;
   if (document.getElementById(`${edId}__wrap`)) { document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior:'smooth' }); return; }
   const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New entry — ID assigned automatically</div>` +
-    dvEntryFormHTML(edId, tbId, '', '', `_dvCommitEntry('${escAttr(base)}','${escAttr(edId)}','','${escAttr(sectionNum)}','')`, '') + `</div>`;
+    dvEntryFormHTML(edId, tbId, '', '', `_dvCommitEntry('${escJsAttr(base)}','${escJsAttr(edId)}','','${escJsAttr(sectionNum)}','')`, '') + `</div>`;
   const addBtn = body.querySelector('.dv-add-entry-btn');
   if (addBtn) addBtn.insertAdjacentHTML('beforebegin', html); else body.insertAdjacentHTML('beforeend', html);
   initEditor(edId, tbId, '');
@@ -6314,7 +7152,7 @@ function dvNewSubInline(parentId, base) {
   const edId = `dvNS-ed-${base}-${parentId}`, tbId = `dvNS-tb-${base}-${parentId}`;
   if (document.getElementById(`${edId}__wrap`)) { document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior:'smooth' }); return; }
   const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New sub-entry under ${escapeHtml(parentId)} — ID assigned automatically</div>` +
-    dvEntryFormHTML(edId, tbId, '', '', `_dvCommitEntry('${escAttr(base)}','${escAttr(edId)}','','','${escAttr(parentId)}')`, '') + `</div>`;
+    dvEntryFormHTML(edId, tbId, '', '', `_dvCommitEntry('${escJsAttr(base)}','${escJsAttr(edId)}','','','${escJsAttr(parentId)}')`, '') + `</div>`;
   card.insertAdjacentHTML('afterend', html);
   initEditor(edId, tbId, '');
   document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -6339,12 +7177,16 @@ function _dvPasskeyHtml(edId, val) {
   return `<label class="form-label">Edit Passkey <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--mid)">(share with users who can edit this project)</span></label>
     <div style="display:flex;gap:6px">
       <input class="form-input" id="${edId}__pk" readonly value="${escAttr(val)}" style="flex:1;font-family:'Consolas','Courier New',monospace;letter-spacing:0.08em">
-      <button class="btn btn-secondary" type="button" onclick="dvCopyPasskey('${escAttr(edId)}')">Copy</button>
-      <button class="btn btn-secondary" type="button" onclick="dvRegenPasskey('${escAttr(edId)}')">↻ New</button>
+      <button class="btn btn-secondary" type="button" onclick="dvCopyPasskey('${escJsAttr(edId)}')">Copy</button>
+      <button class="btn btn-secondary" type="button" onclick="dvRegenPasskey('${escJsAttr(edId)}')">↻ New</button>
     </div>`;
 }
 function dvCopyPasskey(edId) { const i = document.getElementById(edId + '__pk'); if (i && i.value) navigator.clipboard.writeText(i.value).then(() => showToast('Passkey copied')); }
-function dvRegenPasskey(edId) { if (!confirm('Generate a new passkey? The old one will stop working for anyone using it.')) return; const i = document.getElementById(edId + '__pk'); if (i) i.value = generatePasskey(); }
+async function dvRegenPasskey(edId) {
+  if (!await customConfirm('Generate a new passkey? The old one will stop working for anyone using it.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
+  const i = document.getElementById(edId + '__pk');
+  if (i) i.value = generatePasskey();
+}
 
 function dvEditSectionInline(num, base) {
   base = base || 'handbook';
@@ -6361,9 +7203,9 @@ function dvEditSectionInline(num, base) {
   const edId = `dvS-ed-${base}-${num}`, tbId = `dvS-tb-${base}-${num}`;
   let pk = '';
   if ((base === 'projects') && isAdminMode) { if (!sec.passkey) sec.passkey = generatePasskey(); pk = _dvPasskeyHtml(edId, sec.passkey); }
-  const del = isAdminMode ? `<button class="dv-del-btn" type="button" title="Delete ${escapeHtml(itemLabel)}" onclick="dvDeleteSectionInline('${escAttr(num)}','${escAttr(base)}')">🗑</button>` : '';
+  const del = isAdminMode ? `<button class="dv-del-btn" type="button" title="Delete ${escapeHtml(itemLabel)}" onclick="dvDeleteSectionInline('${escJsAttr(num)}','${escJsAttr(base)}')">🗑</button>` : '';
   const form = `<div class="dv-inline-new"><div class="dv-inline-new-title">Edit ${escapeHtml(itemLabel)} ${escapeHtml(num)}</div>` +
-    dvSectionFormHTML(itemLabel, edId, tbId, sec.title, pk, `dvSaveSectionInline('${escAttr(num)}','${escAttr(base)}')`, del) + `</div>`;
+    dvSectionFormHTML(itemLabel, edId, tbId, sec.title, pk, `dvSaveSectionInline('${escJsAttr(num)}','${escJsAttr(base)}')`, del) + `</div>`;
   header.outerHTML = form;
   initEditor(edId, tbId, sec.description || '');
 }
@@ -6401,7 +7243,7 @@ function dvNewSectionInline(base) {
   const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
   const pk = (base === 'projects' && isAdminMode) ? _dvPasskeyHtml(edId, generatePasskey()) : '';
   const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New ${escapeHtml(itemLabel)} — number ${nextNum} assigned automatically</div>` +
-    dvSectionFormHTML(itemLabel, edId, tbId, '', pk, `dvSaveNewSectionInline('${escAttr(base)}')`, '') + `</div>`;
+    dvSectionFormHTML(itemLabel, edId, tbId, '', pk, `dvSaveNewSectionInline('${escJsAttr(base)}')`, '') + `</div>`;
   const titleBar = content.querySelector('.dv-title-bar');
   if (titleBar) titleBar.insertAdjacentHTML('afterend', html); else content.insertAdjacentHTML('afterbegin', html);
   initEditor(edId, tbId, '');
@@ -6469,6 +7311,125 @@ function maintTryPwd() {
 }
 
 /* ══════════════════════════════════════════
+   LOGIN overlay
+   First gate before the dashboard loads. Closed by either a valid team-member
+   passkey (which identifies the user → owns their profile in TEAM_DIRECTORY)
+   or the admin password (no specific identity, just turns Admin Mode on).
+   ══════════════════════════════════════════ */
+function showLogin() {
+  // Sync the dashboard/studio name to whatever SITE_SETTINGS currently has so
+  // the login screen reflects renames the admin made.
+  const nameEl   = document.getElementById('login-site-name');
+  const studioEl = document.getElementById('login-studio-name');
+  if (nameEl)   nameEl.textContent   = (SITE_SETTINGS && SITE_SETTINGS.siteName)   || 'VL Dashboard';
+  if (studioEl) studioEl.textContent = (SITE_SETTINGS && SITE_SETTINGS.studioName) || 'Mega Cat Studios';
+  const inp = document.getElementById('login-pwd');
+  if (inp) { inp.value = ''; inp.classList.remove('error'); }
+  const err = document.getElementById('login-err');
+  if (err) err.textContent = '';
+  document.getElementById('login-overlay').classList.add('open');
+  setTimeout(() => { if (inp) inp.focus(); }, 80);
+}
+
+function hideLogin() {
+  const o = document.getElementById('login-overlay');
+  if (!o) return;
+  o.classList.add('fading-out');
+  // Match the CSS animation duration (0.45s).
+  setTimeout(() => { o.classList.remove('open'); o.classList.remove('fading-out'); }, 460);
+}
+
+function loginTry() {
+  const inp = document.getElementById('login-pwd');
+  const err = document.getElementById('login-err');
+  const remember = !!document.getElementById('login-remember').checked;
+  const raw = (inp.value || '').trim();
+  if (!raw) {
+    err.textContent = 'Enter your passkey.';
+    return;
+  }
+
+  // 1) Admin password — bypass without attaching a specific user identity.
+  //    (Per spec: when someone doesn't have a passkey yet, the admin password
+  //    overrides the login screen, same password used elsewhere for admin.)
+  if (raw === ADMIN_PW) {
+    // Don't persist admin-bypass to localStorage — admin should re-auth each
+    // session intentionally (and exitAdminMode shouldn't kick them to login).
+    currentUser = null;
+    currentUserPersistent = false;
+    try { localStorage.removeItem(LOGIN_KEY); } catch(e){}
+    try { sessionStorage.removeItem(LOGIN_KEY); } catch(e){}
+    // Auto-enter admin mode so they don't have to click the lock afterwards.
+    isAdminMode = true;
+    document.body.classList.add('admin-mode');
+    _swapAdminIcons(true);
+    _bootProceedAfterLogin({ slackName: 'Admin', isAdmin: true });
+    return;
+  }
+
+  // 2) Team-member passkey
+  const member = _findMemberByPasskey(raw);
+  if (member) {
+    setCurrentUser(member, remember);
+    _bootProceedAfterLogin({ slackName: member.slackName || member.realName || '', isAdmin: false });
+    return;
+  }
+
+  // 3) Anything else — shake + error message
+  inp.classList.add('error');
+  err.textContent = 'Incorrect passkey. Try again, or use the admin password.';
+  inp.value = '';
+  setTimeout(() => inp.classList.remove('error'), 400);
+  inp.focus();
+}
+
+// Plays the welcome fade, then dismisses the login overlay and lets the rest
+// of the boot sequence (maintenance overlay + Firebase init) take over.
+function _bootProceedAfterLogin(info) {
+  playWelcome(info, () => {
+    hideLogin();
+    _runMainBootstrap();      // Firebase + initial render — see INIT block
+    _renderSignOutChip();     // expose the sign-out chip if a user is logged in
+  });
+}
+
+function playWelcome(info, done) {
+  const overlay = document.getElementById('welcome-overlay');
+  const msg = document.getElementById('welcome-msg');
+  const sub = document.getElementById('welcome-sub');
+  if (!overlay || !msg) { done && done(); return; }
+  if (info && info.isAdmin) {
+    msg.textContent = 'Welcome, Admin!';
+    sub.textContent = 'Admin Mode enabled for this session.';
+  } else {
+    const name = (info && info.slackName) ? '@' + String(info.slackName).replace(/^@/, '') : 'friend';
+    msg.textContent = 'Welcome, ' + name + '!';
+    sub.textContent = '';
+  }
+  overlay.classList.add('open');
+  // The CSS animation runs ~1.7s. Hand off to the next step shortly before it
+  // finishes so the maintenance overlay is already visible underneath the
+  // tail end of the fade-out (smoother feel than waiting for full transparency).
+  setTimeout(() => {
+    overlay.classList.remove('open');
+    done && done();
+  }, 1450);
+}
+
+function _renderSignOutChip() {
+  const chip = document.getElementById('signout-chip');
+  if (!chip) return;
+  if (currentUser && currentUser.slackName) {
+    chip.innerHTML = '<span>Logged in as</span><span class="so-name">@' +
+      escapeHtml(String(currentUser.slackName).replace(/^@/, '')) +
+      '</span><span>· Sign out</span>';
+    chip.classList.add('visible');
+  } else {
+    chip.classList.remove('visible');
+  }
+}
+
+/* ══════════════════════════════════════════
    KEYBOARD
    ══════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
@@ -6482,7 +7443,7 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.key === 'Escape') {
-    for (const id of ['tm-detail-overlay','team-modal-overlay','syn-modal-overlay','settings-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay','cat-modal-overlay']) {
+    for (const id of ['new-pk-overlay','pk-modal-overlay','tm-detail-overlay','team-modal-overlay','syn-modal-overlay','settings-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay','cat-modal-overlay']) {
       const m = document.getElementById(id);
       if (m && m.classList.contains('open')) { m.classList.remove('open'); return; }
     }
@@ -6496,6 +7457,14 @@ document.addEventListener('keydown', e => {
 
 /* ══════════════════════════════════════════
    INIT
+   The boot sequence is now:
+     1. loadFromStorage()                    — populates SITE_SETTINGS / TEAM_DIRECTORY etc.
+     2. Apply theme + render sidebar offscreen (so the dashboard exists in the DOM
+        but the user can't interact with it — the login overlay sits on top).
+     3. If a valid currentUser is restored from storage → skip login, jump
+        straight to _runMainBootstrap(). Otherwise show the login screen.
+     4. After login (or instant resume) → _runMainBootstrap() handles the
+        maintenance/loading overlay + Firebase init + final renders.
    ══════════════════════════════════════════ */
 loadFromStorage();
 if (sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');
@@ -6506,31 +7475,51 @@ renderAnnouncements();
 showHome();
 _rtSetupVideoFallback();   // local-file: swap blocked video embeds for clickable posters
 
-// Attempt Firebase init. The GUI is blocked by the maintenance overlay until we
-// confirm a live connection; an admin can skip it. (Per requirement: block the
-// dashboard whenever it isn't connected — server down, offline, or unconfigured.)
-const _fbDot = document.getElementById('fb-status-dot');
-if (fbConfigured()) {
-  showMaintenance('connecting');
-  let _fbSettled = false;
-  const _fbTimeout = setTimeout(() => { if (!_fbSettled) showMaintenance('down'); }, 12000);
-  initFirebase().then(ok => {
-    _fbSettled = true; clearTimeout(_fbTimeout);
-    if (ok) {
-      hideMaintenance();
-      renderSidebar(); renderAnnouncements();
-      if (_fbDot) { _fbDot.classList.add('connected'); _fbDot.title = 'Connected to shared dashboard'; }
-      // Backfill any entries that don't yet have embeddings (deferred so the boot is snappy).
-      setTimeout(() => runBackfillEmbeddings(), 1500);
-    } else {
-      showMaintenance('down');
-      if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
-    }
-  });
+// Decide login vs resume. If the user clicked "Stay signed in" last time and
+// the stored member still exists with the same passkey, we restore the
+// session silently and skip both the login screen and the welcome fade —
+// refreshes shouldn't feel like a re-login.
+const _restored = loadCurrentUser();
+if (_restored) {
+  _renderSignOutChip();
+  _runMainBootstrap();
 } else {
-  // Not configured → treat as not connected and block the GUI.
-  showMaintenance('down');
-  if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
+  // First-time visitor (or session expired / member deleted / passkey rotated).
+  showLogin();
+}
+
+// The Firebase + maintenance bootstrap is wrapped so it runs ONLY after the
+// login gate is passed. Pulling Firebase data before login would be wasteful
+// (and would briefly show team data on screen before the login overlay paints
+// on some browsers).
+let _mainBootstrapRan = false;
+function _runMainBootstrap() {
+  if (_mainBootstrapRan) return;
+  _mainBootstrapRan = true;
+
+  const _fbDot = document.getElementById('fb-status-dot');
+  if (fbConfigured()) {
+    showMaintenance('connecting');
+    let _fbSettled = false;
+    const _fbTimeout = setTimeout(() => { if (!_fbSettled) showMaintenance('down'); }, 12000);
+    initFirebase().then(ok => {
+      _fbSettled = true; clearTimeout(_fbTimeout);
+      if (ok) {
+        hideMaintenance();
+        renderSidebar(); renderAnnouncements();
+        _renderSignOutChip();  // slack name may have refreshed from remote
+        if (_fbDot) { _fbDot.classList.add('connected'); _fbDot.title = 'Connected to shared dashboard'; }
+        setTimeout(() => runBackfillEmbeddings(), 1500);
+      } else {
+        showMaintenance('down');
+        if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
+      }
+    });
+  } else {
+    // Not configured → treat as not connected and block the GUI.
+    showMaintenance('down');
+    if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
+  }
 }
 
 // Flush any debounced Firestore writes before the page unloads. Without
