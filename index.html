@@ -10,6 +10,10 @@
     --hover-bg: #f0f0ee; --admin-accent: #b87c00; --admin-accent-light: #fff8ee;
     --bg-sidebar: #fafaf8; --bg-card-head: #f7f7f5; --bg-th: #f0f0ee;
     --bg-modal: #f5f5f3; --bg-form-input: #ffffff; --text-body: #222;
+    /* --text-sub: secondary text that still needs to be readable (sub-text,
+       captions, phrases). Darker than --mid (#888), which is reserved for
+       de-emphasized micro-labels only. */
+    --text-sub: #555;
     --shadow-modal: 0 8px 40px rgba(0,0,0,0.18);
   }
   body.dark {
@@ -17,6 +21,7 @@
     --hover-bg: #1e1e1e; --admin-accent: #d4a843; --admin-accent-light: #1e1700;
     --bg-sidebar: #111111; --bg-card-head: #1c1c1c; --bg-th: #1e1e1e;
     --bg-modal: #161616; --bg-form-input: #1a1a1a; --text-body: #ccccca;
+    --text-sub: #a2a29f;
     --shadow-modal: 0 8px 40px rgba(0,0,0,0.5);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -943,6 +948,401 @@
   /* All Passkeys admin lookup modal: bumped above tm-detail (2600) and team
      (2500) so even if it ever co-exists with them it appears in front. */
   #pk-modal-overlay { z-index: 3000 !important; }
+
+  /* ── KPI VIEWER (dedicated modal) ──
+     Opened from a "📊 Open KPI Report" button inside the profile detail.
+     Stacks above the profile (z-index 4000) so the user can close it and
+     return to the profile underneath. */
+  #kpi-overlay {
+    display: none; position: fixed; inset: 0; z-index: 4000;
+    background: rgba(13,13,13,0.65);
+    align-items: flex-start; justify-content: center; padding: 24px;
+    overflow-y: auto;
+  }
+  body.dark #kpi-overlay { background: rgba(0,0,0,0.78); }
+  #kpi-overlay.open { display: flex; }
+  #kpi-modal {
+    background: var(--bg-modal); border: 1.5px solid var(--border);
+    border-radius: 10px; width: 100%; max-width: 1080px;
+    box-shadow: 0 18px 60px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column;
+    max-height: calc(100vh - 48px);
+  }
+  .kpi-modal-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    background: var(--bg-card-head); border-radius: 10px 10px 0 0;
+    flex-shrink: 0;
+  }
+  .kpi-modal-avatar {
+    width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
+    background: var(--bg-form-input); border: 1.5px solid var(--border);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .kpi-modal-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .kpi-modal-name {
+    font-size: 15px; font-weight: 700; color: var(--text-body); line-height: 1.2;
+  }
+  .kpi-modal-sub { font-size: 11.5px; color: var(--mid); margin-top: 2px; }
+  .kpi-modal-spacer { flex: 1; }
+  #kpi-modal-body { padding: 18px 22px 22px; overflow-y: auto; flex: 1; }
+
+  /* The inline-in-profile KPI launcher button row */
+  .kpi-launcher {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .kpi-launcher-hint { font-size: 11.5px; color: var(--text-sub); line-height: 1.45; }
+
+  /* Marker (kept for any leftover references; section itself now lives in
+     the dedicated #kpi-overlay modal). */
+  .kpi-section { /* uses .tm-section styling already; this is a marker */ }
+  .kpi-toolbar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 10px 12px; background: var(--bg-card-head);
+    border: 1px solid var(--border); border-radius: 6px; margin-bottom: 12px;
+  }
+  .kpi-toolbar select, .kpi-toolbar .form-input { padding: 5px 8px; font-size: 12.5px; }
+  .kpi-toolbar .kpi-toolbar-spacer { flex: 1; }
+  /* Quarter tabs are STICKY within the scrolling KPI modal body, so you can
+     switch quarters even while scrolled down through the metrics. Requires the
+     enclosing .kpi-section to not clip (override its overflow:hidden below).
+     The negative side margins bleed the opaque background across the section
+     body's padding so scrolling cards are fully covered as they pass under. */
+  .kpi-tabs {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 6;
+    background: var(--bg-modal);
+    margin: -2px -14px 8px; padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  /* Let the sticky quarter tabs escape the section card (which is normally
+     overflow:hidden to clip its rounded corners). Two-class selector so it
+     beats `.tm-section { overflow:hidden }` regardless of source order.
+     Re-round the header's top corners so the look is unchanged without the clip. */
+  .tm-section.kpi-section { overflow: visible; }
+  .tm-section.kpi-section > .tm-section-header { border-radius: 7px 7px 0 0; }
+  .kpi-tab {
+    padding: 6px 14px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+    background: var(--bg-card-head); color: var(--text-body);
+    transition: all 0.12s; user-select: none; letter-spacing: 0.02em;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .kpi-tab:hover:not(.disabled) { border-color: var(--admin-accent); color: var(--admin-accent); }
+  .kpi-tab.active {
+    background: var(--admin-accent); color: #fff; border-color: var(--admin-accent);
+  }
+  .kpi-tab.missing { color: #c0392b; border-color: #e0b0ac; }
+  .kpi-tab.missing:hover { background: #fdf0f0; }
+  body.dark .kpi-tab.missing:hover { background: #2a0a0a; }
+  .kpi-tab.disabled {
+    color: var(--mid); opacity: 0.45; cursor: not-allowed;
+    border-style: dashed;
+  }
+  .kpi-tab .kpi-tab-mark {
+    display: inline-block; width: 14px; height: 14px; line-height: 14px;
+    border-radius: 50%; font-size: 9px; text-align: center; font-weight: 700;
+  }
+  .kpi-tab.active .kpi-tab-mark { background: rgba(255,255,255,0.25); color: #fff; }
+
+  .kpi-empty {
+    padding: 24px 16px; text-align: center; color: var(--mid);
+    background: var(--bg-card-head); border: 1px dashed var(--border);
+    border-radius: 6px; font-size: 13px; line-height: 1.55;
+  }
+  .kpi-empty strong { color: var(--text-body); }
+  .kpi-empty .kpi-empty-icon { font-size: 28px; opacity: 0.5; margin-bottom: 4px; }
+
+  /* Report header card (evaluator info + overall gauge) */
+  .kpi-report-header {
+    display: grid; grid-template-columns: 1fr auto; gap: 18px;
+    padding: 16px 18px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-card-head); margin-bottom: 14px;
+  }
+  .kpi-report-meta { display: flex; flex-direction: column; gap: 6px; }
+  .kpi-meta-row { font-size: 12.5px; color: var(--text-sub); }
+  .kpi-meta-row strong { color: var(--text-body); font-weight: 600; }
+  .kpi-meta-row .kpi-meta-label {
+    display: inline-block; min-width: 96px; text-transform: uppercase;
+    font-size: 10px; letter-spacing: 0.08em; color: var(--mid);
+  }
+  .kpi-report-gauge { display: flex; align-items: center; gap: 10px; min-width: 130px; }
+  .kpi-gauge-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .kpi-gauge-svg { width: 120px; height: 120px; }
+  .kpi-gauge-label {
+    font-size: 11px; text-align: center; padding: 2px 8px; border-radius: 999px;
+    font-weight: 600; letter-spacing: 0.02em;
+  }
+  /* Big trend arrow that sits beside the radial gauge, comparing overall
+     score to the previous quarter. Suppressed (rendered as nothing) on the
+     foundational first-time upload. */
+  .kpi-gauge-trend {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px;
+    border-radius: 50%; border: 2px solid var(--border);
+    background: var(--bg-card-head); flex-shrink: 0;
+  }
+  .kpi-gauge-trend.up    { color: #27ae60; border-color: #b7e6c8; background: #eafff1; }
+  .kpi-gauge-trend.down  { color: #c0392b; border-color: #e9b1a9; background: #fdf0ec; }
+  .kpi-gauge-trend.flat  { color: var(--mid); }
+  body.dark .kpi-gauge-trend.up   { background: #122418; border-color: #234e30; }
+  body.dark .kpi-gauge-trend.down { background: #2a0e0a; border-color: #5b211a; }
+
+  /* Category bar overview */
+  .kpi-cat-list { display: flex; flex-direction: column; gap: 8px; }
+  .kpi-cat {
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-card-head); overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .kpi-cat:hover { border-color: var(--admin-accent); }
+  .kpi-cat-head {
+    display: grid; grid-template-columns: auto 1fr auto auto; gap: 12px;
+    align-items: center; padding: 10px 14px; cursor: pointer; user-select: none;
+  }
+  .kpi-cat-chev {
+    transition: transform 0.18s; color: var(--mid); font-size: 10px; width: 12px; text-align: center;
+  }
+  .kpi-cat.open .kpi-cat-chev { transform: rotate(90deg); }
+  .kpi-cat-title { font-size: 13px; font-weight: 600; color: var(--text-body); }
+  .kpi-cat-score { font-size: 13px; font-weight: 700; color: var(--text-body); white-space: nowrap; }
+  .kpi-cat-score .kpi-score-max { font-weight: 400; color: var(--mid); font-size: 11px; }
+  .kpi-cat-bar-wrap {
+    grid-column: 1 / -1; height: 6px; background: var(--border);
+    border-radius: 999px; overflow: hidden; margin-top: 0;
+  }
+  .kpi-cat-bar { height: 100%; border-radius: 999px; transition: width 0.4s; }
+
+  /* Trend arrow chip — chunky vertical arrow ONLY (the delta number was
+     removed for visual compactness; hover the chip for the exact value). */
+  .kpi-trend-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    padding: 0; border-radius: 999px; line-height: 1;
+    background: var(--bg-card-head); border: 1.5px solid var(--border);
+    cursor: help;
+  }
+  .kpi-trend-chip.up    { color: #27ae60; border-color: #b7e6c8; background: #eafff1; }
+  .kpi-trend-chip.down  { color: #c0392b; border-color: #e9b1a9; background: #fdf0ec; }
+  .kpi-trend-chip.flat  { color: var(--mid); }
+  body.dark .kpi-trend-chip.up   { background: #122418; border-color: #234e30; }
+  body.dark .kpi-trend-chip.down { background: #2a0e0a; border-color: #5b211a; }
+  .kpi-trend-chip svg { flex-shrink: 0; }
+
+  .kpi-cat-body {
+    display: none; padding: 6px 14px 14px;
+    border-top: 1px solid var(--border); background: var(--bg-modal);
+  }
+  .kpi-cat.open .kpi-cat-body { display: block; }
+
+  /* Metric rows inside an expanded category */
+  .kpi-metric { padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .kpi-metric:last-child { border-bottom: none; }
+  .kpi-metric-head {
+    display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
+  }
+  .kpi-metric-title {
+    font-size: 12.5px; font-weight: 600; color: var(--text-body); line-height: 1.35;
+  }
+  .kpi-metric-desc { font-size: 11.5px; color: var(--text-sub); margin-top: 2px; line-height: 1.45; }
+  .kpi-metric-score { font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .kpi-metric-score .kpi-score-max { font-weight: 400; color: var(--mid); font-size: 10.5px; }
+  /* PIP BAR — five large squircle "gauges" per metric. Each represents one
+     rating point (1-5). Decimal values partial-fill the last active pip.
+     Replaces the old thin horizontal bar; the 5-segment visual matches the
+     rating scale 1:1, so the number is immediately readable. */
+  .kpi-pip-bar {
+    display: flex; gap: 5px; margin-top: 8px; height: 22px;
+  }
+  .kpi-pip {
+    flex: 1; height: 100%;
+    border-radius: 7px;
+    background: var(--border);
+    position: relative; overflow: hidden;
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .kpi-pip-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    border-radius: 7px;
+    transition: width 0.45s cubic-bezier(.3,.7,.4,1);
+  }
+  .kpi-metric-rating-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; padding: 2px 9px; font-size: 12px; font-weight: 800;
+    border-radius: 999px; margin-left: 8px; color: #fff;
+    letter-spacing: 0.02em; line-height: 1.2;
+  }
+
+  /* Rating color bands (used by both gauge + bars) */
+  .kpi-band-1 { background: #c0392b; color: #fff; }       /* Needs Improvement */
+  .kpi-band-2 { background: #e67e22; color: #fff; }       /* Meets Minimum */
+  .kpi-band-3 { background: #f1c40f; color: #2c2c2c; }    /* Exceeds Expectations */
+  .kpi-band-4 { background: #27ae60; color: #fff; }       /* Outstanding */
+  .kpi-band-5 { background: #16a085; color: #fff; }       /* Mastery */
+
+  /* Section sub-tabs (per-quarter vs Trends) */
+  .kpi-subtabs {
+    display: inline-flex; gap: 0; margin-bottom: 12px;
+    background: var(--bg-card-head); border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px; font-size: 11.5px;
+  }
+  .kpi-subtab {
+    padding: 5px 14px; border-radius: 999px; cursor: pointer; user-select: none;
+    color: var(--mid); font-weight: 600; letter-spacing: 0.04em;
+  }
+  .kpi-subtab.active { background: var(--text-body); color: var(--bg-modal); }
+
+  /* ── TRENDS = PAIRWISE QUARTER COMPARISON ── */
+  /* Comparison controls live inline in the KPI toolbar (built in
+     renderKpiSection) using the standard .form-select styling, matching the
+     YEAR dropdown. No bespoke picker card is needed here anymore. */
+
+  /* Verdict banner */
+  .kpi-verdict {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 14px 16px; border-radius: 8px; margin-bottom: 14px;
+    border: 1px solid var(--border); border-left-width: 4px;
+    background: var(--bg-card-head);
+  }
+  .kpi-verdict.good { border-left-color: #27ae60; }
+  .kpi-verdict.mixed { border-left-color: #e67e22; }
+  .kpi-verdict.bad  { border-left-color: #c0392b; }
+  .kpi-verdict-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
+  .kpi-verdict-text { font-size: 13.5px; line-height: 1.5; color: var(--text-body); }
+  .kpi-verdict-text strong { font-weight: 700; }
+  .kpi-verdict-sub { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+
+  /* Comparison cards */
+  .kpi-cmp-list { display: flex; flex-direction: column; gap: 8px; }
+  .kpi-cmp-group-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-sub); margin: 10px 2px 2px;
+  }
+  .kpi-cmp-card {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 14px;
+    align-items: center;
+    padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-modal); border-left-width: 4px;
+  }
+  .kpi-cmp-card.s-critical { border-left-color: #c0392b; background: #fdf2f0; }
+  .kpi-cmp-card.s-attention { border-left-color: #e67e22; }
+  .kpi-cmp-card.s-regressed { border-left-color: #e6b800; }
+  .kpi-cmp-card.s-improved { border-left-color: #27ae60; }
+  .kpi-cmp-card.s-steady { border-left-color: var(--border); }
+  .kpi-cmp-card.s-strong { border-left-color: #16a085; }
+  body.dark .kpi-cmp-card.s-critical { background: #251010; }
+
+  .kpi-cmp-card-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .kpi-cmp-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .kpi-cmp-card-title { font-size: 13px; font-weight: 700; color: var(--text-body); }
+  .kpi-cmp-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.02em; white-space: nowrap;
+  }
+  .kpi-cmp-chip.s-critical { background: #c0392b; color: #fff; }
+  .kpi-cmp-chip.s-attention { background: #e67e22; color: #fff; }
+  .kpi-cmp-chip.s-regressed { background: #f3e7b8; color: #7a5c00; }
+  body.dark .kpi-cmp-chip.s-regressed { background: #3a2f08; color: #e6c84d; }
+  .kpi-cmp-chip.s-improved { background: #27ae60; color: #fff; }
+  .kpi-cmp-chip.s-steady { background: var(--bg-card-head); color: var(--text-sub); border: 1px solid var(--border); }
+  .kpi-cmp-chip.s-strong { background: #16a085; color: #fff; }
+  .kpi-cmp-phrase { font-size: 12px; color: var(--text-sub); line-height: 1.45; }
+  .kpi-cmp-phrase strong { color: var(--text-body); font-weight: 600; }
+
+  /* Before/after mini gauges */
+  .kpi-cmp-gauges { display: flex; align-items: center; gap: 8px; }
+  .kpi-cmp-gauge { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .kpi-cmp-gauge-q { font-size: 9.5px; color: var(--text-sub); font-weight: 600; letter-spacing: 0.04em; }
+  .kpi-mini-gauge { width: 50px; height: 50px; }
+  .kpi-cmp-mid { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 40px; }
+  .kpi-cmp-mid-delta { font-size: 12px; font-weight: 800; }
+  .kpi-cmp-mid-delta.up { color: #27ae60; }
+  .kpi-cmp-mid-delta.down { color: #c0392b; }
+  .kpi-cmp-mid-delta.flat { color: var(--mid); }
+
+  .kpi-cmp-hint { font-size: 12px; color: var(--text-sub); padding: 8px 2px; font-style: italic; }
+
+  /* ── Coaching notes (inside a comparison card, full-width row) ── */
+  .kpi-cmp-notes {
+    grid-column: 1 / -1; margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .kpi-note {
+    background: var(--admin-accent-light); border: 1px solid var(--border);
+    border-left: 3px solid var(--admin-accent); border-radius: 6px;
+    padding: 8px 11px;
+  }
+  .kpi-note-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .kpi-note-badge { font-size: 11px; font-weight: 700; color: var(--admin-accent); letter-spacing: 0.02em; }
+  .kpi-note-date { font-size: 10.5px; color: var(--text-sub); }
+  .kpi-note-tools { margin-left: auto; display: inline-flex; gap: 4px; }
+  .kpi-note-tool {
+    border: 1px solid var(--border); background: var(--bg-modal); color: var(--text-sub);
+    border-radius: 4px; padding: 1px 6px; font-size: 11px; cursor: pointer; line-height: 1.4;
+  }
+  .kpi-note-tool:hover { color: var(--admin-accent); border-color: var(--admin-accent); }
+  .kpi-note-tool.danger:hover { color: #c0392b; border-color: #e0b0ac; }
+  .kpi-note-text { font-size: 12.5px; color: var(--text-body); line-height: 1.5; white-space: pre-wrap; }
+  .kpi-note.editing { background: var(--bg-card-head); }
+  .kpi-note.editing .form-textarea { width: 100%; font-size: 12.5px; }
+  .kpi-note-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+  .kpi-note-add {
+    align-self: flex-start; font-size: 11.5px; font-weight: 600;
+    border: 1px dashed var(--border); border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--text-sub); padding: 5px 11px;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .kpi-note-add:hover { border-color: var(--admin-accent); color: var(--admin-accent); }
+
+  /* ── KPI open-animations: chunky arrow fade-in + move + settle ── */
+  @keyframes kpi-arrow-up {
+    0%   { opacity: 0; transform: translateY(3px); }
+    35%  { opacity: 1; transform: translateY(0); }
+    62%  { transform: translateY(-7px); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes kpi-arrow-down {
+    0%   { opacity: 0; transform: translateY(-3px); }
+    35%  { opacity: 1; transform: translateY(0); }
+    62%  { transform: translateY(7px); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes kpi-arrow-flat {
+    0% { opacity: 0; } 100% { opacity: 1; }
+  }
+  .kpi-anim-arrow { animation-duration: 0.7s; animation-timing-function: cubic-bezier(.34,1.4,.5,1); animation-fill-mode: both; }
+  .kpi-anim-arrow.up   { animation-name: kpi-arrow-up; }
+  .kpi-anim-arrow.down { animation-name: kpi-arrow-down; }
+  .kpi-anim-arrow.flat { animation-name: kpi-arrow-flat; }
+
+  /* Print-friendly: print from the dedicated KPI modal. Hides everything
+     else (sidebar, team detail underneath, all chrome), expands all drill-
+     ins, and ensures band colors are preserved. */
+  @media print {
+    @page { margin: 14mm; }
+    body * { visibility: hidden; }
+    #kpi-overlay, #kpi-overlay * { visibility: visible; }
+    #kpi-overlay {
+      position: static !important; background: #fff !important; display: block !important;
+      padding: 0 !important;
+    }
+    #kpi-modal {
+      box-shadow: none !important; border: none !important; max-width: 100% !important;
+      width: 100% !important; max-height: none !important; border-radius: 0;
+    }
+    .kpi-modal-header { border-bottom: 2px solid #000; }
+    .admin-modal-close,
+    .kpi-toolbar, .kpi-subtabs, .kpi-tab.disabled,
+    .kpi-note-add, .kpi-note-tools { display: none !important; }
+    .kpi-cat-body { display: block !important; }
+    .kpi-cat-chev { display: none; }
+    .kpi-pip-fill, .kpi-cat-bar, .kpi-mini-gauge, .kpi-band-1, .kpi-band-2,
+    .kpi-band-3, .kpi-band-4, .kpi-band-5 {
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+  }
 
   /* ── ALL PASSKEYS admin modal ── */
   .pk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -1995,6 +2395,25 @@
   </div>
 </div>
 
+<!-- ── KPI VIEWER MODAL (per team-member quarterly report) ── -->
+<!-- Opened from the "📊 Open KPI Report" button on each team-member profile.
+     Owns its own modal so KPI workspace doesn't compete with profile editing
+     for screen real estate. Re-rendered via renderKpiViewer(). -->
+<div id="kpi-overlay" onclick="maybeCloseKpi(event)">
+  <div id="kpi-modal">
+    <div class="kpi-modal-header">
+      <div class="kpi-modal-avatar" id="kpi-modal-avatar"></div>
+      <div>
+        <div class="kpi-modal-name" id="kpi-modal-name">Team Member</div>
+        <div class="kpi-modal-sub" id="kpi-modal-sub"></div>
+      </div>
+      <div class="kpi-modal-spacer"></div>
+      <button class="admin-modal-close" onclick="closeKpiViewer()" type="button" title="Close (Esc)">✕</button>
+    </div>
+    <div id="kpi-modal-body"></div>
+  </div>
+</div>
+
 <!-- ── SYNONYMS EDITOR MODAL ── -->
 <div id="syn-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSyn(event)">
   <div class="admin-modal" style="max-width:760px">
@@ -3044,6 +3463,286 @@ function escJsAttr(s) {
   return out;
 }
 function stripHtml(h)  { const d=document.createElement('div'); d.innerHTML=h; return (d.textContent||d.innerText||'').replace(/\s+/g,' ').trim(); }
+
+/* ══════════════════════════════════════════
+   KPI CSV PARSER
+   Reads the quarterly Key-Performance-Indicator CSV exported from Google
+   Sheets (see "KPI CSV Export Test - KPI Form - Art Directors.csv" for the
+   reference template). The parser is STRICT: it expects the exact 4-category
+   × 5-metric template, with required header fields (Name, Position,
+   Evaluator Name, Evaluator Position, Scope) and a Scope cell of exactly
+   "Q[1-4]-YYYY" (single, exact match — multiple values, missing year, or
+   freeform text are rejected). On invalid input it returns
+   { ok:false, error:"…" } so the upload UI can surface a clear message.
+   ══════════════════════════════════════════ */
+
+// Low-level CSV → 2D-array parser. Handles RFC-4180-style double-quoted
+// cells that may contain commas and embedded newlines (Google Sheets emits
+// these for multiline cells — the metric title+description rows depend on
+// this). Doubled "" inside a quoted cell unescapes to a single ".
+function _parseCsv(text) {
+  const rows = [];
+  let row = [], cell = '', inQuotes = false;
+  const len = text.length;
+  for (let i = 0; i < len; i++) {
+    const ch = text[i];
+    const next = i + 1 < len ? text[i + 1] : '';
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { cell += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cell += ch; }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        row.push(cell); cell = '';
+      } else if (ch === '\n' || ch === '\r') {
+        // Normalize CRLF — consume the LF after CR.
+        if (ch === '\r' && next === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else {
+        cell += ch;
+      }
+    }
+  }
+  if (cell !== '' || row.length > 0) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+function _kpiCell(rows, r, c) {
+  return (rows[r] && rows[r][c] !== undefined) ? String(rows[r][c]).trim() : '';
+}
+
+// Public parser. Returns { ok:true, data:{…} } or { ok:false, error:"…" }.
+function parseKpiCsv(text) {
+  const rows = _parseCsv(text);
+  if (!rows.length) return { ok: false, error: 'CSV is empty.' };
+
+  // 1) Sniff: must look like a KPI sheet at all. The Google-Sheets template
+  //    has the literal text "Key Performance Indicator" in row 2 col 2.
+  const hasKpiMarker = rows.some(r =>
+    (r || []).some(c => String(c || '').trim() === 'Key Performance Indicator')
+  );
+  if (!hasKpiMarker) return {
+    ok: false,
+    error: 'This doesn\'t look like a KPI form CSV — missing the "Key Performance Indicator" header.'
+  };
+
+  // 2) Header labels: find each by exact match in column 2. STRICT — each
+  //    label must appear EXACTLY ONCE so we can't accidentally pick up a
+  //    duplicate "Scope:" in a comment or copy-pasted section.
+  const findExactlyOne = (label) => {
+    const hits = [];
+    for (let i = 0; i < rows.length; i++) {
+      if (_kpiCell(rows, i, 2) === label) hits.push(i);
+    }
+    return hits;
+  };
+  const must = (label) => {
+    const hits = findExactlyOne(label);
+    if (hits.length === 0) return { error: `Missing "${label}" header row.` };
+    if (hits.length > 1) return { error: `Multiple "${label}" rows found — there must be exactly one.` };
+    return { row: hits[0] };
+  };
+
+  const checks = ['Name:', 'Position/Job Level:', 'Evaluator Name:', 'Evaluator Position:', 'Scope:']
+    .map(L => ({ label: L, ...must(L) }));
+  for (const c of checks) if (c.error) return { ok: false, error: c.error };
+  const [nameRow, positionRow, evalNameRow, evalPosRow, scopeRow] = checks.map(c => c.row);
+
+  // 3) Scope — the single most important validation per the spec. Must be
+  //    EXACTLY "Q[1-4]-YYYY" in col 4 of the Scope row, with no other
+  //    quarter-looking string anywhere else in the file. Reject otherwise.
+  const scopeText = _kpiCell(rows, scopeRow, 4);
+  const scopeMatch = /^Q([1-4])-(\d{4})$/.exec(scopeText);
+  if (!scopeMatch) return {
+    ok: false,
+    error: 'Scope cell must be exactly "Q1-YYYY", "Q2-YYYY", "Q3-YYYY", or "Q4-YYYY" ' +
+           '(e.g. "Q1-2026"). Found: ' + (scopeText ? `"${scopeText}"` : '(empty)') + '.'
+  };
+  // Additional sanity: make sure no OTHER cell in the sheet contains a
+  // standalone "Q[1-4]-YYYY" string. (Comments mentioning quarters in
+  // free-form prose like "Q1 review" are fine; the strict pattern is what
+  // we're guarding against — "multiple values" per the spec.)
+  let strayScope = null;
+  for (let i = 0; i < rows.length; i++) {
+    if (i === scopeRow) continue;
+    for (let c = 0; c < (rows[i] || []).length; c++) {
+      const v = _kpiCell(rows, i, c);
+      if (/^Q[1-4]-\d{4}$/.test(v)) { strayScope = { row: i, col: c, value: v }; break; }
+    }
+    if (strayScope) break;
+  }
+  if (strayScope) return {
+    ok: false,
+    error: `Multiple scope values detected — extra "${strayScope.value}" found outside the Scope row. Only one scope per CSV.`
+  };
+
+  const scopeQuarter = parseInt(scopeMatch[1], 10);
+  const scopeYear    = parseInt(scopeMatch[2], 10);
+
+  // 4) Header meta — straightforward text reads.
+  const nameVal             = _kpiCell(rows, nameRow, 4);
+  const positionVal         = _kpiCell(rows, positionRow, 4);
+  const evaluatorName       = _kpiCell(rows, evalNameRow, 4);
+  const evaluatorPosition   = _kpiCell(rows, evalPosRow, 4);
+  const overallScoreRaw     = _kpiCell(rows, positionRow, 10);
+  const overallScore        = parseFloat(overallScoreRaw);
+  const overallLabel        = _kpiCell(rows, scopeRow, 10);
+
+  // 5) Find category title rows. A category header is a row where col 1 has
+  //    text and ALL other columns are empty. Exclude the topmost "Key
+  //    Performance Indicator" marker and the "Score Range" sub-headers.
+  const categoryStarts = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const c1 = (r[1] || '').trim();
+    if (!c1) continue;
+    if (c1 === 'Score Range' || c1 === 'Key Performance Indicator') continue;
+    const restEmpty = r.slice(2).every(c => !String(c || '').trim());
+    if (!restEmpty) continue;
+    categoryStarts.push({ rowIdx: i, title: c1 });
+  }
+  if (categoryStarts.length !== 4) return {
+    ok: false,
+    error: `Expected exactly 4 categories, found ${categoryStarts.length}.`
+  };
+
+  // 6) Parse each category in turn. Within the row range belonging to that
+  //    category, locate the rating header row ("5,4,3,2,1,,Score"), the
+  //    subtotal row immediately below it, and 5 metric rows.
+  const categories = [];
+  for (let i = 0; i < 4; i++) {
+    const start = categoryStarts[i];
+    const end   = i + 1 < 4 ? categoryStarts[i + 1].rowIdx : rows.length;
+
+    // Score Range descriptions: rows where col 1 = "Score Range", col 4 is
+    // the rating (5..1), col 5 is the description text.
+    const scoreDescriptions = { 1:'', 2:'', 3:'', 4:'', 5:'' };
+    for (let k = start.rowIdx; k < end; k++) {
+      if (_kpiCell(rows, k, 1) === 'Score Range') {
+        const rating = parseInt(_kpiCell(rows, k, 4), 10);
+        if (rating >= 1 && rating <= 5) scoreDescriptions[rating] = _kpiCell(rows, k, 5);
+        // continue — there are 5 of these rows but only the first has the
+        // "Score Range" label. The rest below just have the rating in col 4.
+        // Read continuation: scan downward while col 4 is 1..5.
+        for (let k2 = k + 1; k2 < end; k2++) {
+          const ratingRaw = _kpiCell(rows, k2, 4);
+          const rating2 = parseInt(ratingRaw, 10);
+          if (rating2 >= 1 && rating2 <= 5 && !_kpiCell(rows, k2, 1)) {
+            scoreDescriptions[rating2] = _kpiCell(rows, k2, 5);
+          } else if (ratingRaw === '' && !_kpiCell(rows, k2, 5)) {
+            // empty row — keep scanning a couple rows before giving up
+            continue;
+          } else {
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    // Rating header row.
+    let headerRowIdx = -1;
+    for (let k = start.rowIdx; k < end; k++) {
+      if (_kpiCell(rows, k, 3) === '5' && _kpiCell(rows, k, 4) === '4' &&
+          _kpiCell(rows, k, 5) === '3' && _kpiCell(rows, k, 6) === '2' &&
+          _kpiCell(rows, k, 7) === '1' && _kpiCell(rows, k, 9) === 'Score') {
+        headerRowIdx = k; break;
+      }
+    }
+    if (headerRowIdx < 0) return {
+      ok: false,
+      error: `Category "${start.title}" is missing the rating header row (5,4,3,2,1,,Score).`
+    };
+    const subtotalRowIdx = headerRowIdx + 1;
+    const subtotal = parseFloat(_kpiCell(rows, subtotalRowIdx, 9)) || 0;
+
+    // Metric rows: scan from subtotal+1 forward. A metric row has a non-
+    // empty col 1 (title+description) AND non-trivial rating cells. A
+    // comment row has empty col 1 and "Comments/Recommendations:" in col 3.
+    const metrics = [];
+    for (let k = subtotalRowIdx + 1; k < end && metrics.length < 5; k++) {
+      const titleDesc = (rows[k] && rows[k][1] || '').trim();
+      if (!titleDesc) continue;
+      if (_kpiCell(rows, k, 3) === 'Comments/Recommendations:') continue;
+
+      const ratingCells = [3, 4, 5, 6, 7].map(c => parseFloat(_kpiCell(rows, k, c)) || 0);
+      // Cells map left→right to ratings 5,4,3,2,1.
+      let rating = 0, score = 0;
+      for (let m = 0; m < 5; m++) {
+        if (ratingCells[m] > 0) {
+          rating = 5 - m;
+          score  = ratingCells[m];
+          break;
+        }
+      }
+      // Cell at col 8 is the per-metric total. Fall back to `score` if blank.
+      const total  = parseFloat(_kpiCell(rows, k, 8));
+      const finalScore = isFinite(total) && total > 0 ? total : score;
+      const weight   = rating > 0 ? +(finalScore / rating).toFixed(3) : 0;
+      const maxScore = +(weight * 5).toFixed(3);
+
+      const lines = titleDesc.split(/\r?\n/);
+      const mTitle = (lines[0] || '').trim();
+      const mDesc  = lines.slice(1).join('\n').trim();
+
+      // Comment lives in the very next row, col 4 onwards (concatenate any
+      // non-empty cells in case the comment was split across columns).
+      let comment = '';
+      const commentRow = rows[k + 1] || [];
+      if ((commentRow[3] || '').trim() === 'Comments/Recommendations:') {
+        comment = commentRow.slice(4).map(c => String(c || '').trim()).filter(Boolean).join(' ').trim();
+      }
+
+      metrics.push({ title: mTitle, description: mDesc, rating, weight, score: finalScore, maxScore, comment });
+    }
+    if (metrics.length !== 5) return {
+      ok: false,
+      error: `Category "${start.title}" has ${metrics.length} metrics; expected 5.`
+    };
+
+    // Max-subtotal: subtotal is the average of metric scores, so the
+    // theoretical max is also the average of metric maxes.
+    const maxSubtotal = +(metrics.reduce((a, m) => a + m.maxScore, 0) / 5).toFixed(3);
+    categories.push({ title: start.title, scoreDescriptions, subtotal, maxSubtotal, metrics });
+  }
+
+  // Overall max = sum of all four category max-subtotals.
+  const overallMax = +categories.reduce((a, c) => a + c.maxSubtotal, 0).toFixed(3);
+
+  return {
+    ok: true,
+    data: {
+      meta: {
+        name: nameVal,
+        position: positionVal,
+        evaluatorName,
+        evaluatorPosition,
+        scope: { quarter: scopeQuarter, year: scopeYear, key: `${scopeYear}-Q${scopeQuarter}`, raw: scopeText },
+        overall: isFinite(overallScore) ? overallScore : 0,
+        overallMax: overallMax || 100,
+        overallLabel
+      },
+      categories,
+      _parsedAt: Date.now()
+    }
+  };
+}
+
+// Current quarter helpers — used by the upload UI to block future quarters
+// and by the year/quarter picker to mark "missing" past quarters.
+function _currentQuarter(date) {
+  const d = date || new Date();
+  return { year: d.getFullYear(), quarter: Math.floor(d.getMonth() / 3) + 1 };
+}
+function _isFutureQuarter(year, quarter) {
+  const cur = _currentQuarter();
+  if (year > cur.year) return true;
+  if (year === cur.year && quarter > cur.quarter) return true;
+  return false;
+}
+function _scopeKey(year, quarter) { return `${year}-Q${quarter}`; }
 function sectionNumOf(entryId) { return String(entryId).split('.')[0]; }
 // Generalized helpers — accept an optional `base` ID:
 //   'handbook' (default), 'projects', or a custom category id (e.g. 'cat-1701234567').
@@ -6262,6 +6961,29 @@ let editingTmId = null;
 let tmEditMode = false;
 let _tmDraft = null; // draft of current edit
 
+// KPI section UI state — reset on profile open so each profile starts fresh.
+let _kpiYear = null;            // currently-selected year (number)
+let _kpiQuarter = null;         // currently-selected quarter 1..4
+let _kpiSubview = 'quarter';    // 'quarter' | 'trends'
+let _kpiOpenCats = new Set();   // category indices currently expanded in the drill-in
+// Trends (pairwise comparison) state:
+let _kpiCmpFrom = null;         // 'YYYY-QN' key of the "from" quarter
+let _kpiCmpTo = null;           // 'YYYY-QN' key of the "to" quarter
+let _kpiCmpSort = 'worst';      // 'worst' (worst-first) | 'best' (best-first)
+let _kpiNoteEdit = null;        // { pair, cat, id|null } while a coaching note is being added/edited
+// Remembers the last-displayed animated value per logical element (keyed by a
+// stable data-anim-key like "overall-gauge" / "cat-bar-0"). On a quarter
+// switch the next fill/count animates FROM the remembered value TO the new one,
+// so an increase or decrease is immediately visible (instead of refilling from
+// 0). Reset when a different profile is opened.
+let _kpiLastAnim = {};
+function _kpiResetUiState() {
+  _kpiYear = null; _kpiQuarter = null; _kpiSubview = 'quarter'; _kpiOpenCats = new Set();
+  _kpiCmpFrom = null; _kpiCmpTo = null; _kpiCmpSort = 'worst';
+  _kpiNoteEdit = null;
+  _kpiLastAnim = {};
+}
+
 function openTeamDirectory() {
   renderTeamRoster();
   // Show the admin-only "All Passkeys" button when admin mode is on so admins
@@ -6318,14 +7040,23 @@ function blankTm() {
     // Visible to the owner once at creation time via a "Save this passkey!"
     // modal, and to admins via the bottom of the profile view in admin mode.
     passkey: generatePasskey(),
+    // KPI store: keys are scope strings like "2026-Q1", values are the parsed
+    // KPI report (see parseKpiCsv). Empty by default. Visible to the owner
+    // (via their passkey) and to admins; uploads are admin-only.
+    kpi: {},
+    // Coaching notes on KPI comparisons. Keyed by comparison pair then
+    // category title: { "2026-Q1->2026-Q2": { "Creative Vision …": [ {id,text,ts} ] } }.
+    // Admin-authored, viewable by owner+admin. Tied to the exact From→To pair.
+    kpiNotes: {},
     _createdAt: Date.now(),
     _updatedAt: Date.now()
   };
 }
 
-// Backfill: any team member without a passkey gets one. Returns true if any
-// member was updated, so the caller can re-persist + push to Firebase. Also
-// regenerates duplicates so login-by-passkey is unambiguous.
+// Backfill: any team member without a passkey gets one, and any member
+// without a kpi map gets an empty one. Returns true if any member was
+// updated, so the caller can re-persist + push to Firebase. Also regenerates
+// duplicate passkeys so login-by-passkey is unambiguous.
 function _ensureTeamPasskeys() {
   if (!Array.isArray(TEAM_DIRECTORY)) return false;
   let changed = false;
@@ -6338,6 +7069,11 @@ function _ensureTeamPasskeys() {
       changed = true;
     }
     seen.add(m.passkey.toUpperCase());
+    // KPI map backfill — profiles pre-dating the KPI feature have no `kpi`
+    // field. Initialize it to an empty object so the rest of the code can
+    // assume it exists.
+    if (!m.kpi || typeof m.kpi !== 'object') { m.kpi = {}; changed = true; }
+    if (!m.kpiNotes || typeof m.kpiNotes !== 'object') { m.kpiNotes = {}; changed = true; }
   }
   if (changed) {
     try { localStorage.setItem('vl_team', JSON.stringify(TEAM_DIRECTORY)); } catch(e){}
@@ -6361,7 +7097,9 @@ function openTmDetail(id) {
   if (!m) return;
   editingTmId = id;
   _tmDraft = JSON.parse(JSON.stringify(m));
+  if (!_tmDraft.kpi || typeof _tmDraft.kpi !== 'object') _tmDraft.kpi = {};
   tmEditMode = false;
+  _kpiResetUiState();
   document.getElementById('tm-detail-title').textContent = m.realName || 'Team Member';
   // Delete is owner-or-admin; hide otherwise. renderTmDetail() reasserts this
   // each render so we stay correct after admin-mode toggle while open.
@@ -6586,6 +7324,22 @@ function renderTmDetail() {
       </div>
     </div>
 
+    ${canViewKpi(m) ? `
+    <!-- ── KPI launcher (full report lives in its own modal) ── -->
+    <div class="tm-section">
+      <div class="tm-section-header">
+        <div class="tm-section-icon">📊</div>
+        <div class="tm-section-title">Key Performance Indicators${isAdminMode ? ' <span class="admin-tag" style="margin-left:6px">Admin can upload</span>' : ''}</div>
+      </div>
+      <div class="tm-section-body">
+        <div class="kpi-launcher">
+          <button class="btn btn-primary" onclick="openKpiViewer()">📊 Open KPI Report</button>
+          <span class="kpi-launcher-hint">View quarterly evaluations, drill into metrics, and see multi-quarter trends${isAdminMode ? '. Admins can also upload new CSVs from inside the report' : ''}.</span>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
     ${isAdminMode && m.passkey ? `
     <!-- ── PASSKEY (admin-only view) ── -->
     <!-- The owner saw this code once at creation time. This section lets admins
@@ -6644,6 +7398,1061 @@ async function regenerateTmPasskey() {
   }
   renderTmDetail();
   showToast('Passkey rotated');
+}
+
+/* ══════════════════════════════════════════
+   KPI VIEW — rendered inside the team-member profile modal.
+   Privacy: only the owner (currentUser.tmId === m.id) OR an admin can see
+   this section. The "Upload CSV" affordance is admin-only.
+   ══════════════════════════════════════════ */
+
+// Visibility predicate for the entire KPI section.
+function canViewKpi(m) {
+  if (!m) return false;
+  if (isAdminMode) return true;
+  if (currentUser && currentUser.tmId === m.id) return true;
+  return false;
+}
+
+// Map a score percentage (0-100) onto the 1-5 band used for color + label.
+function _kpiBandForPercent(pct) {
+  if (pct < 20)  return { n: 1, label: 'Needs Improvement' };
+  if (pct < 40)  return { n: 2, label: 'Meets Minimum' };
+  if (pct < 60)  return { n: 3, label: 'Solid Performer' };
+  if (pct < 80)  return { n: 4, label: 'Exceeds Expectations' };
+  return            { n: 5, label: 'Outstanding' };
+}
+function _kpiPercent(score, max) { return max ? Math.max(0, Math.min(100, (score / max) * 100)) : 0; }
+
+// All scope keys for a member sorted oldest → newest (chronological).
+function _kpiSortedKeys(m) {
+  const keys = Object.keys(m.kpi || {});
+  return keys.sort((a, b) => {
+    const [ay, aq] = a.split('-Q').map(Number);
+    const [by, bq] = b.split('-Q').map(Number);
+    return ay === by ? aq - bq : ay - by;
+  });
+}
+
+// SVG: circular gauge showing overall % with a band color + score label.
+function _kpiGaugeSvg(score, max, label) {
+  const pct  = _kpiPercent(score, max);
+  const band = _kpiBandForPercent(pct);
+  const r = 50, cx = 60, cy = 60;
+  const circ = 2 * Math.PI * r;
+  // SVG stroke colors mirror the .kpi-band-N classes so the gauge matches
+  // the bar chart's color language.
+  const fill = ['#c0392b','#e67e22','#f1c40f','#27ae60','#16a085'][band.n - 1];
+  const offset = circ * (1 - pct / 100);
+  // data-kpi-gauge/-off/-circ + data-count-to drive the open animation
+  // (ring fills from empty, number counts 0→value). Rendered at final state
+  // so no-animation / reduced-motion still shows the correct values.
+  return `<svg class="kpi-gauge-svg" viewBox="0 0 120 120">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="10"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${fill}" stroke-width="10"
+      stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
+      stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"
+      data-kpi-gauge data-anim-key="overall-gauge" data-off="${offset.toFixed(2)}" data-circ="${circ.toFixed(2)}"/>
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="22" font-weight="800" fill="var(--text-body)" data-anim-key="overall-num" data-count-to="${Math.round(score)}">${Math.round(score)}</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="9" fill="var(--mid)" letter-spacing="1">OF ${Math.round(max)}</text>
+  </svg>
+  <div class="kpi-gauge-label kpi-band-${band.n}">${escapeHtml(label || band.label)}</div>`;
+}
+
+// Small radial gauge used in the pairwise comparison (before/after). Shows
+// the score in the center, ring colored by band. `size` is the rendered px.
+function _kpiMiniGauge(score, max, size) {
+  size = size || 50;
+  const pct = _kpiPercent(score, max);
+  const band = _kpiBandForPercent(pct);
+  const fill = ['#c0392b','#e67e22','#f1c40f','#27ae60','#16a085'][band.n - 1];
+  const r = 20, cx = 24, cy = 24, sw = 5;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - pct / 100);
+  const disp = (score % 1 === 0) ? String(score) : (+score).toFixed(1);
+  return `<svg class="kpi-mini-gauge" viewBox="0 0 48 48" width="${size}" height="${size}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="${sw}"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${fill}" stroke-width="${sw}"
+      stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
+      stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"
+      data-kpi-gauge data-off="${offset.toFixed(2)}" data-circ="${circ.toFixed(2)}"/>
+    <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="14" font-weight="800" fill="var(--text-body)" data-count-to="${disp}">${disp}</text>
+  </svg>`;
+}
+
+// LITERAL up / down / flat arrow icon — chunky, vertical (never sloped).
+// `dir` is positive / negative / ~0; size controls viewBox dimension.
+function _kpiArrowIcon(dir, size) {
+  size = size || 14;
+  // 14×14 viewBox; arrow body is a thick rectangle, head is a triangle.
+  // Up: head at top, shaft going down. Down: head at bottom, shaft going up.
+  // Flat: a horizontal dash (no triangle).
+  if (dir > 0.5) {
+    return `<svg viewBox="0 0 14 14" width="${size}" height="${size}" aria-label="up">
+      <path d="M7 1 L13 7 L9.5 7 L9.5 13 L4.5 13 L4.5 7 L1 7 Z" fill="currentColor"/>
+    </svg>`;
+  }
+  if (dir < -0.5) {
+    return `<svg viewBox="0 0 14 14" width="${size}" height="${size}" aria-label="down">
+      <path d="M7 13 L13 7 L9.5 7 L9.5 1 L4.5 1 L4.5 7 L1 7 Z" fill="currentColor"/>
+    </svg>`;
+  }
+  return `<svg viewBox="0 0 14 14" width="${size}" height="${size}" aria-label="flat">
+    <rect x="2" y="6" width="10" height="2" rx="1" fill="currentColor"/>
+  </svg>`;
+}
+
+// Trend chip — JUST a chunky vertical arrow, no delta number. Hover
+// tooltip carries the exact +/- pts for users who want the specifics.
+// Returns empty string when only one quarter exists (foundational upload
+// has nothing to compare against).
+function _kpiTrendChip(series) {
+  if (!series || series.length < 2) return '';
+  const last = series[series.length - 1];
+  const prev = series[series.length - 2];
+  const d = last - prev;
+  const cls = d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat';
+  const sign = d > 0 ? '+' : '';
+  const tipText = (cls === 'flat' ? 'No meaningful change' : `${sign}${d.toFixed(1)} pts vs previous quarter`);
+  return `<span class="kpi-trend-chip ${cls}" title="${escapeHtml(tipText)}" data-arrow-dir="${cls}">${_kpiArrowIcon(d, 16)}</span>`;
+}
+
+// The whole KPI section HTML — returned as a string and dropped into
+// renderTmDetail's body. Hidden entirely for non-owners/non-admins.
+function renderKpiSection(m) {
+  if (!canViewKpi(m)) return '';
+
+  const kpi = m.kpi || {};
+  const allKeys = _kpiSortedKeys(m);
+
+  // Build the year dropdown set: every year that has data + the current year.
+  // Sorted DESCENDING so the most recent year shows first.
+  const cur = _currentQuarter();
+  const years = Array.from(new Set([
+    ...allKeys.map(k => parseInt(k.split('-Q')[0], 10)).filter(n => isFinite(n)),
+    cur.year
+  ])).sort((a, b) => b - a);
+
+  if (!_kpiYear || !years.includes(_kpiYear)) _kpiYear = years[0];
+  // Default quarter pick: current quarter if viewing current year and it has
+  // data; otherwise first quarter with data; otherwise Q1.
+  if (!_kpiQuarter) {
+    const candidates = [1, 2, 3, 4];
+    const dataQ = candidates.find(q => kpi[_scopeKey(_kpiYear, q)]);
+    if (_kpiYear === cur.year && kpi[_scopeKey(cur.year, cur.quarter)]) _kpiQuarter = cur.quarter;
+    else if (dataQ) _kpiQuarter = dataQ;
+    else _kpiQuarter = 1;
+  }
+
+  const yearOpts = years.map(y => `<option value="${y}" ${y === _kpiYear ? 'selected' : ''}>${y}</option>`).join('');
+
+  // Quarter tabs with status pills.
+  const quarterTabsHtml = [1, 2, 3, 4].map(q => {
+    const has = !!kpi[_scopeKey(_kpiYear, q)];
+    const future = _isFutureQuarter(_kpiYear, q);
+    const cls = ['kpi-tab'];
+    if (q === _kpiQuarter && !future) cls.push('active');
+    if (!has && !future) cls.push('missing');
+    if (future) cls.push('disabled');
+    const mark = has ? '✓' : (future ? '·' : '⚠');
+    const label = future ? 'Future' : (has ? 'Uploaded' : 'Missing');
+    const click = future ? '' : `onclick="kpiSelectQuarter(${q})"`;
+    return `<div class="${cls.join(' ')}" ${click} title="Q${q} ${_kpiYear} — ${label}">
+      <span>Q${q}</span><span class="kpi-tab-mark">${mark}</span>
+    </div>`;
+  }).join('');
+
+  const hasMultiQuarters = allKeys.length >= 2;
+  const subviewHtml = hasMultiQuarters ? `
+    <div class="kpi-subtabs">
+      <div class="kpi-subtab${_kpiSubview === 'quarter' ? ' active' : ''}" onclick="kpiSetSubview('quarter')">KPI View</div>
+      <div class="kpi-subtab${_kpiSubview === 'trends' ? ' active' : ''}" onclick="kpiSetSubview('trends')">Trends</div>
+    </div>` : '';
+
+  // Admin-only controls: upload + (when the current quarter has data) delete.
+  const currentSelectedKey = _scopeKey(_kpiYear, _kpiQuarter);
+  const currentHasData = !!kpi[currentSelectedKey];
+  const isTrends = _kpiSubview === 'trends' && hasMultiQuarters;
+
+  // Toolbar left side:
+  //   KPI View → YEAR dropdown.
+  //   Trends   → the From→To compare controls (live here, in the same box as
+  //              Upload CSV / Print, styled like the YEAR dropdown), so the
+  //              Q1–Q4 tabs and a separate picker card aren't needed.
+  let leftControls;
+  if (isTrends) {
+    const cmpKeys = _kpiSortedKeys(m);   // ascending (chronological)
+    // Chronological-only comparison: From must come strictly BEFORE To.
+    // Default = earliest → latest, then clamp so the pair is always forward.
+    if (!_kpiCmpFrom || !cmpKeys.includes(_kpiCmpFrom)) _kpiCmpFrom = cmpKeys[0];
+    if (!_kpiCmpTo   || !cmpKeys.includes(_kpiCmpTo))   _kpiCmpTo   = cmpKeys[cmpKeys.length - 1];
+    let fromIdx = cmpKeys.indexOf(_kpiCmpFrom);
+    let toIdx   = cmpKeys.indexOf(_kpiCmpTo);
+    // The last quarter can't be a "From" (nothing after it to compare to).
+    if (fromIdx >= cmpKeys.length - 1) { fromIdx = cmpKeys.length - 2; _kpiCmpFrom = cmpKeys[fromIdx]; }
+    // Keep To strictly after From — bump it forward if it landed at/before.
+    if (toIdx <= fromIdx) { toIdx = fromIdx + 1; _kpiCmpTo = cmpKeys[toIdx]; }
+
+    const cmpLabel = (key) => { const [y, q] = key.split('-Q'); return `Q${q} ${y}`; };
+    // From list: only quarters that have at least one later quarter.
+    const fromOpts = cmpKeys.slice(0, cmpKeys.length - 1)
+      .map(k => `<option value="${k}" ${k === _kpiCmpFrom ? 'selected' : ''}>${cmpLabel(k)}</option>`).join('');
+    // To list: only quarters chronologically AFTER the selected From.
+    const toOpts = cmpKeys.slice(fromIdx + 1)
+      .map(k => `<option value="${k}" ${k === _kpiCmpTo ? 'selected' : ''}>${cmpLabel(k)}</option>`).join('');
+    const sortLabel = _kpiCmpSort === 'worst' ? 'Worst first' : 'Strongest first';
+    leftControls = `
+      <label style="font-size:11.5px;color:var(--text-sub);font-weight:600;letter-spacing:0.06em">COMPARE</label>
+      <select class="form-select" onchange="kpiCmpSetFrom(this.value)" style="min-width:90px">${fromOpts}</select>
+      <span style="color:var(--mid);font-weight:700">→</span>
+      <select class="form-select" onchange="kpiCmpSetTo(this.value)" style="min-width:90px">${toOpts}</select>
+      <button class="btn btn-secondary" onclick="kpiCmpToggleSort()" title="Flip the ordering">⇅ ${escapeHtml(sortLabel)}</button>`;
+  } else {
+    leftControls = `
+      <label style="font-size:11.5px;color:var(--text-sub);font-weight:600;letter-spacing:0.06em">YEAR</label>
+      <select class="form-select" onchange="kpiSelectYear(this.value)" style="min-width:90px">${yearOpts}</select>`;
+  }
+  const uploadBtn = isAdminMode
+    ? `<button class="btn btn-admin" onclick="kpiUploadStart()" title="Upload a CSV exported from the KPI Google Sheet">⬆ Upload CSV</button>`
+    : '';
+  // Delete is tied to the specific quarter being viewed — only in KPI View.
+  const deleteBtn = (!isTrends && isAdminMode && currentHasData)
+    ? `<button class="btn btn-danger" onclick="kpiDeleteQuarter()" title="Remove the CSV record for the quarter currently being viewed">🗑 Delete this quarter</button>`
+    : '';
+
+  const toolbar = `
+    <div class="kpi-toolbar">
+      ${leftControls}
+      <div class="kpi-toolbar-spacer"></div>
+      ${uploadBtn}
+      ${deleteBtn}
+      <button class="btn btn-secondary" onclick="kpiPrint()" title="Print or save as PDF">🖨 Print</button>
+    </div>`;
+
+  const tabs = isTrends ? '' : `<div class="kpi-tabs">${quarterTabsHtml}</div>`;
+
+  // Body: either the selected quarter's report, the trends view, or an empty state.
+  let body = '';
+  if (_kpiSubview === 'trends' && hasMultiQuarters) {
+    body = _renderKpiTrends(m);
+  } else {
+    const key = _scopeKey(_kpiYear, _kpiQuarter);
+    const data = kpi[key];
+    const future = _isFutureQuarter(_kpiYear, _kpiQuarter);
+    if (future) {
+      body = `<div class="kpi-empty">
+        <div class="kpi-empty-icon">🗓</div>
+        <strong>Q${_kpiQuarter} ${_kpiYear}</strong> hasn't happened yet.<br>
+        Come back at the end of the quarter to upload evaluation data.
+      </div>`;
+    } else if (!data) {
+      body = `<div class="kpi-empty">
+        <div class="kpi-empty-icon">⚠</div>
+        No KPI data uploaded for <strong>Q${_kpiQuarter} ${_kpiYear}</strong> yet.
+        ${isAdminMode ? '<br>Click <strong>⬆ Upload CSV</strong> above to add it.' : '<br>Ask an admin to upload your evaluation CSV.'}
+      </div>`;
+    } else {
+      body = _renderKpiQuarter(m, data);
+    }
+  }
+
+  return `
+    <!-- ── KPI ── -->
+    <div class="tm-section kpi-section">
+      <div class="tm-section-header">
+        <div class="tm-section-icon">📊</div>
+        <div class="tm-section-title">Key Performance Indicators${isAdminMode ? ' <span class="admin-tag" style="margin-left:6px">Admin can upload</span>' : ''}</div>
+      </div>
+      <div class="tm-section-body">
+        ${subviewHtml}
+        ${toolbar}
+        ${tabs}
+        ${body}
+      </div>
+    </div>
+  `;
+}
+
+// Single-quarter report body — gauge + category bars + drill-in.
+function _renderKpiQuarter(m, data) {
+  const meta = data.meta || {};
+  const cats = data.categories || [];
+
+  // Trend chips compare the CURRENTLY-VIEWED quarter against the
+  // chronologically-previous one (not the full series), so Q1 — which has
+  // nothing before it on record — gets no chip, while Q2 compares to Q1.
+  const allKeys = _kpiSortedKeys(m);
+  const currentKey = data.meta.scope.key;
+  const idxInSorted = allKeys.indexOf(currentKey);
+  const prevKey = idxInSorted > 0 ? allKeys[idxInSorted - 1] : null;
+  const prevReport = prevKey ? m.kpi[prevKey] : null;
+  const trendChipFor = (catIdx) => {
+    if (!prevReport) return '';
+    const prevCat = (prevReport.categories || [])[catIdx];
+    const curCat  = cats[catIdx];
+    if (!prevCat || !curCat) return '';
+    return _kpiTrendChip([prevCat.subtotal, curCat.subtotal]);
+  };
+
+  // Overall trend vs previous quarter — chunky arrow circle sitting beside
+  // the radial gauge. Reuses the prevReport already computed above for the
+  // per-category chips, so the comparison reference is identical and
+  // first-time uploads get no arrow anywhere.
+  let overallTrendHtml = '';
+  if (prevReport) {
+    const prevOverall = prevReport.meta?.overall || 0;
+    const d = (meta.overall || 0) - prevOverall;
+    const cls = d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat';
+    const sign = d > 0 ? '+' : '';
+    const [py, pq] = prevKey.split('-Q');
+    const niceTip = (cls === 'flat')
+      ? `No meaningful change vs Q${pq} ${py}`
+      : `${sign}${d.toFixed(1)} pts vs Q${pq} ${py} (was ${prevOverall} of ${meta.overallMax})`;
+    overallTrendHtml = `<div class="kpi-gauge-trend ${cls}" title="${escapeHtml(niceTip)}" aria-label="Overall trend" data-arrow-dir="${cls}">${_kpiArrowIcon(d, 22)}</div>`;
+  }
+
+  const header = `
+    <div class="kpi-report-header">
+      <div class="kpi-report-meta">
+        <div class="kpi-meta-row"><span class="kpi-meta-label">Evaluator</span><strong>${escapeHtml(meta.evaluatorName || '—')}</strong>${meta.evaluatorPosition ? ` · <span style="color:var(--mid)">${escapeHtml(meta.evaluatorPosition)}</span>` : ''}</div>
+        <div class="kpi-meta-row"><span class="kpi-meta-label">Evaluated</span><strong>${escapeHtml(meta.name || m.realName || '—')}</strong>${meta.position ? ` · <span style="color:var(--mid)">${escapeHtml(meta.position)}</span>` : ''}</div>
+        <div class="kpi-meta-row"><span class="kpi-meta-label">Scope</span><strong>Q${meta.scope?.quarter} ${meta.scope?.year}</strong></div>
+        ${meta.overallLabel ? `<div class="kpi-meta-row"><span class="kpi-meta-label">Rating</span><strong>${escapeHtml(meta.overallLabel)}</strong></div>` : ''}
+      </div>
+      <div class="kpi-report-gauge">
+        ${overallTrendHtml}
+        <div class="kpi-gauge-inner">
+          ${_kpiGaugeSvg(meta.overall || 0, meta.overallMax || 100, meta.overallLabel || '')}
+        </div>
+      </div>
+    </div>`;
+
+  // Trend chips only appear when there is a chronologically-previous
+  // quarter to compare the currently-viewed quarter against. First-time
+  // uploads (and the first quarter on record) get no arrows per spec.
+  const catList = cats.map((cat, ci) => {
+    const pct  = _kpiPercent(cat.subtotal, cat.maxSubtotal);
+    const band = _kpiBandForPercent(pct);
+    const isOpen = _kpiOpenCats.has(ci);
+
+    // Drill-in metric rows — pip-bar gauge + rating value chip. The pip bar
+    // visually communicates "X out of 5" at a glance and partial-fills the
+    // last active pip if the rating is a decimal (which the CSV format
+    // may carry in the future). No "score / max" text — that was confusing
+    // weight noise per user feedback.
+    const metricRows = (cat.metrics || []).map((m2, mi) => {
+      const rating = +(m2.rating || 0);
+      // Color the pips by the rating's band (1..5 maps to band-1..5).
+      // Use Math.ceil so a rating of 3.x still shows the band-4 color.
+      const bandN  = Math.max(1, Math.min(5, Math.ceil(rating)));
+      // Format rating for display: integer if whole, else 1 decimal.
+      const ratingDisplay = (rating % 1 === 0) ? String(rating) : rating.toFixed(1);
+      // Build five squircle pips.
+      let pipsHtml = '';
+      for (let i = 1; i <= 5; i++) {
+        const fillFrac = Math.max(0, Math.min(1, rating - (i - 1)));
+        const w = (fillFrac * 100).toFixed(1) + '%';
+        // No per-pip data-fill-to — the whole bar animates as ONE sweep
+        // (see _kpiAnimPipBar) driven by data-pip-rating on the wrapper.
+        pipsHtml += `<div class="kpi-pip"><div class="kpi-pip-fill kpi-band-${bandN}" style="width:${w}"></div></div>`;
+      }
+      return `<div class="kpi-metric">
+        <div class="kpi-metric-head">
+          <div>
+            <div class="kpi-metric-title">${escapeHtml(m2.title)}
+              <span class="kpi-metric-rating-chip kpi-band-${bandN}">${ratingDisplay}</span>
+            </div>
+            ${m2.description ? `<div class="kpi-metric-desc">${escapeHtml(m2.description)}</div>` : ''}
+          </div>
+        </div>
+        <div class="kpi-pip-bar" aria-label="Rating ${ratingDisplay} of 5" data-pip-rating="${rating}" data-anim-key="pip-${ci}-${mi}">${pipsHtml}</div>
+        ${_kpiNotesBlock(m, currentKey, _kpiMetricNoteKey(cat.title, m2.title))}
+      </div>`;
+    }).join('');
+
+    return `<div class="kpi-cat${isOpen ? ' open' : ''}" data-cat-idx="${ci}">
+      <div class="kpi-cat-head" onclick="kpiToggleCat(${ci})">
+        <span class="kpi-cat-chev">▶</span>
+        <div>
+          <div class="kpi-cat-title">${escapeHtml(cat.title)}</div>
+        </div>
+        ${trendChipFor(ci) || '<span></span>'}
+        <div class="kpi-cat-score"><span data-anim-key="cat-score-${ci}" data-count-to="${(+cat.subtotal).toFixed(cat.subtotal % 1 ? 1 : 0)}">${(+cat.subtotal).toFixed(cat.subtotal % 1 ? 1 : 0)}</span><span class="kpi-score-max"> / ${cat.maxSubtotal}</span></div>
+        <div class="kpi-cat-bar-wrap"><div class="kpi-cat-bar kpi-band-${band.n}" style="width:${pct.toFixed(1)}%" data-fill-to="${pct.toFixed(1)}%" data-anim-key="cat-bar-${ci}"></div></div>
+      </div>
+      <div class="kpi-cat-body">${metricRows}</div>
+    </div>`;
+  }).join('');
+
+  return `${header}<div class="kpi-cat-list">${catList}</div>`;
+}
+
+// ── Trends view = PAIRWISE QUARTER COMPARISON ────────────────────────────
+// Pick a "from" and a "to" quarter; the tab becomes a scannable "what
+// changed" report — per-category before/after mini-gauges, status chips,
+// and auto-generated phrases, grouped + sorted worst-first so problem
+// areas surface instantly. No chart (removed — it didn't communicate well).
+
+// Classify one category's from→to movement into a status, a priority
+// "concern" score (higher = worse, sorts to top in worst-first), and a
+// plain-English phrase. Thresholds: low = <40% of max at the "to" quarter;
+// sharp drop = lost ≥15% of max; critical = both.
+function _kpiClassifyCmp(r) {
+  const lowNow    = r.toPct < 40;
+  const sharpDrop = r.deltaPct <= -15;
+  const declined  = r.delta < -0.5;
+  const improved  = r.delta > 0.5;
+  const level = r.toPct < 20 ? 'critical' : r.toPct < 40 ? 'weak'
+              : r.toPct < 60 ? 'solid'    : r.toPct < 80 ? 'strong' : 'outstanding';
+
+  let status, statusLabel;
+  if (lowNow && sharpDrop)      { status = 'critical';  statusLabel = 'Critical'; }
+  else if (lowNow || sharpDrop) { status = 'attention'; statusLabel = 'Needs attention'; }
+  else if (declined)            { status = 'regressed'; statusLabel = 'Slipped'; }
+  else if (improved)            { status = 'improved';  statusLabel = 'Improved'; }
+  else                          { status = 'steady';    statusLabel = 'Steady'; }
+  // Celebrate genuinely strong, non-declining areas.
+  if ((level === 'strong' || level === 'outstanding') && !declined && status !== 'critical' && status !== 'attention') {
+    status = 'strong'; statusLabel = (level === 'outstanding' ? 'Outstanding' : 'Strong');
+  }
+
+  // Concern score — drives worst-first sort.
+  let concern = (100 - r.toPct);
+  if (r.delta < 0) concern += Math.abs(r.deltaPct) * 1.5;
+  if (status === 'critical')  concern += 1000;
+  else if (status === 'attention') concern += 500;
+
+  // Phrase = trend clause + level clause + (priority nudge).
+  const dabs = Math.abs(r.delta).toFixed(1);
+  const trendClause =
+      r.deltaPct >= 15  ? `Surged +${r.delta.toFixed(1)} pts`
+    : improved          ? `Improved +${r.delta.toFixed(1)} pts`
+    : r.deltaPct <= -15 ? `Dropped sharply −${dabs} pts`
+    : declined          ? `Slipped −${dabs} pts`
+    :                     `Held steady`;
+  const levelClause = {
+    critical:    'now at a critical low',
+    weak:        'now in the weak range',
+    solid:       'now at a solid level',
+    strong:      'and still strong',
+    outstanding: 'and outstanding'
+  }[level];
+  let phrase = `${trendClause} — ${levelClause}.`;
+  if (status === 'critical')        phrase += ' Top priority to address.';
+  else if (status === 'attention' && lowNow && !sharpDrop) phrase += ' A persistent weak spot worth a focused push.';
+  else if (status === 'attention' && sharpDrop) phrase += ' Watch this closely next quarter.';
+
+  return Object.assign({}, r, { level, status, statusLabel, concern, phrase });
+}
+
+function _renderKpiTrends(m) {
+  const allKeys = _kpiSortedKeys(m);            // chronological ascending
+  if (allKeys.length < 2) return '';
+
+  // Defaults: earliest → latest (full arc). Re-validate stored picks in case
+  // the underlying data was deleted since the last render. (The From→To
+  // selectors themselves live in the toolbar — built in renderKpiSection —
+  // so this body only renders the verdict + comparison cards.)
+  if (!_kpiCmpFrom || !allKeys.includes(_kpiCmpFrom)) _kpiCmpFrom = allKeys[0];
+  if (!_kpiCmpTo   || !allKeys.includes(_kpiCmpTo))   _kpiCmpTo   = allKeys[allKeys.length - 1];
+
+  const labelFor = (key) => { const [y, q] = key.split('-Q'); return `Q${q} ${y}`; };
+
+  if (_kpiCmpFrom === _kpiCmpTo) {
+    return `<div class="kpi-cmp-hint">Pick two different quarters to compare.</div>`;
+  }
+
+  const fromData = m.kpi[_kpiCmpFrom];
+  const toData   = m.kpi[_kpiCmpTo];
+
+  // Per-category comparison records (driven by the "to" quarter's category
+  // list, matched positionally to the "from" quarter).
+  let cats = (toData.categories || []).map((c, i) => {
+    const fromCat = (fromData.categories || [])[i] || {};
+    const max   = c.maxSubtotal || fromCat.maxSubtotal || 25;
+    const fromV = fromCat.subtotal != null ? fromCat.subtotal : 0;
+    const toV   = c.subtotal != null ? c.subtotal : 0;
+    const delta = +(toV - fromV).toFixed(2);
+    const toPct = _kpiPercent(toV, max);
+    const deltaPct = max ? (delta / max) * 100 : 0;
+    return _kpiClassifyCmp({ title: c.title, max, fromV, toV, delta, toPct, deltaPct });
+  });
+
+  // Sort by concern. Worst-first = descending concern; flip for best-first.
+  cats.sort((a, b) => _kpiCmpSort === 'worst' ? b.concern - a.concern : a.concern - b.concern);
+
+  // Overall figures for the verdict banner.
+  const oMax  = toData.meta.overallMax || 100;
+  const oFrom = fromData.meta.overall || 0;
+  const oTo   = toData.meta.overall || 0;
+  const oDelta = +(oTo - oFrom).toFixed(1);
+
+  const improvedCount  = cats.filter(c => c.delta > 0.5).length;
+  const regressedCount = cats.filter(c => c.delta < -0.5).length;
+  const attentionCount = cats.filter(c => c.status === 'critical' || c.status === 'attention').length;
+  const criticalCount  = cats.filter(c => c.status === 'critical').length;
+
+  // Verdict tone. Red = the OVERALL score declined (the headline bad news).
+  // Amber = overall held/improved but there are problem areas to flag.
+  // Green = improved with nothing flagged. (A critical category still shows
+  // up loudly via its red card + the red "need attention" sub-text, so amber
+  // here isn't burying it — it just keeps the banner honest about the net.)
+  let vClass, vIcon;
+  if (oDelta < -0.5)                                          { vClass = 'bad';   vIcon = '🔻'; }
+  else if (criticalCount > 0 || regressedCount > 0 || attentionCount > 0) { vClass = 'mixed'; vIcon = '⚠️'; }
+  else                                                        { vClass = 'good';  vIcon = '📈'; }
+
+  const headline = oDelta > 0.5
+      ? `Overall improved <strong>+${oDelta.toFixed(1)} pts</strong> (${oFrom} → ${oTo} of ${oMax})`
+      : oDelta < -0.5
+      ? `Overall declined <strong>−${Math.abs(oDelta).toFixed(1)} pts</strong> (${oFrom} → ${oTo} of ${oMax})`
+      : `Overall held steady (${oTo} of ${oMax})`;
+  const countBits = [
+    improvedCount  ? `${improvedCount} improved`   : null,
+    regressedCount ? `${regressedCount} regressed` : null,
+    attentionCount ? `<strong style="color:#c0392b">${attentionCount} need${attentionCount > 1 ? '' : 's'} attention</strong>` : null
+  ].filter(Boolean).join(' · ');
+  const verdict = `<div class="kpi-verdict ${vClass}">
+    <div class="kpi-verdict-icon">${vIcon}</div>
+    <div>
+      <div class="kpi-verdict-text">${headline} between <strong>${escapeHtml(labelFor(_kpiCmpFrom))}</strong> and <strong>${escapeHtml(labelFor(_kpiCmpTo))}</strong>.</div>
+      ${countBits ? `<div class="kpi-verdict-sub">${countBits}.</div>` : ''}
+    </div>
+  </div>`;
+
+  // Card render helpers.
+  const pairKey = _kpiCmpFrom + '->' + _kpiCmpTo;   // note key for this comparison
+  const statusIcon = (s) => ({ critical:'🔴', attention:'🟠', regressed:'📉', improved:'📈', steady:'➖', strong:'🌟' }[s] || '');
+  const dirCls   = (d) => d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat';
+  const dirColor = (d) => d > 0.5 ? '#27ae60' : d < -0.5 ? '#c0392b' : 'var(--mid)';
+  const card = (c) => `<div class="kpi-cmp-card s-${c.status}">
+    <div class="kpi-cmp-card-main">
+      <div class="kpi-cmp-card-head">
+        <span class="kpi-cmp-card-title">${escapeHtml(c.title)}</span>
+        <span class="kpi-cmp-chip s-${c.status}">${statusIcon(c.status)} ${escapeHtml(c.statusLabel)}</span>
+      </div>
+      <div class="kpi-cmp-phrase">${c.phrase}</div>
+    </div>
+    <div class="kpi-cmp-gauges">
+      <div class="kpi-cmp-gauge">${_kpiMiniGauge(c.fromV, c.max)}<div class="kpi-cmp-gauge-q">${escapeHtml(labelFor(_kpiCmpFrom))}</div></div>
+      <div class="kpi-cmp-mid">
+        <span style="color:${dirColor(c.delta)}" data-arrow-dir="${dirCls(c.delta)}">${_kpiArrowIcon(c.delta, 18)}</span>
+        <div class="kpi-cmp-mid-delta ${dirCls(c.delta)}">${c.delta > 0 ? '+' : c.delta < 0 ? '−' : ''}${Math.abs(c.delta).toFixed(1)}</div>
+      </div>
+      <div class="kpi-cmp-gauge">${_kpiMiniGauge(c.toV, c.max)}<div class="kpi-cmp-gauge-q">${escapeHtml(labelFor(_kpiCmpTo))}</div></div>
+    </div>
+    ${_kpiNotesBlock(m, pairKey, c.title)}
+  </div>`;
+
+  // Walk the sorted list; insert a group divider whenever the bucket changes
+  // (buckets respect the current sort direction automatically).
+  const bucketOf = (c) =>
+      (c.status === 'critical' || c.status === 'attention') ? 'attention'
+    : c.status === 'regressed' ? 'regressed'
+    : c.status === 'steady'    ? 'steady' : 'well';
+  const bucketLabel = {
+    attention: '🔴 Needs attention',
+    regressed: '📉 Slipped',
+    steady:    '➖ Held steady',
+    well:      '📈 Doing well'
+  };
+  let listHtml = '', lastBucket = null;
+  for (const c of cats) {
+    const b = bucketOf(c);
+    if (b !== lastBucket) { listHtml += `<div class="kpi-cmp-group-label">${bucketLabel[b]}</div>`; lastBucket = b; }
+    listHtml += card(c);
+  }
+
+  return `${verdict}<div class="kpi-cmp-list">${listHtml}</div>`;
+}
+
+// ── KPI viewer modal ─────────────────────────────────────────────────────
+// The KPI report lives in its own modal layered above the team profile so
+// it has the screen real estate it needs and doesn't fight the profile
+// editor. The profile detail just hosts a "📊 Open KPI Report" button.
+
+// Currently-viewed member id. While the overlay is open, all KPI actions
+// (year/quarter/subview/expand/upload) re-render this modal — not the
+// profile. The team profile underneath remains untouched.
+let _kpiViewingMemberId = null;
+
+// Open the KPI viewer for the profile currently open (or an explicit id).
+// Privacy is enforced again here as defense-in-depth — the launcher button
+// is also gated on canViewKpi but a programmatic call shouldn't bypass.
+function openKpiViewer(memberId) {
+  const id = memberId || editingTmId;
+  if (!id) return;
+  const m = (TEAM_DIRECTORY || []).find(x => x.id === id);
+  if (!m) return;
+  if (!canViewKpi(m)) { showToast("You don't have access to this KPI."); return; }
+  _kpiViewingMemberId = id;
+  renderKpiViewer();
+  document.getElementById('kpi-overlay').classList.add('open');
+}
+
+function closeKpiViewer() {
+  document.getElementById('kpi-overlay').classList.remove('open');
+  _kpiViewingMemberId = null;
+}
+function maybeCloseKpi(e) { if (_shouldCloseOverlay(e, 'kpi-overlay')) closeKpiViewer(); }
+
+// Render (or re-render) the modal contents. Reads the latest member data
+// from TEAM_DIRECTORY in case Firebase pushed an update while the modal
+// was open. Falls back to _tmDraft if the member id matches the open
+// profile (so unsaved profile edits like uploaded KPI are reflected).
+function renderKpiViewer() {
+  if (!_kpiViewingMemberId) return;
+  let m = (TEAM_DIRECTORY || []).find(x => x.id === _kpiViewingMemberId);
+  if (_tmDraft && _tmDraft.id === _kpiViewingMemberId) m = _tmDraft;
+  if (!m) { closeKpiViewer(); return; }
+
+  // Header: avatar + name + slack/projects subtitle.
+  const av = document.getElementById('kpi-modal-avatar');
+  const nm = document.getElementById('kpi-modal-name');
+  const sb = document.getElementById('kpi-modal-sub');
+  if (av) av.innerHTML = m.image
+    ? `<img src="${escAttr(m.image)}" alt=""/>`
+    : defaultPersonIconSvg(28);
+  if (nm) nm.textContent = (m.realName || 'Team Member') + ' · KPI Report';
+  if (sb) {
+    const slack = m.slackName ? '@' + String(m.slackName).replace(/^@/, '') : '';
+    const projects = (m.projects || []).slice(0, 3).join(', ');
+    sb.textContent = [slack, projects].filter(Boolean).join('  ·  ');
+  }
+  // Body: reuse the existing renderKpiSection() output. The function
+  // returns an empty string for non-viewers, but we already gated via
+  // canViewKpi above, so we expect a non-empty section here.
+  const body = document.getElementById('kpi-modal-body');
+  if (body) {
+    body.innerHTML = renderKpiSection(m);
+    // Run the open/refresh animations, then reset the mode to the default.
+    // Handlers that shouldn't replay everything (drill-in, note editing) set
+    // _kpiAnimMode/_kpiAnimCat just before calling renderKpiViewer.
+    const mode = _kpiAnimMode, cat = _kpiAnimCat;
+    _kpiAnimMode = 'full'; _kpiAnimCat = null;
+    _kpiRunAnimations(body, mode, cat);
+  }
+}
+
+// ── KPI animations ───────────────────────────────────────────────────────
+// Everything is rendered at its FINAL value in the HTML, so reduced-motion /
+// no-JS still shows correct numbers. These helpers reset an element to its
+// "empty/zero" state and transition it back to final for a satisfying
+// fill / count-up / arrow-bounce on open.
+let _kpiAnimMode = 'full';   // 'full' | 'drillin' | 'none'
+let _kpiAnimCat  = null;     // category index for 'drillin'
+
+function _kpiReducedMotion() {
+  try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch(e) { return false; }
+}
+function _kpiCountUp(el, carry) {
+  const tgt = parseFloat(el.getAttribute('data-count-to'));
+  if (!isFinite(tgt)) return;
+  const dec = (String(el.getAttribute('data-count-to')).indexOf('.') >= 0) ? 1 : 0;
+  // Carry-over: count FROM the previously-displayed value for this element
+  // (so the number ticks up OR down to the new quarter's value) when we have
+  // a remembered value; otherwise count up from 0.
+  const key = el.getAttribute('data-anim-key');
+  const from = (carry && key && _kpiLastAnim[key] != null) ? _kpiLastAnim[key] : 0;
+  if (key) _kpiLastAnim[key] = tgt;
+  const dur = 750;
+  let t0 = null;
+  const step = (ts) => {
+    if (t0 === null) t0 = ts;
+    const t = Math.min(1, (ts - t0) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);   // easeOutCubic
+    el.textContent = (from + (tgt - from) * eased).toFixed(dec);
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = tgt.toFixed(dec);
+  };
+  requestAnimationFrame(step);
+}
+// NOTE on technique: CSS transitions on SVG paint properties (stroke-
+// dashoffset) proved unreliable to (re)trigger after innerHTML replacement —
+// they stall at the start value. So we JS-tween every value frame-by-frame
+// with requestAnimationFrame (the same mechanism the count-up uses, which is
+// rock-solid here). easeOutCubic gives a quick-then-settle feel.
+function _kpiTween(setFn, from, to, dur) {
+  dur = dur || 800;
+  let t0 = null, done = false;
+  const finish = () => { if (done) return; done = true; setFn(to); };
+  const step = (ts) => {
+    if (done) return;
+    if (t0 === null) t0 = ts;
+    const t = Math.min(1, (ts - t0) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);   // easeOutCubic
+    setFn(from + (to - from) * eased);
+    if (t < 1) requestAnimationFrame(step);
+    else finish();
+  };
+  requestAnimationFrame(step);
+  // Safety net: if rAF is starved (backgrounded / headless tab that isn't
+  // painting), still land on the final value so content is never left stuck
+  // in its reset/empty state. In a normal foreground tab rAF finishes first
+  // and this becomes a no-op.
+  setTimeout(finish, dur + 250);
+}
+function _kpiAnimGauge(circle, carry) {
+  const off = parseFloat(circle.getAttribute('data-off'));
+  const circ = parseFloat(circle.getAttribute('data-circ'));
+  if (!isFinite(off) || !isFinite(circ)) return;
+  // Carry-over: start the ring from the previously-displayed offset (so it
+  // visibly grows or shrinks toward the new quarter's value) when remembered;
+  // otherwise start from empty (full circumference).
+  const key = circle.getAttribute('data-anim-key');
+  const from = (carry && key && _kpiLastAnim[key] != null) ? _kpiLastAnim[key] : circ;
+  if (key) _kpiLastAnim[key] = off;
+  // Drive the SVG presentation attribute directly — assigning a raw number to
+  // circle.style.strokeDashoffset silently fails in some engines, whereas
+  // setAttribute is reliable for SVG.
+  _kpiTween(v => { circle.setAttribute('stroke-dashoffset', v.toFixed(2)); }, from, off, 850);
+}
+function _kpiAnimFill(el, carry) {
+  const w = parseFloat(el.getAttribute('data-fill-to'));   // "100.0%" → 100
+  if (!isFinite(w)) return;
+  const key = el.getAttribute('data-anim-key');
+  const from = (carry && key && _kpiLastAnim[key] != null) ? _kpiLastAnim[key] : 0;
+  if (key) _kpiLastAnim[key] = w;
+  el.style.transition = 'none';
+  _kpiTween(v => { el.style.width = v + '%'; }, from, w, 700);
+}
+// Animate a 5-pip bar as ONE continuous bar sweeping left→right. A single
+// value tweens from→rating; each frame distributes it across the pips
+// (pip i fills as the value passes i), so the fill front moves through pip 1,
+// then 2, then 3… rather than every pip filling at once. With carry-over the
+// "from" is the previous quarter's rating so a metric visibly rises or falls.
+function _kpiAnimPipBar(barEl, carry) {
+  const rating = parseFloat(barEl.getAttribute('data-pip-rating'));
+  if (!isFinite(rating)) return;
+  const key = barEl.getAttribute('data-anim-key');
+  const from = (carry && key && _kpiLastAnim[key] != null) ? _kpiLastAnim[key] : 0;
+  if (key) _kpiLastAnim[key] = rating;
+  const fills = barEl.querySelectorAll('.kpi-pip-fill');
+  // Don't reset width synchronously — let the tween's first frame set the
+  // start distribution. That way, if rAF never fires the pips simply stay at
+  // their rendered final widths instead of getting stuck empty.
+  fills.forEach(f => { f.style.transition = 'none'; });
+  _kpiTween(v => {
+    fills.forEach((f, idx) => {
+      const frac = Math.max(0, Math.min(1, v - idx));
+      f.style.width = (frac * 100).toFixed(1) + '%';
+    });
+  }, from, rating, 700);
+}
+function _kpiAnimArrow(el) {
+  const dir = el.getAttribute('data-arrow-dir') || 'flat';
+  el.classList.remove('kpi-anim-arrow', 'up', 'down', 'flat');
+  void el.getBoundingClientRect();
+  el.classList.add('kpi-anim-arrow', dir);
+}
+function _kpiRunAnimations(root, mode, openCatIdx) {
+  if (!root || mode === 'none' || _kpiReducedMotion()) return;
+  if (mode === 'drillin') {
+    // Only the just-expanded category's pip bars animate — no full-page replay.
+    // carry=false: a freshly-revealed drill-in sweeps from empty (it's a
+    // reveal within the SAME quarter, not a quarter-to-quarter change).
+    const cat = root.querySelector('.kpi-cat.open[data-cat-idx="' + openCatIdx + '"]');
+    if (cat) cat.querySelectorAll('.kpi-pip-bar[data-pip-rating]').forEach(b => _kpiAnimPipBar(b, false));
+    return;
+  }
+  // 'full' — animate everything currently visible. carry=true so gauges/bars/
+  // numbers/pips animate FROM the previously-displayed value (visible up/down)
+  // when one is remembered, else from 0/empty (first open).
+  root.querySelectorAll('[data-kpi-gauge]').forEach(c => _kpiAnimGauge(c, true));
+  root.querySelectorAll('.kpi-cat-bar[data-fill-to]').forEach(e => _kpiAnimFill(e, true));
+  root.querySelectorAll('.kpi-cat.open .kpi-pip-bar[data-pip-rating]').forEach(b => _kpiAnimPipBar(b, true));
+  root.querySelectorAll('[data-count-to]').forEach(e => _kpiCountUp(e, true));
+  root.querySelectorAll('[data-arrow-dir]').forEach(_kpiAnimArrow);
+}
+
+// ── KPI interaction handlers ─────────────────────────────────────────────
+// All handlers re-render the KPI VIEWER (not the profile underneath) so
+// state changes are localized to the open modal.
+function kpiSelectYear(y)    { _kpiYear = parseInt(y, 10); _kpiQuarter = null; renderKpiViewer(); }
+function kpiSelectQuarter(q) { _kpiQuarter = q; renderKpiViewer(); }
+function kpiSetSubview(v)    { _kpiSubview = v; renderKpiViewer(); }
+function kpiToggleCat(i) {
+  const opening = !_kpiOpenCats.has(i);
+  if (opening) _kpiOpenCats.add(i); else _kpiOpenCats.delete(i);
+  // Drill-in: animate only the newly-revealed pip bars, not the whole page.
+  _kpiAnimMode = 'drillin'; _kpiAnimCat = i;
+  renderKpiViewer();
+}
+function kpiPrint() { window.print(); }
+
+// Trends pairwise-comparison handlers.
+function kpiCmpSetFrom(key) { _kpiCmpFrom = key; renderKpiViewer(); }
+function kpiCmpSetTo(key)   { _kpiCmpTo = key;   renderKpiViewer(); }
+function kpiCmpToggleSort() { _kpiCmpSort = (_kpiCmpSort === 'worst' ? 'best' : 'worst'); renderKpiViewer(); }
+
+// ── Coaching notes (admin-authored, owner+admin viewable) ────────────────
+// Notes are tied to the exact From→To comparison pair AND category title.
+// Multiple notes stack per (pair, category), each timestamped. Admin can
+// add/edit/delete; non-admins only see existing notes.
+function _kpiFmtDate(ts) {
+  try { return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  catch(e) { return ''; }
+}
+function _kpiNoteMember() {
+  // The member being viewed. Mutating its kpiNotes + saveTeamOnly() persists
+  // and syncs. Keep _tmDraft pointing at the same kpiNotes object so both
+  // render sources agree.
+  const id = _kpiViewingMemberId;
+  const m = (TEAM_DIRECTORY || []).find(x => x.id === id);
+  if (!m) return null;
+  if (!m.kpiNotes || typeof m.kpiNotes !== 'object') m.kpiNotes = {};
+  if (_tmDraft && _tmDraft.id === id) _tmDraft.kpiNotes = m.kpiNotes;
+  return m;
+}
+function _kpiNotesFor(m, pair, cat) {
+  return (m && m.kpiNotes && m.kpiNotes[pair] && m.kpiNotes[pair][cat]) || [];
+}
+// Inner-key for per-metric coaching notes. Notes for metrics live under the
+// QUARTER scope key (e.g. "2026-Q1", which never contains "->" so it can't
+// collide with the Trends pair keys), with this composite category|||metric
+// inner key. The whole coaching-note machinery (_kpiNotesBlock + handlers) is
+// generic over (outerKey, innerKey), so metrics reuse it unchanged.
+function _kpiMetricNoteKey(catTitle, metricTitle) { return catTitle + ' ||| ' + metricTitle; }
+
+// Seed CSV per-metric comments as the first coaching note for each metric on
+// upload. Seeded notes carry `seeded:true`. To avoid duplicating on re-upload
+// we drop any prior STILL-seeded note for the metric and re-seed from the new
+// CSV; admin-authored notes (and seeds the admin later edited — see kpiNoteSave
+// which clears the flag on edit) are preserved.
+function _kpiSeedMetricNotes(member, scopeKey, data) {
+  if (!member.kpiNotes || typeof member.kpiNotes !== 'object') member.kpiNotes = {};
+  if (!member.kpiNotes[scopeKey]) member.kpiNotes[scopeKey] = {};
+  const bucket = member.kpiNotes[scopeKey];
+  for (const cat of (data.categories || [])) {
+    for (const met of (cat.metrics || [])) {
+      const nk = _kpiMetricNoteKey(cat.title, met.title);
+      const kept = (bucket[nk] || []).filter(n => !n.seeded);   // keep manual/edited
+      const comment = (met.comment || '').trim();
+      if (comment) {
+        kept.unshift({ id: 'note-seed-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), text: comment, ts: Date.now(), seeded: true });
+      }
+      if (kept.length) bucket[nk] = kept; else delete bucket[nk];
+    }
+  }
+}
+
+// Returns the notes block HTML for a comparison card OR a metric. Empty string
+// when a non-admin has no notes to show (so the card stays clean).
+function _kpiNotesBlock(m, pair, cat) {
+  const notes = _kpiNotesFor(m, pair, cat);
+  const editing = _kpiNoteEdit && _kpiNoteEdit.pair === pair && _kpiNoteEdit.cat === cat;
+  const pj = escJsAttr(pair), cj = escJsAttr(cat);
+  let inner = '';
+
+  for (const n of notes) {
+    if (editing && _kpiNoteEdit.id === n.id) {
+      inner += `<div class="kpi-note editing">
+        <textarea class="form-textarea" id="kpi-note-input" rows="3" placeholder="Coaching note…">${escapeHtml(n.text)}</textarea>
+        <div class="kpi-note-actions">
+          <button class="btn btn-secondary" onclick="kpiNoteCancel()">Cancel</button>
+          <button class="btn btn-primary" onclick="kpiNoteSave('${pj}','${cj}','${escJsAttr(n.id)}')">Save</button>
+        </div>
+      </div>`;
+    } else {
+      inner += `<div class="kpi-note">
+        <div class="kpi-note-head">
+          <span class="kpi-note-badge">📝 Coaching note</span>
+          <span class="kpi-note-date">${escapeHtml(_kpiFmtDate(n.ts))}</span>
+          ${isAdminMode ? `<span class="kpi-note-tools">
+            <button class="kpi-note-tool" title="Edit note" onclick="kpiNoteStartEdit('${pj}','${cj}','${escJsAttr(n.id)}')">✎</button>
+            <button class="kpi-note-tool danger" title="Delete note" onclick="kpiNoteDelete('${pj}','${cj}','${escJsAttr(n.id)}')">🗑</button>
+          </span>` : ''}
+        </div>
+        <div class="kpi-note-text">${escapeHtml(n.text)}</div>
+      </div>`;
+    }
+  }
+
+  if (isAdminMode) {
+    if (editing && _kpiNoteEdit.id === null) {
+      inner += `<div class="kpi-note editing">
+        <textarea class="form-textarea" id="kpi-note-input" rows="3" placeholder="How can they pull this up coming into the next quarter?"></textarea>
+        <div class="kpi-note-actions">
+          <button class="btn btn-secondary" onclick="kpiNoteCancel()">Cancel</button>
+          <button class="btn btn-primary" onclick="kpiNoteSave('${pj}','${cj}','')">Add note</button>
+        </div>
+      </div>`;
+    } else if (!editing) {
+      inner += `<button class="kpi-note-add" onclick="kpiNoteStartAdd('${pj}','${cj}')">＋ Add coaching note</button>`;
+    }
+  }
+
+  if (!inner) return '';   // non-admin, no notes → render nothing
+  return `<div class="kpi-cmp-notes">${inner}</div>`;
+}
+function _kpiFocusNoteInput() {
+  setTimeout(() => {
+    const t = document.getElementById('kpi-note-input');
+    if (t) { t.focus(); try { t.setSelectionRange(t.value.length, t.value.length); } catch(e){} }
+  }, 60);
+}
+function kpiNoteStartAdd(pair, cat)  { _kpiNoteEdit = { pair, cat, id: null }; _kpiAnimMode = 'none'; renderKpiViewer(); _kpiFocusNoteInput(); }
+function kpiNoteStartEdit(pair, cat, id) { _kpiNoteEdit = { pair, cat, id }; _kpiAnimMode = 'none'; renderKpiViewer(); _kpiFocusNoteInput(); }
+function kpiNoteCancel() { _kpiNoteEdit = null; _kpiAnimMode = 'none'; renderKpiViewer(); }
+function kpiNoteSave(pair, cat, id) {
+  if (!isAdminMode) return;
+  const ta = document.getElementById('kpi-note-input');
+  const text = ta ? ta.value.trim() : '';
+  if (!text) { _kpiNoteEdit = null; _kpiAnimMode = 'none'; renderKpiViewer(); return; }
+  const m = _kpiNoteMember();
+  if (!m) return;
+  if (!m.kpiNotes[pair]) m.kpiNotes[pair] = {};
+  if (!m.kpiNotes[pair][cat]) m.kpiNotes[pair][cat] = [];
+  const arr = m.kpiNotes[pair][cat];
+  if (id) {
+    const n = arr.find(x => x.id === id);
+    if (n) {
+      n.text = text;                 // keep original timestamp on edit
+      delete n.seeded;               // an edited seed becomes an admin-owned note (won't be re-seeded on re-upload)
+    }
+  } else {
+    arr.push({ id: 'note-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), text, ts: Date.now() });
+  }
+  saveTeamOnly();
+  _kpiNoteEdit = null;
+  _kpiAnimMode = 'none';
+  renderKpiViewer();
+  showToast(id ? 'Coaching note updated' : 'Coaching note added');
+}
+async function kpiNoteDelete(pair, cat, id) {
+  if (!isAdminMode) return;
+  if (!await customConfirm('Delete this coaching note? This cannot be undone.', { danger: true, confirmLabel: 'Delete note' })) return;
+  const m = _kpiNoteMember();
+  if (!m || !m.kpiNotes[pair] || !m.kpiNotes[pair][cat]) return;
+  m.kpiNotes[pair][cat] = m.kpiNotes[pair][cat].filter(x => x.id !== id);
+  saveTeamOnly();
+  _kpiAnimMode = 'none';
+  renderKpiViewer();
+  showToast('Coaching note deleted');
+}
+
+// ── Admin delete-quarter action ──────────────────────────────────────────
+// Removes the KPI record for the currently-viewed quarter. Used when the
+// wrong CSV was uploaded. Confirmation modal shows the year/quarter and
+// member name so the admin doesn't fat-finger the wrong record.
+async function kpiDeleteQuarter() {
+  if (!isAdminMode) return;
+  if (!_tmDraft) return;
+  const key = _scopeKey(_kpiYear, _kpiQuarter);
+  const existing = _tmDraft.kpi && _tmDraft.kpi[key];
+  if (!existing) return;
+
+  const who = _tmDraft.realName || _tmDraft.slackName || 'this team member';
+  const ok = await customConfirm(
+    `Delete the Q${_kpiQuarter} ${_kpiYear} KPI record for ${who}?\n\n` +
+    `Overall score on file: ${existing.meta?.overall ?? '?'} / ${existing.meta?.overallMax ?? '?'}.\n` +
+    `This cannot be undone — you'll need to re-upload the correct CSV to restore.`,
+    { danger: true, confirmLabel: 'Delete this quarter' }
+  );
+  if (!ok) return;
+
+  // Wipe from the open draft AND the directory; persist immediately.
+  delete _tmDraft.kpi[key];
+  const idx = (TEAM_DIRECTORY || []).findIndex(x => x.id === editingTmId);
+  if (idx >= 0 && TEAM_DIRECTORY[idx].kpi) {
+    delete TEAM_DIRECTORY[idx].kpi[key];
+    saveTeamOnly();
+  }
+  // Re-render. If the deleted quarter was the only one on record, the
+  // section auto-falls-back to the empty state. The currently-selected
+  // quarter is preserved so the admin can see "now missing" feedback.
+  if (document.getElementById('kpi-overlay').classList.contains('open')) renderKpiViewer();
+  else renderTmDetail();
+  showToast(`Deleted Q${_kpiQuarter} ${_kpiYear} record.`);
+}
+
+// ── Admin upload flow ────────────────────────────────────────────────────
+async function kpiUploadStart() {
+  if (!isAdminMode) return;
+  if (!_tmDraft) return;
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.csv,text/csv';
+  inp.onchange = async ev => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    let text = '';
+    try { text = await file.text(); }
+    catch(e) { alert('Could not read the file: ' + e.message); return; }
+
+    const parsed = parseKpiCsv(text);
+    if (!parsed.ok) { alert('Cannot use this CSV.\n\n' + parsed.error); return; }
+
+    const meta = parsed.data.meta;
+    const key = meta.scope.key;
+
+    // Name match guard — refuse to upload someone else's CSV to this profile.
+    // Comparison is case-insensitive and collapses internal whitespace so
+    // "John  Smith" still matches "john smith". Skipped silently when either
+    // side is empty (the parser already ensures Name is present, but profiles
+    // without a Real Name don't trigger the check).
+    const _norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const csvName = _norm(meta.name);
+    const memberName = _norm(_tmDraft.realName);
+    if (csvName && memberName && csvName !== memberName) {
+      alert(
+        'This CSV is for "' + (meta.name || '?') + '" but you are uploading it to ' +
+        (_tmDraft.realName || '(unnamed profile)') + "'s profile.\n\n" +
+        'The Real Name on the profile must match the Name field in the CSV. Please verify you have the right CSV for the right person.'
+      );
+      return;
+    }
+
+    // Future-quarter block (defense in depth — UI hides future tabs anyway).
+    if (_isFutureQuarter(meta.scope.year, meta.scope.quarter)) {
+      alert(`Q${meta.scope.quarter} ${meta.scope.year} hasn't happened yet. You can only upload data for the current or past quarters.`);
+      return;
+    }
+
+    // Overwrite confirmation if data already exists for this scope.
+    const existing = _tmDraft.kpi[key];
+    if (existing) {
+      const ok = await customConfirm(
+        `Overwrite the existing ${key} record? The current overall score is ${existing.meta?.overall ?? '?'}/${existing.meta?.overallMax ?? '?'}; the new CSV says ${meta.overall}/${meta.overallMax}.`,
+        { danger: true, confirmLabel: 'Replace' }
+      );
+      if (!ok) return;
+    } else {
+      const ok = await customConfirm(
+        `Upload ${key} for ${escapeHtml(meta.name || m.realName)}? Overall: ${meta.overall}/${meta.overallMax} (${escapeHtml(meta.overallLabel || '')}).`,
+        { confirmLabel: 'Upload' }
+      );
+      if (!ok) return;
+    }
+
+    // Commit to draft AND directory (immediate persistence — admin doesn't
+    // need to also click "Save" to seal the KPI upload).
+    _tmDraft.kpi[key] = parsed.data;
+    const idx = (TEAM_DIRECTORY || []).findIndex(x => x.id === editingTmId);
+    if (idx >= 0) {
+      if (!TEAM_DIRECTORY[idx].kpi || typeof TEAM_DIRECTORY[idx].kpi !== 'object') TEAM_DIRECTORY[idx].kpi = {};
+      TEAM_DIRECTORY[idx].kpi[key] = parsed.data;
+      // Seed each metric's CSV comment as its first coaching note (de-duped).
+      _kpiSeedMetricNotes(TEAM_DIRECTORY[idx], key, parsed.data);
+      _tmDraft.kpiNotes = TEAM_DIRECTORY[idx].kpiNotes;   // keep the draft in sync
+      saveTeamOnly();
+    } else {
+      // No directory entry (shouldn't normally happen) — seed on the draft.
+      _kpiSeedMetricNotes(_tmDraft, key, parsed.data);
+    }
+    // Jump straight to the newly-uploaded quarter so the admin sees the result.
+    _kpiYear = meta.scope.year;
+    _kpiQuarter = meta.scope.quarter;
+    _kpiSubview = 'quarter';
+    // Re-render whichever surface is currently visible — the dedicated KPI
+    // viewer if open (typical path now), otherwise fall back to the inline
+    // profile re-render (in case kpiUploadStart is ever called from there).
+    if (document.getElementById('kpi-overlay').classList.contains('open')) renderKpiViewer();
+    else renderTmDetail();
+    showToast(`KPI uploaded: ${key}`);
+  };
+  inp.click();
 }
 
 function addTmProject(value) {
@@ -7478,7 +9287,7 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.key === 'Escape') {
-    for (const id of ['new-pk-overlay','pk-modal-overlay','tm-detail-overlay','team-modal-overlay','syn-modal-overlay','settings-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay','cat-modal-overlay']) {
+    for (const id of ['new-pk-overlay','pk-modal-overlay','kpi-overlay','tm-detail-overlay','team-modal-overlay','syn-modal-overlay','settings-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay','cat-modal-overlay']) {
       const m = document.getElementById(id);
       if (m && m.classList.contains('open')) { m.classList.remove('open'); return; }
     }
