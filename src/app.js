@@ -627,8 +627,6 @@ function fbSyncKey(key, value) {
 /* ══════════════════════════════════════════
    PERSISTENCE
    ══════════════════════════════════════════ */
-function clone(o) { return JSON.parse(JSON.stringify(o)); }
-
 function loadFromStorage() {
   try { const v=localStorage.getItem('vl_sections'); SECTIONS = v ? JSON.parse(v) : clone(DEFAULT_SECTIONS); } catch(e){ SECTIONS=clone(DEFAULT_SECTIONS); }
   try { const v=localStorage.getItem('vl_hb');       HANDBOOK = v ? JSON.parse(v) : clone(DEFAULT_HANDBOOK); } catch(e){ HANDBOOK=clone(DEFAULT_HANDBOOK); }
@@ -744,11 +742,6 @@ function toggleCategoryCollapsed(catId) {
 function navigateCategory(catId, type) {
   showCategoryOverview(catId, type);
 }
-
-/* ══════════════════════════════════════════
-   UTILITIES
-   ══════════════════════════════════════════ */
-function stripHtml(h)  { const d=document.createElement('div'); d.innerHTML=h; return (d.textContent||d.innerText||'').replace(/\s+/g,' ').trim(); }
 
 /* ══════════════════════════════════════════
    KPI CSV PARSER
@@ -1016,19 +1009,6 @@ function parseKpiCsv(text) {
   };
 }
 
-// Current quarter helpers — used by the upload UI to block future quarters
-// and by the year/quarter picker to mark "missing" past quarters.
-function _currentQuarter(date) {
-  const d = date || new Date();
-  return { year: d.getFullYear(), quarter: Math.floor(d.getMonth() / 3) + 1 };
-}
-function _isFutureQuarter(year, quarter) {
-  const cur = _currentQuarter();
-  if (year > cur.year) return true;
-  if (year === cur.year && quarter > cur.quarter) return true;
-  return false;
-}
-function _scopeKey(year, quarter) { return `${year}-Q${quarter}`; }
 function sectionNumOf(entryId) { return String(entryId).split('.')[0]; }
 // Generalized helpers — accept an optional `base` ID:
 //   'handbook' (default), 'projects', or a custom category id (e.g. 'cat-1701234567').
