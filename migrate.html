@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VL Dashboard — Data Migration</title>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 860px; margin: 32px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.5; }
+  h1 { font-size: 22px; }
+  .warn { background: #fff8e6; border-left: 4px solid #e0a800; padding: 12px 16px; border-radius: 4px; font-size: 14px; }
+  .steps { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+  button { font-size: 14px; padding: 10px 16px; border-radius: 6px; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  #btn-commit:not(:disabled) { background: #d9534f; color: #fff; border-color: #d9534f; }
+  #btn-verify:not(:disabled) { background: #0275d8; color: #fff; border-color: #0275d8; }
+  #log { background: #0d1117; color: #c9d1d9; padding: 16px; border-radius: 8px; font-family: 'Consolas','Courier New',monospace; font-size: 12.5px; white-space: pre-wrap; min-height: 220px; max-height: 60vh; overflow-y: auto; }
+  .ok { color: #3fb950; } .err { color: #f85149; } .head { color: #d2a8ff; font-weight: 700; } .dim { color: #8b949e; }
+</style>
+</head>
+<body>
+<h1>VL Dashboard — Data Migration</h1>
+<p class="dim">Single document <code>dashboards/main</code> → per-entity collections (Phase B). Run as the admin, once.</p>
+<div class="warn">
+  <strong>Safe by design:</strong> this tool only <em>reads</em> <code>dashboards/main</code> and writes the new
+  collections. It <strong>never deletes</strong> the source doc — that stays as your rollback. Run
+  <strong>Preview</strong> first (no writes), eyeball the counts, then Commit. Re-running is safe (idempotent —
+  deterministic doc IDs overwrite rather than duplicate).
+</div>
+<div class="steps">
+  <button id="btn-preview">1 · Preview (dry run — no writes)</button>
+  <button id="btn-commit" disabled>2 · Commit migration</button>
+  <button id="btn-verify" disabled>3 · Verify</button>
+</div>
+<div id="log"></div>
+
+<script>
+// Same project as the app. Public client key by design (security is in the rules).
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBx1DVX_duRg1_ueNLoeg3fl5L4Of0a81c",
+  authDomain: "mcs-vl-dashboard.firebaseapp.com",
+  projectId: "mcs-vl-dashboard",
+  storageBucket: "mcs-vl-dashboard.firebasestorage.app",
+  messagingSenderId: "870550200391",
+  appId: "1:870550200391:web:2ebe322f936391d0845162"
+};
+
+// Doc-ID conventions — MUST match src/data/model.js so the migrated data is
+// exactly what the live app reads once USE_NEW_DATA_MODEL flips.
+const SEP = '__';
+const entryDocId   = (base, id)  => base + SEP + id;
+const sectionDocId = (base, num) => base + SEP + num;
+
+let _db, _doc, _getDoc, _setDoc, _getDocs, _collection, _writeBatch;
+let _source = null;        // the dashboards/main data
+let _plan = null;          // computed write plan from preview
+
+const logEl = document.getElementById('log');
+function log(msg, cls) { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = msg + '\n'; logEl.appendChild(s); logEl.scrollTop = logEl.scrollHeight; }
+
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function randomHex(bytes) { const a = new Uint8Array(bytes); crypto.getRandomValues(a); return [...a].map(b => b.toString(16).padStart(2, '0')).join(''); }
+function stripPasskey(o) { const c = Object.assign({}, o); delete c.passkey; return c; }
+
+async function connect() {
+  if (_db) return;
+  const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js');
+  const fs = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js');
+  const app = initializeApp(FIREBASE_CONFIG);
+  _db = fs.getFirestore(app);
+  _doc = fs.doc; _getDoc = fs.getDoc; _setDoc = fs.setDoc; _getDocs = fs.getDocs; _collection = fs.collection; _writeBatch = fs.writeBatch;
+  log('Connected to Firestore project: ' + FIREBASE_CONFIG.projectId, 'ok');
+}
+
+async function readSource() {
+  const snap = await _getDoc(_doc(_db, 'dashboards', 'main'));
+  if (!snap.exists()) throw new Error('dashboards/main does not exist — nothing to migrate.');
+  return snap.data();
+}
+
+// Count inline base64 images (informational — relevant to the later cleanup).
+function scanBase64(entries) {
+  let count = 0, approxBytes = 0;
+  const re = /data:image\/[a-zA-Z0-9.+-]+;base64,([^"')\s]+)/g;
+  for (const e of entries) {
+    const html = String(e.content || ''); let m;
+    while ((m = re.exec(html)) !== null) { count++; approxBytes += Math.floor(m[1].length * 0.75); }
+  }
+  return { count, approxBytes };
+}
+
+// Build the full write plan (no writes yet). Returns { writes:[{coll,id,data}], secrets:[...], counts }.
+function buildPlan(src) {
+  const writes = [];
+  const push = (coll, id, data) => writes.push({ coll, id, data });
+
+  const handbook       = src.handbook || [];
+  const projectEntries = src.projectEntries || [];
+  const sections       = src.sections || [];
+  const projects       = src.projects || [];
+  const cats           = src.customCategories || [];
+  const team           = src.team || [];
+  const anns           = src.announcements || [];
+
+  // entries
+  for (const e of handbook)       push('entries', entryDocId('handbook', e.id), Object.assign({}, e, { base: 'handbook' }));
+  for (const e of projectEntries) push('entries', entryDocId('projects', e.id), Object.assign({}, e, { base: 'projects' }));
+  // sections (strip passkeys → project-secrets handled below)
+  for (const s of sections) push('sections', sectionDocId('handbook', s.num), Object.assign(stripPasskey(s), { base: 'handbook', num: String(s.num) }));
+  for (const s of projects) push('sections', sectionDocId('projects', s.num), Object.assign(stripPasskey(s), { base: 'projects', num: String(s.num) }));
+  // custom categories: metadata + their sections/entries (base = catId)
+  for (const c of cats) {
+    const meta = Object.assign({}, c); delete meta.sections; delete meta.entries;
+    push('categories', String(c.id), meta);
+    for (const s of (c.sections || [])) push('sections', sectionDocId(c.id, s.num), Object.assign(stripPasskey(s), { base: c.id, num: String(s.num) }));
+    for (const e of (c.entries  || [])) push('entries', entryDocId(c.id, e.id), Object.assign({}, e, { base: c.id }));
+  }
+  // team profiles (passkeys → team-secrets below)
+  for (const m of team) push('team', String(m.id), stripPasskey(m));
+  // announcements
+  for (const a of anns) push('announcements', String(a.id), Object.assign({}, a));
+  // singletons
+  push('site', 'main', Object.assign({}, src.settings || {}));
+  push('sidebar', 'main', { items: src.sidebar || [] });
+  push('synonyms', 'main', { groups: src.synonyms || [] });  // already stored as [{terms:[]}]
+
+  // secrets (hashed at commit time): team passkeys + project passkeys
+  const secrets = [];
+  for (const m of team) if (m && m.passkey) secrets.push({ coll: 'team-secrets', id: String(m.id), passkey: m.passkey });
+  for (const s of projects) if (s && s.passkey) secrets.push({ coll: 'project-secrets', id: sectionDocId('projects', s.num), passkey: s.passkey });
+
+  const b64 = scanBase64([...handbook, ...projectEntries, ...cats.flatMap(c => c.entries || [])]);
+  const counts = {
+    entries: handbook.length + projectEntries.length + cats.reduce((n, c) => n + (c.entries || []).length, 0),
+    sections: sections.length + projects.length + cats.reduce((n, c) => n + (c.sections || []).length, 0),
+    categories: cats.length, team: team.length, announcements: anns.length,
+    teamSecrets: secrets.filter(s => s.coll === 'team-secrets').length,
+    projectSecrets: secrets.filter(s => s.coll === 'project-secrets').length,
+    base64Images: b64.count, base64MB: (b64.approxBytes / 1048576).toFixed(2)
+  };
+  return { writes, secrets, counts };
+}
+
+async function preview() {
+  try {
+    logEl.innerHTML = '';
+    log('PREVIEW (dry run — no writes)\n', 'head');
+    await connect();
+    _source = await readSource();
+    _plan = buildPlan(_source);
+    const c = _plan.counts;
+    log('Source dashboards/main read OK. Planned writes:', 'ok');
+    log('  entries .............. ' + c.entries);
+    log('  sections ............. ' + c.sections);
+    log('  categories ........... ' + c.categories);
+    log('  team profiles ........ ' + c.team);
+    log('  team-secrets (hashed)  ' + c.teamSecrets);
+    log('  project-secrets ...... ' + c.projectSecrets);
+    log('  announcements ........ ' + c.announcements);
+    log('  singletons ........... site/main, sidebar/main, synonyms/main');
+    log('  total docs ........... ' + (_plan.writes.length + _plan.secrets.length));
+    log('');
+    log('  inline base64 images . ' + c.base64Images + ' (~' + c.base64MB + ' MB)  [informational; relevant to cleanup #3]', 'dim');
+    log('');
+    log('No data written. Review the counts above. If they look right, click "Commit migration".', 'ok');
+    document.getElementById('btn-commit').disabled = false;
+  } catch (e) { log('PREVIEW FAILED: ' + e.message, 'err'); console.error(e); }
+}
+
+async function commitBatches(items) {
+  // items: [{coll,id,data}] — write in chunks of 400 (batch limit is 500).
+  let done = 0;
+  for (let i = 0; i < items.length; i += 400) {
+    const chunk = items.slice(i, i + 400);
+    const batch = _writeBatch(_db);
+    for (const w of chunk) batch.set(_doc(_db, w.coll, w.id), w.data);
+    await batch.commit();
+    done += chunk.length;
+    log('  …wrote ' + done + ' / ' + items.length + ' docs');
+  }
+}
+
+async function commit() {
+  try {
+    if (!_plan) { log('Run Preview first.', 'err'); return; }
+    document.getElementById('btn-commit').disabled = true;
+    log('\nCOMMIT (writing collections)\n', 'head');
+
+    await commitBatches(_plan.writes);
+
+    // Hash + write secrets individually (each needs a unique salt).
+    log('  hashing ' + _plan.secrets.length + ' passkeys…');
+    for (const s of _plan.secrets) {
+      const salt = randomHex(16);
+      const passkeyHash = await sha256Hex(salt + String(s.passkey).trim().toUpperCase());
+      await _setDoc(_doc(_db, s.coll, s.id), { passkeyHash, salt });
+    }
+    log('  passkeys hashed → team-secrets / project-secrets', 'ok');
+    log('\nCOMMIT COMPLETE. dashboards/main is untouched (rollback intact).', 'ok');
+    log('Now click "Verify".');
+    document.getElementById('btn-verify').disabled = false;
+  } catch (e) { log('COMMIT FAILED: ' + e.message, 'err'); console.error(e); document.getElementById('btn-commit').disabled = false; }
+}
+
+async function countColl(name) { const snap = await _getDocs(_collection(_db, name)); return snap.size; }
+
+async function verify() {
+  try {
+    log('\nVERIFY (re-read collections, diff vs source)\n', 'head');
+    const exp = _plan.counts;
+    const checks = [
+      ['entries', exp.entries], ['sections', exp.sections], ['categories', exp.categories],
+      ['team', exp.team], ['team-secrets', exp.teamSecrets], ['project-secrets', exp.projectSecrets],
+      ['announcements', exp.announcements]
+    ];
+    let allOk = true;
+    for (const [coll, expected] of checks) {
+      const got = await countColl(coll);
+      const ok = got === expected;
+      if (!ok) allOk = false;
+      log('  ' + coll.padEnd(16) + ' expected ' + expected + ', found ' + got + (ok ? '  ✓' : '  ✗ MISMATCH'), ok ? 'ok' : 'err');
+    }
+    // singletons exist?
+    for (const [coll, id] of [['site','main'],['sidebar','main'],['synonyms','main']]) {
+      const snap = await _getDoc(_doc(_db, coll, id));
+      const ok = snap.exists(); if (!ok) allOk = false;
+      log('  ' + (coll + '/' + id).padEnd(16) + (ok ? ' exists  ✓' : ' MISSING ✗'), ok ? 'ok' : 'err');
+    }
+    log('');
+    if (allOk) log('VERIFY PASSED — all counts match. Safe to flip USE_NEW_DATA_MODEL (B6).', 'ok');
+    else log('VERIFY FOUND MISMATCHES — do NOT flip the flag. Report the ✗ lines.', 'err');
+  } catch (e) { log('VERIFY FAILED: ' + e.message, 'err'); console.error(e); }
+}
+
+document.getElementById('btn-preview').onclick = preview;
+document.getElementById('btn-commit').onclick = commit;
+document.getElementById('btn-verify').onclick = verify;
+log('Ready. Click "Preview" to begin.', 'dim');
+</script>
+</body>
+</html>
