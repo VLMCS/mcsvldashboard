@@ -13,11 +13,11 @@ const _ADMIN_TOOL_GROUPS = [
   { label: 'Content', items: [
     { icon: '📑', text: 'Documentation View', fn: 'showDocView',        note: 'Full read-through with inline editing' },
     { icon: '🧠', text: 'Manage Synonyms',    fn: 'openSynonymsEditor', note: 'Search synonym groups' },
-    { icon: '↓',  text: 'Export backup',      fn: 'exportData',         note: 'Download a JSON backup' },
-    { icon: '↑',  text: 'Import backup',      fn: '_adminToolsImport',  note: 'Restore from a JSON backup' }
+    { icon: '📤', text: 'Export backup',      fn: 'exportData',         note: 'Download a JSON backup' },
+    { icon: '📥', text: 'Import backup',      fn: '_adminToolsImport',  note: 'Restore from a JSON backup' }
   ] },
   { label: 'Site', items: [
-    { icon: '⚙', text: 'Site Settings', fn: 'openSiteSettings', note: 'Names, search, favicon, theme' }
+    { icon: '⚙️', text: 'Site Settings', fn: 'openSiteSettings', note: 'Names, search, favicon, theme' }
   ] },
   { label: 'Security', items: [
     { icon: '🔑', text: 'Change Admin Password', fn: 'changeAdminPassword', note: 'Requires the master recovery key' },
@@ -61,7 +61,7 @@ function openAdminTools() {
         '#admin-tools-overlay .at-tile{display:flex;flex-direction:column;align-items:center;gap:10px;padding:17px 8px 15px;border:1px solid var(--border);border-radius:14px;background:var(--bg-form-input);cursor:pointer;text-align:center;min-height:104px;justify-content:center;transition:border-color .15s,background .15s,transform .12s,box-shadow .15s}' +
         '#admin-tools-overlay .at-tile:hover{border-color:var(--admin-accent);background:var(--admin-accent-light);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,0.10)}' +
         '#admin-tools-overlay .at-tile:active{transform:translateY(0);box-shadow:none}' +
-        '#admin-tools-overlay .at-badge{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--hover-bg);font-size:21px;line-height:1;transition:transform .15s}' +
+        '#admin-tools-overlay .at-badge{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:rgba(128,128,128,0.16);font-size:21px;line-height:1;transition:transform .15s}' +
         '#admin-tools-overlay .at-tile:hover .at-badge{transform:scale(1.06)}' +
         '#admin-tools-overlay .at-label{font-size:12px;font-weight:600;color:var(--text-body);line-height:1.25}' +
         '@media(max-width:520px){#admin-tools-overlay .at-grid{grid-template-columns:repeat(2,1fr)}}' +
