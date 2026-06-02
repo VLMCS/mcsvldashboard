@@ -31,7 +31,7 @@ const FIREBASE_DOC_PATH = ['dashboards', 'main']; // collection, doc
 // Lets the new data model + auth binding ship dormant and flip in one place,
 // with instant rollback by setting this back to false (dashboards/main is
 // never deleted until well after the flip is verified).
-let USE_NEW_DATA_MODEL = false;
+let USE_NEW_DATA_MODEL = true;
 
 let _fbApp = null, _fbDb = null, _fbDoc = null, _fbUnsub = null;
 let _fbReady = false;

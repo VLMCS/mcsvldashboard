@@ -105,20 +105,27 @@ async function dataLoadAll() {
 /* ════════════════ LIVE: per-collection onSnapshot ════════════════ */
 function dataSubscribe() {
   dataUnsubscribe();
+  // Each onSnapshot fires once immediately on attach with the data dataLoadAll
+  // already has — skip that initial fire so boot doesn't trigger a re-render
+  // storm + a flurry of "Updated from team" toasts.
   const sub = (coll, apply) => {
+    let first = true;
     const unsub = _fb_onSnapshot(_fb_collection(_fbDb, coll), (snap) => {
       if (_fbWriting) return;               // ignore our own write echoes
       apply(snap.docs.map(d => d.data()));
       _dataRebuildArrays();
+      if (first) { first = false; return; }
       _dataReRender();
     });
     _dataUnsubs.push(unsub);
   };
   const subDoc = (coll, key) => {
+    let first = true;
     const unsub = _fb_onSnapshot(_fb_doc(_fbDb, coll, 'main'), (snap) => {
       if (_fbWriting) return;
       _dataRaw[key] = snap.exists() ? snap.data() : null;
       _dataRebuildArrays();
+      if (first) { first = false; return; }
       _dataReRender();
     });
     _dataUnsubs.push(unsub);
