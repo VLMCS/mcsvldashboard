@@ -64,6 +64,7 @@ async function initFirebase() {
     _fb_setDoc = setDoc;
     _fb_onSnapshot = onSnapshot;
     _fb_getDoc = getDoc;
+    _fb_doc = doc;   // exposed so other modules (e.g. admin-password.js) can build refs to other docs
 
     // If the previous session had unsaved writes pending (refresh happened
     // before the debounced fbSync fired or before the network round-trip
@@ -184,7 +185,7 @@ async function initFirebase() {
     return false;
   }
 }
-let _fb_setDoc, _fb_onSnapshot, _fb_getDoc;
+let _fb_setDoc, _fb_onSnapshot, _fb_getDoc, _fb_doc;
 
 function fbSync() {
   if (!_fbReady) return;

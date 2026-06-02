@@ -21,12 +21,23 @@ function openAdminAuth() {
 }
 function closePwdModal() { document.getElementById('pwd-modal-overlay').classList.remove('open'); }
 function maybeClosePwd(e) { if (_shouldCloseOverlay(e, 'pwd-modal-overlay')) closePwdModal(); }
-function checkPassword() {
-  if (document.getElementById('pwd-input').value === ADMIN_PW) {
-    closePwdModal(); enterAdminMode();
+async function checkPassword() {
+  const inp = document.getElementById('pwd-input');
+  // verifyAdminPassword (admin-password.js) checks the stored salted hash;
+  // until a custom password is configured it falls back to the legacy ADMIN_PW.
+  let ok = false;
+  try { ok = await verifyAdminPassword(inp.value); }
+  catch (e) { console.error('verifyAdminPassword failed:', e); ok = false; }
+  if (ok) {
+    closePwdModal();
+    enterAdminMode();
+    // Still on the built-in default? Offer one-time setup of a custom password
+    // + master recovery key (only when Firebase is connected).
+    if (typeof isAdminAuthConfigured === 'function' && !isAdminAuthConfigured() && _fbReady) {
+      setTimeout(() => { _ap_firstTimeSetup(); }, 400);
+    }
   } else {
     document.getElementById('pwd-error').textContent = 'Incorrect password.';
-    const inp = document.getElementById('pwd-input');
     inp.classList.add('error'); inp.value = '';
     setTimeout(() => inp.classList.remove('error'), 400);
     inp.focus();
