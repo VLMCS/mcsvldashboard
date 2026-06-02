@@ -50,6 +50,7 @@
     <button class="admin-tool-btn" onclick="openSynonymsEditor()" title="Manage search synonyms">🧠 Manage Synonyms</button>
     <button class="admin-tool-btn" onclick="changeAdminPassword()" title="Change the Admin Mode password (requires your master recovery key)">🔑 Change Admin Password</button>
     <button class="admin-tool-btn" onclick="openManageAdmins()" title="Promote or revoke admin devices">👥 Manage Admins</button>
+    <button class="admin-tool-btn" onclick="openDataTools()" title="Firestore usage + orphaned-document cleanup">🗄 Data &amp; Storage</button>
     <div class="admin-tool-row">
       <button class="admin-tool-btn" onclick="exportData()" title="Download backup">↓ Export</button>
       <button class="admin-tool-btn" onclick="document.getElementById('import-file').click()" title="Upload backup">↑ Import</button>
@@ -715,6 +716,7 @@
 <script src="src/kpi/csv-parser.js"></script>
 <script src="src/firebase.js"></script>
 <script src="src/data/model.js"></script>
+<script src="src/admin/data-tools.js"></script>
 <script src="src/auth/session.js"></script>
 <script src="src/auth/access.js"></script>
 <script src="src/auth/admin-password.js"></script>
