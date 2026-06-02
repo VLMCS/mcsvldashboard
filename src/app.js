@@ -693,17 +693,67 @@ function _startFirebaseInBackground() {
 // immediately on top while this loads in the background.
 _startFirebaseInBackground();
 
-// Decide login vs resume. sessionStorage-scoped session: same tab refresh
-// keeps the session; closing the browser ends it (per "Stay signed in for
-// this session").
-const _restored = loadCurrentUser();
-if (_restored) {
-  _renderSignOutChip();
-  // No login overlay, no welcome fade — straight to the dashboard. Firebase
-  // is loading in the background; the status dot reflects connection state.
-} else {
-  showLogin();
+// Tracks whether this device's UID is a bound admin (new model). Set during
+// resume + after admin bootstrap/promote.
+let _boundIsAdmin = false;
+
+// Decide login vs resume.
+//  - OLD model: synchronous sessionStorage check (passkey validated locally).
+//  - NEW model: the "is this device logged in?" answer is a Firestore read of
+//    /users/{uid}, which needs Firebase ready — so we show the login overlay,
+//    wait for init, then resume if the device is bound.
+function _decideLoginOrResume() {
+  if (!USE_NEW_DATA_MODEL) {
+    const restored = loadCurrentUser();
+    if (restored) _renderSignOutChip();   // straight to dashboard
+    else showLogin();
+    return;
+  }
+  // Avoid flashing the login overlay for a returning (bound) user: a
+  // localStorage hint predicts resume so we keep the (cached) dashboard up
+  // while we confirm the binding asynchronously. Cleared on sign-out / when
+  // the binding turns out to be gone.
+  // The hint is the authoritative "this device has an active session" signal.
+  // Sign-out clears it, so when it's absent we show login and do NOT attempt
+  // any resume — otherwise a lingering /admins grant (e.g. from a bootstrap)
+  // would silently re-log-in as a pure admin right after sign-out.
+  let likelyBound = false;
+  try { likelyBound = localStorage.getItem('vl_bound_hint') === '1'; } catch (e) {}
+  if (!likelyBound) { showLogin(); return; }
+  (async () => {
+    try {
+      await _fbInitPromise;
+      if (_fbInitResult !== true) { if (likelyBound) showLogin(); return; }  // offline → must log in
+      const bound = await fbBoundUser();
+      const isAdm = await fbIsBoundAdmin();
+      if (bound && bound.tmId) {
+        // Bound team member (may also be an admin — lock button enters w/o pw).
+        const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId)
+                  || { id: bound.tmId, slackName: bound.slackName || '' };
+        setCurrentUser(m, true);
+        _boundIsAdmin = isAdm;
+        try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
+        try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
+        _renderSignOutChip(); _runMainBootstrap(); hideLogin();
+        return;
+      }
+      if (isAdm) {
+        // Pure admin device (bootstrap admin, no team profile) — resume as admin.
+        currentUser = null; _boundIsAdmin = true;
+        isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
+        if (typeof dataMergeAdminPasskeys === 'function') dataMergeAdminPasskeys();
+        try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
+        _runMainBootstrap(); hideLogin();
+        return;
+      }
+      // Not bound and not admin → clear stale hint and show login.
+      try { localStorage.removeItem('vl_bound_hint'); } catch (e) {}
+      showLogin();
+    } catch (e) { console.error('resume binding check failed:', e); showLogin(); }
+  })();
 }
+_decideLoginOrResume();
 
 // Kept as a stub for the post-login welcome handoff (called from
 // _bootProceedAfterLogin). Firebase already started; just refresh chrome

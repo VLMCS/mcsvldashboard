@@ -43,6 +43,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    // Who may READ shared content: any passkey-bound device, OR an admin
+    // (a bootstrap admin has /admins but no /users, so isn't "bound").
+    function canRead() {
+      return bound() || isAdmin();
+    }
+
     function myTmId() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tmId;
     }
@@ -60,7 +66,7 @@ service cloud.firestore {
     // ─── Auth binding: /users/{uid} ──────────────────────────────────────────
     // One doc per device. Self-claimed on first successful passkey login.
     match /users/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
 
       // Bind: signed-in caller writes its own UID, references a real team member,
       // does NOT claim isAdmin via this doc, stamps boundAt with server time.
@@ -107,18 +113,19 @@ service cloud.firestore {
     // ─── Team profiles: /team/{tmId} ─────────────────────────────────────────
     // Public-within-team profile info. Passkeys are NOT stored here.
     match /team/{tmId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow update: if isAdmin() || myTmId() == tmId;
       allow create, delete: if isAdmin();
     }
 
-    // ─── Passkey hashes: /team-secrets/{tmId} ────────────────────────────────
-    // Salted SHA-256(passkey). Readable only by NOT-YET-BOUND signed-in clients
-    // (to support the bind step). Once a client is bound, they can no longer
-    // pull these hashes — keeps the attack surface for offline brute-force
-    // limited to pre-bind anonymous sessions.
+    // ─── Passkeys: /team-secrets/{tmId} ──────────────────────────────────────
+    // VIEWABLE model: stores plaintext { passkey }. Readable by (a) NOT-YET-BOUND
+    // signed-in clients — needed for the login bind step — and (b) admins, who
+    // view/copy passkeys in the All-Passkeys page. Bound NON-admins cannot read
+    // these (so a regular team member can't dump everyone's passkeys). Weaker
+    // than hashing, but far better than the original fully-public dashboard doc.
     match /team-secrets/{tmId} {
-      allow read: if signedIn() && !bound();
+      allow read: if (signedIn() && !bound()) || isAdmin();
       allow write: if isAdmin();
     }
 
@@ -126,7 +133,7 @@ service cloud.firestore {
     // sectionId format: '<base>__<num>'  (e.g., 'projects__3'). Bound users may
     // read for the unlock flow; admins write.
     match /project-secrets/{sectionId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
@@ -136,7 +143,7 @@ service cloud.firestore {
     // Functions), so this is client-trust — same level of enforcement as the
     // pre-refactor app. Admins can revoke by deleting.
     match /project-unlocks/{lockId} {
-      allow read: if signedIn() && lockId.matches('^' + request.auth.uid + '__.+');
+      allow read: if isAdmin() || (signedIn() && lockId.matches('^' + request.auth.uid + '__.+'));
       allow create: if signedIn()
         && lockId.matches('^' + request.auth.uid + '__.+')
         && request.resource.data.keys().hasOnly(['unlockedAt'])
@@ -147,18 +154,27 @@ service cloud.firestore {
     }
 
     // ─── Sections: /sections/{sectionId} ─────────────────────────────────────
-    // sectionId format: '<base>__<num>'. Section definitions (title, description,
-    // order). Admins only for create/update/delete.
+    // sectionId format: '<base>__<num>'. Create/delete are admin-only. A
+    // project-section's title/description may also be UPDATED by a device that
+    // holds the unlock for it (base/num immutable).
     match /sections/{sectionId} {
-      allow read: if bound();
-      allow write: if isAdmin();
+      allow read:   if canRead();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          resource.data.base == 'projects'
+          && hasUnlocked(resource.data.base + '__' + resource.data.num)
+          && request.resource.data.base == resource.data.base
+          && request.resource.data.num == resource.data.num
+        );
     }
 
     // ─── Entries: /entries/{entryId} ─────────────────────────────────────────
     // One doc per handbook/project/custom entry. Handbook + custom: admin-only.
     // Projects: admin OR the requester holds an unlock for that section.
     match /entries/{entryId} {
-      allow read: if bound();
+      allow read: if canRead();
 
       allow create: if isAdmin()
         || (
@@ -184,13 +200,13 @@ service cloud.firestore {
 
     // ─── Announcements: /announcements/{annId} ───────────────────────────────
     match /announcements/{annId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
     // ─── Custom categories: /categories/{catId} ──────────────────────────────
     match /categories/{catId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
@@ -199,27 +215,24 @@ service cloud.firestore {
     // KPIs; admins can read everyone's. Writes are admin-only (only admins
     // import quarterly KPI CSVs).
     match /kpis/{kpiId} {
-      allow read: if bound()
-        && (
-          isAdmin()
-          || kpiId.matches('^' + myTmId() + '__.+')
-        );
+      allow read: if isAdmin()
+        || (bound() && kpiId.matches('^' + myTmId() + '__.+'));
       allow write: if isAdmin();
     }
 
     // ─── Small singleton config docs ─────────────────────────────────────────
     match /site/{docId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
     match /sidebar/{docId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
     match /synonyms/{docId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 

@@ -11,8 +11,17 @@
    ADMIN AUTH
    ══════════════════════════════════════════ */
 const ADMIN_PW = 'VLMCS123';
-function openAdminAuth() {
+async function openAdminAuth() {
   if (isAdminMode) { exitAdminMode(); return; }
+  // NEW DATA MODEL: admin is a bound device (/admins/{uid}).
+  if (USE_NEW_DATA_MODEL) {
+    if (_boundIsAdmin || await fbIsBoundAdmin()) { _boundIsAdmin = true; enterAdminMode(); return; }
+    if (await fbAdminsExist()) {
+      await customAlert('This device isn’t an admin. Ask an existing admin to promote it via “Manage Admins”.', { title: 'Admin access' });
+      return;
+    }
+    // No admin exists yet → allow the password modal to bootstrap the first one.
+  }
   document.getElementById('pwd-input').value = '';
   document.getElementById('pwd-error').textContent = '';
   document.getElementById('pwd-input').classList.remove('error');
@@ -30,6 +39,14 @@ async function checkPassword() {
   catch (e) { console.error('verifyAdminPassword failed:', e); ok = false; }
   if (ok) {
     closePwdModal();
+    // NEW DATA MODEL: the password reached here only via the bootstrap path
+    // (no admins exist yet) — promote this device to the first admin.
+    if (USE_NEW_DATA_MODEL) {
+      if (!(await fbAdminsExist())) { await fbBootstrapAdmin(); }
+      _boundIsAdmin = true;
+      enterAdminMode();
+      return;
+    }
     enterAdminMode();
     // Still on the built-in default? Offer one-time setup of a custom password
     // + master recovery key (only when Firebase is connected).
@@ -55,6 +72,11 @@ function enterAdminMode() {
   isAdminMode = true;
   document.body.classList.add('admin-mode');
   _swapAdminIcons(true);
+  // NEW DATA MODEL (viewable passkeys): pull plaintext passkeys from
+  // /team-secrets into TEAM_DIRECTORY so the admin can view them.
+  if (USE_NEW_DATA_MODEL && typeof dataMergeAdminPasskeys === 'function') {
+    dataMergeAdminPasskeys();
+  }
   renderSidebar(); renderAnnouncements();
   showToast('Admin mode active');
 }
@@ -131,7 +153,14 @@ function loadCurrentUser() {
   return currentUser;
 }
 
-function signOut() {
+async function signOut() {
+  // NEW DATA MODEL: drop this device's binding (/users/{uid}) so the next load
+  // returns to the login screen instead of silently resuming.
+  if (USE_NEW_DATA_MODEL) {
+    try { await fbUnbindUser(); } catch (e) { console.error('unbind on sign-out failed:', e); }
+    _boundIsAdmin = false;
+    try { localStorage.removeItem('vl_bound_hint'); } catch (e) {}
+  }
   currentUser = null;
   currentUserPersistent = false;
   try { localStorage.removeItem(LOGIN_KEY); } catch(e){}

@@ -441,6 +441,21 @@ async function regenerateTmPasskey() {
   if (!isAdminMode) return;
   if (!_tmDraft) return;
   if (!await customConfirm('Generate a new passkey for this profile? The old one will stop working immediately, including for any existing logged-in session.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
+  // NEW DATA MODEL (viewable): generate a new plaintext passkey, store it in
+  // /team-secrets, and keep it on the in-memory profile so admins can see it.
+  if (USE_NEW_DATA_MODEL) {
+    const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+    let next; do { next = generatePasskey(); } while (used.has(next.toUpperCase()));
+    try { await dataSetPasskey(editingTmId, next); }
+    catch (e) { await customAlert('Could not save the new passkey (are you online?).', { title: 'Error' }); return; }
+    _tmDraft.passkey = next;
+    const idx = (TEAM_DIRECTORY || []).findIndex(x => x.id === editingTmId);
+    if (idx >= 0) TEAM_DIRECTORY[idx].passkey = next;
+    if (currentUser && currentUser.tmId === editingTmId) setCurrentUser({ id: currentUser.tmId, slackName: currentUser.slackName, passkey: next }, currentUserPersistent);
+    renderTmDetail();
+    showToast('Passkey rotated');
+    return;
+  }
   // New code, globally unique within the directory.
   const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
   let next;
@@ -1634,6 +1649,14 @@ function saveTm() {
   renderTeamRoster();
   document.getElementById('tm-detail-title').textContent = _tmDraft.realName || 'Team Member';
 
+  // NEW DATA MODEL: the generated plaintext passkey isn't stored on the profile
+  // (it's stripped on write) — hash it into /team-secrets so the new member can
+  // log in. Fire-and-forget with an error toast; the plaintext is shown once below.
+  if (isFirstSave && USE_NEW_DATA_MODEL && _tmDraft.passkey) {
+    dataSetPasskeyHash(_tmDraft.id, _tmDraft.passkey)
+      .catch(() => showToast('Could not save the passkey — reset it from All Passkeys.'));
+  }
+
   // Show the one-time passkey notice AFTER persisting and re-rendering, so the
   // user sees their card already updated underneath the modal.
   if (isFirstSave) showNewProfilePasskey(_tmDraft);
@@ -1703,8 +1726,15 @@ function openAllPasskeys() {
   closeTeamModal();
   const inp = document.getElementById('pk-filter');
   if (inp) inp.value = '';
-  renderPasskeysTable();
   document.getElementById('pk-modal-overlay').classList.add('open');
+  // NEW DATA MODEL: passkeys live in /team-secrets — pull them in (admin-only)
+  // before rendering so the table shows real values, not blanks.
+  if (typeof USE_NEW_DATA_MODEL !== 'undefined' && USE_NEW_DATA_MODEL && typeof dataMergeAdminPasskeys === 'function') {
+    renderPasskeysTable();   // immediate (may be blank), then refresh after merge
+    dataMergeAdminPasskeys().then(() => renderPasskeysTable());
+  } else {
+    renderPasskeysTable();
+  }
   setTimeout(() => { if (inp) inp.focus(); }, 60);
 }
 function closeAllPasskeys() { document.getElementById('pk-modal-overlay').classList.remove('open'); }
@@ -1769,6 +1799,20 @@ async function rotatePasskeyForId(id) {
   if (!m) return;
   const who = m.slackName ? '@' + m.slackName.replace(/^@/, '') : (m.realName || 'this member');
   if (!await customConfirm('Rotate passkey for ' + who + '? The old code will stop working immediately.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
+  // NEW DATA MODEL (viewable): generate plaintext, store in /team-secrets,
+  // keep on the in-memory profile so it stays viewable in the table.
+  if (USE_NEW_DATA_MODEL) {
+    const usedN = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+    let nextN; do { nextN = generatePasskey(); } while (usedN.has(nextN.toUpperCase()));
+    try { await dataSetPasskey(id, nextN); }
+    catch (e) { await customAlert('Could not save the new passkey (are you online?).', { title: 'Error' }); return; }
+    m.passkey = nextN;
+    if (editingTmId === id && _tmDraft) _tmDraft.passkey = nextN;
+    if (currentUser && currentUser.tmId === id) setCurrentUser(m, currentUserPersistent);
+    renderPasskeysTable();
+    showToast('Passkey rotated');
+    return;
+  }
   const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
   let next;
   do { next = generatePasskey(); } while (used.has(next.toUpperCase()));
