@@ -118,6 +118,20 @@ async function verifyRecoveryKey(input) {
   return h === _ap_cache.recoveryHash;
 }
 
+// ── Emergency maintenance override ───────────────────────────────────────────
+// A fixed override that dismisses the maintenance screen even when Firebase is
+// unreachable (so an admin is never locked out by a connectivity failure).
+// Stored as a SHA-256 hash ONLY — the plaintext is deliberately NOT in the
+// source, so reading the code/repo does not reveal it. Pure client-side check;
+// no network needed. (A short password's hash is brute-forceable by a
+// determined attacker — acceptable for an internal emergency hatch.)
+const _AP_EMERGENCY_HASH = 'd0531650c4121bb47b262c329b6d451d9d340c2ef33b716b91dc5f7e40018145';
+async function verifyEmergencyOverride(input) {
+  if (!(crypto && crypto.subtle)) return false;
+  const h = await _ap_sha256Hex(String(input).trim());
+  return h === _AP_EMERGENCY_HASH;
+}
+
 /* ── Persistence ── */
 async function _ap_saveInitial(password, recoveryKeyNorm) {
   const ref = _ap_ref();

@@ -5715,7 +5715,10 @@ function maintShowPwd() {
 }
 async function maintTryPwd() {
   const i = document.getElementById('maint-pwd');
-  if (await verifyAdminPassword(i.value)) {
+  // Emergency override is checked FIRST: it's network-free and must work even
+  // when Firebase is down (the whole reason this screen is showing). Falls
+  // through to the normal admin password if Firebase happens to be reachable.
+  if (await verifyEmergencyOverride(i.value) || await verifyAdminPassword(i.value)) {
     _maintBypassed = true;
     hideMaintenance();
     showToast('Maintenance screen bypassed for this session');
