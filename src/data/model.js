@@ -53,11 +53,30 @@ function _data_randomHex(bytes) {
 }
 
 /* ════════════════ READ: rebuild in-memory globals from _dataRaw ════════════════ */
+// Natural, segment-wise comparator for dotted IDs / numbers ("2" < "10",
+// "2.1" < "2.10", "2.1.a" < "2.1.b"). Firestore returns docs in lexicographic
+// doc-ID order, which would put "10" before "2" — so we re-sort on load to
+// restore the intended numeric/tree order.
+function _natCmpId(a, b) {
+  const pa = String(a).split('.'), pb = String(b).split('.');
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    if (pa[i] === undefined) return -1;
+    if (pb[i] === undefined) return 1;
+    const na = parseInt(pa[i], 10), nb = parseInt(pb[i], 10);
+    const aNum = !isNaN(na) && String(na) === pa[i];
+    const bNum = !isNaN(nb) && String(nb) === pb[i];
+    if (aNum && bNum) { if (na !== nb) return na - nb; }
+    else if (pa[i] !== pb[i]) return pa[i] < pb[i] ? -1 : 1;
+  }
+  return 0;
+}
+
 function _dataRebuildArrays() {
   const entries  = _dataRaw.entries  || [];
   const sections = _dataRaw.sections || [];
-  const byBaseEntries  = (b) => entries.filter(e => e.base === b);
-  const byBaseSections = (b) => sections.filter(s => s.base === b);
+  const byBaseEntries  = (b) => entries.filter(e => e.base === b).sort((x, y) => _natCmpId(x.id, y.id));
+  const byBaseSections = (b) => sections.filter(s => s.base === b).sort((x, y) => _natCmpId(x.num, y.num));
 
   HANDBOOK        = byBaseEntries('handbook');
   PROJECT_ENTRIES = byBaseEntries('projects');

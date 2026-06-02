@@ -709,21 +709,41 @@ function _decideLoginOrResume() {
     else showLogin();
     return;
   }
-  showLogin();   // overlay sits on top while we resolve the binding
+  // Avoid flashing the login overlay for a returning (bound) user: a
+  // localStorage hint predicts resume so we keep the (cached) dashboard up
+  // while we confirm the binding asynchronously. Cleared on sign-out / when
+  // the binding turns out to be gone.
+  let likelyBound = false;
+  try { likelyBound = localStorage.getItem('vl_bound_hint') === '1'; } catch (e) {}
+  if (!likelyBound) showLogin();   // no prior binding → show login immediately
   (async () => {
     try {
       await _fbInitPromise;
-      if (_fbInitResult !== true) return;            // offline — leave login up
+      if (_fbInitResult !== true) { if (likelyBound) showLogin(); return; }  // offline → must log in
       const bound = await fbBoundUser();
-      if (!bound || !bound.tmId) return;             // unbound — login stays
-      const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId)
-                || { id: bound.tmId, slackName: bound.slackName || '' };
-      setCurrentUser(m, true);
-      _boundIsAdmin = await fbIsBoundAdmin();
-      _renderSignOutChip();
-      _runMainBootstrap();
-      hideLogin();
-    } catch (e) { console.error('resume binding check failed:', e); }
+      const isAdm = await fbIsBoundAdmin();
+      if (bound && bound.tmId) {
+        // Bound team member (may also be an admin — lock button enters w/o pw).
+        const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId)
+                  || { id: bound.tmId, slackName: bound.slackName || '' };
+        setCurrentUser(m, true);
+        _boundIsAdmin = isAdm;
+        try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
+        _renderSignOutChip(); _runMainBootstrap(); hideLogin();
+        return;
+      }
+      if (isAdm) {
+        // Pure admin device (bootstrap admin, no team profile) — resume as admin.
+        currentUser = null; _boundIsAdmin = true;
+        isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
+        _runMainBootstrap(); hideLogin();
+        return;
+      }
+      // Not bound and not admin → clear stale hint and show login.
+      try { localStorage.removeItem('vl_bound_hint'); } catch (e) {}
+      showLogin();
+    } catch (e) { console.error('resume binding check failed:', e); showLogin(); }
   })();
 }
 _decideLoginOrResume();

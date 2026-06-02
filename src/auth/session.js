@@ -154,6 +154,7 @@ async function signOut() {
   if (USE_NEW_DATA_MODEL) {
     try { await fbUnbindUser(); } catch (e) { console.error('unbind on sign-out failed:', e); }
     _boundIsAdmin = false;
+    try { localStorage.removeItem('vl_bound_hint'); } catch (e) {}
   }
   currentUser = null;
   currentUserPersistent = false;

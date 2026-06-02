@@ -169,6 +169,7 @@ async function _loginTryNewModel(raw, err, submitBtn) {
         currentUser = null; currentUserPersistent = false;
         _boundIsAdmin = true;
         isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
         _bootProceedAfterLogin({ slackName: 'Admin', isAdmin: true });
         return;
       }
@@ -181,9 +182,9 @@ async function _loginTryNewModel(raw, err, submitBtn) {
     if (bound && bound.tmId) {
       const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId) || { id: bound.tmId };
       setCurrentUser(m, true);
-      _boundIsAdmin = await fbIsBoundAdmin();
-      if (_boundIsAdmin) { isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true); }
-      _bootProceedAfterLogin({ slackName: (m.slackName || m.realName || ''), isAdmin: _boundIsAdmin });
+      _boundIsAdmin = await fbIsBoundAdmin();   // lock button enters admin w/o pw; not auto-entered
+      try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
+      _bootProceedAfterLogin({ slackName: (m.slackName || m.realName || ''), isAdmin: false });
       return;
     }
 
