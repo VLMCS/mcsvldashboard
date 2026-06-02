@@ -713,9 +713,13 @@ function _decideLoginOrResume() {
   // localStorage hint predicts resume so we keep the (cached) dashboard up
   // while we confirm the binding asynchronously. Cleared on sign-out / when
   // the binding turns out to be gone.
+  // The hint is the authoritative "this device has an active session" signal.
+  // Sign-out clears it, so when it's absent we show login and do NOT attempt
+  // any resume — otherwise a lingering /admins grant (e.g. from a bootstrap)
+  // would silently re-log-in as a pure admin right after sign-out.
   let likelyBound = false;
   try { likelyBound = localStorage.getItem('vl_bound_hint') === '1'; } catch (e) {}
-  if (!likelyBound) showLogin();   // no prior binding → show login immediately
+  if (!likelyBound) { showLogin(); return; }
   (async () => {
     try {
       await _fbInitPromise;
