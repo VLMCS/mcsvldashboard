@@ -195,14 +195,13 @@ async function commit() {
 
     await commitBatches(_plan.writes);
 
-    // Hash + write secrets individually (each needs a unique salt).
-    log('  hashing ' + _plan.secrets.length + ' passkeys…');
+    // Write passkeys as PLAINTEXT (viewable model — admins can see them; the
+    // rules keep them readable only by admins + not-yet-bound clients).
+    log('  writing ' + _plan.secrets.length + ' passkeys (plaintext)…');
     for (const s of _plan.secrets) {
-      const salt = randomHex(16);
-      const passkeyHash = await sha256Hex(salt + String(s.passkey).trim().toUpperCase());
-      await _setDoc(_doc(_db, s.coll, s.id), { passkeyHash, salt });
+      await _setDoc(_doc(_db, s.coll, s.id), { passkey: String(s.passkey).trim() });
     }
-    log('  passkeys hashed → team-secrets / project-secrets', 'ok');
+    log('  passkeys → team-secrets / project-secrets (plaintext)', 'ok');
     log('\nCOMMIT COMPLETE. dashboards/main is untouched (rollback intact).', 'ok');
     log('Now click "Verify".');
     document.getElementById('btn-verify').disabled = false;
