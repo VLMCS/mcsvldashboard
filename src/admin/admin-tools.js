@@ -45,10 +45,20 @@ function openAdminTools() {
     ov.id = 'admin-tools-overlay';
     ov.className = 'admin-modal-overlay';
     ov.innerHTML =
-      '<div class="admin-modal" style="max-width:440px">' +
-        '<h3 style="margin:0 0 12px">Admin Tools</h3>' +
-        '<div id="admin-tools-groups" style="display:flex;flex-direction:column;gap:16px"></div>' +
-        '<div style="margin-top:16px;text-align:right"><button class="btn btn-secondary" id="admin-tools-close">Close</button></div>' +
+      '<style>' +
+        '#admin-tools-overlay .at-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}' +
+        '#admin-tools-overlay .at-tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;padding:16px 10px;border:1px solid var(--border);border-radius:11px;background:var(--bg-form-input);cursor:pointer;text-align:center;transition:border-color .15s,background .15s,transform .12s,box-shadow .15s}' +
+        '#admin-tools-overlay .at-tile:hover{border-color:var(--admin-accent);background:var(--admin-accent-light);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.08)}' +
+        '#admin-tools-overlay .at-tile:active{transform:translateY(0)}' +
+        '#admin-tools-overlay .at-ico{font-size:24px;line-height:1}' +
+        '#admin-tools-overlay .at-label{font-size:12px;font-weight:600;color:var(--text-body);line-height:1.25}' +
+        '#admin-tools-overlay .at-head{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--mid);font-weight:700;margin:0 0 9px}' +
+        '@media(max-width:480px){#admin-tools-overlay .at-grid{grid-template-columns:repeat(2,1fr)}}' +
+      '</style>' +
+      '<div class="admin-modal" style="max-width:460px">' +
+        '<h3 style="margin:0 0 14px">Admin Tools</h3>' +
+        '<div id="admin-tools-groups" style="display:flex;flex-direction:column;gap:18px"></div>' +
+        '<div style="margin-top:18px;text-align:right"><button class="btn btn-secondary" id="admin-tools-close">Close</button></div>' +
       '</div>';
     document.body.appendChild(ov);
     ov.querySelector('#admin-tools-close').onclick = _closeAdminTools;
@@ -58,16 +68,12 @@ function openAdminTools() {
   const wrap = ov.querySelector('#admin-tools-groups');
   wrap.innerHTML = _ADMIN_TOOL_GROUPS.map(g =>
     '<div>' +
-      '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">' + escapeHtml(g.label) + '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:6px">' +
+      '<div class="at-head">' + escapeHtml(g.label) + '</div>' +
+      '<div class="at-grid">' +
         g.items.map(it =>
-          '<button class="admin-tool-launch-item" data-fn="' + escAttr(it.fn) + '" ' +
-            'style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 12px;border:1px solid var(--border);border-radius:7px;background:var(--bg-form-input);cursor:pointer;font-size:13px;color:var(--text-body)">' +
-            '<span style="font-size:15px;width:20px;text-align:center;flex-shrink:0">' + it.icon + '</span>' +
-            '<span style="display:flex;flex-direction:column;line-height:1.3">' +
-              '<span style="font-weight:600">' + escapeHtml(it.text) + '</span>' +
-              (it.note ? '<span style="font-size:11px;color:var(--text-sub)">' + escapeHtml(it.note) + '</span>' : '') +
-            '</span>' +
+          '<button class="at-tile" data-fn="' + escAttr(it.fn) + '" title="' + escAttr(it.note || it.text) + '">' +
+            '<span class="at-ico">' + it.icon + '</span>' +
+            '<span class="at-label">' + escapeHtml(it.text) + '</span>' +
           '</button>'
         ).join('') +
       '</div>' +
