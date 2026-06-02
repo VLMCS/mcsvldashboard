@@ -17,7 +17,9 @@ function openLightbox(src) {
 }
 function closeLightbox() {
   document.getElementById('lightbox-overlay').classList.remove('open');
-  document.getElementById('lightbox-img').src = '';
+  // removeAttribute (not src='') so we don't re-trigger a load of the page
+  // URL — an empty src resolves to the document and warns on file:// origins.
+  document.getElementById('lightbox-img').removeAttribute('src');
 }
 function maybeCloseLightbox(e) {
   if (e.target.id === 'lightbox-overlay' || e.target.id === 'lightbox-stage') closeLightbox();
