@@ -5713,9 +5713,9 @@ function maintShowPwd() {
   document.getElementById('maint-pwd-err').textContent = '';
   setTimeout(() => i.focus(), 50);
 }
-function maintTryPwd() {
+async function maintTryPwd() {
   const i = document.getElementById('maint-pwd');
-  if (i.value === ADMIN_PW) {
+  if (await verifyAdminPassword(i.value)) {
     _maintBypassed = true;
     hideMaintenance();
     showToast('Maintenance screen bypassed for this session');
@@ -5768,8 +5768,10 @@ async function loginTry() {
   }
 
   // 1) Admin password — bypass without attaching a specific user identity.
-  //    No Firebase dependency, no team-directory lookup; just unlock & flag.
-  if (raw === ADMIN_PW) {
+  //    verifyAdminPassword waits for Firebase init, checks the stored salted
+  //    hash, and only falls back to the legacy ADMIN_PW on a genuine first run
+  //    (never once a custom password has been configured).
+  if (await verifyAdminPassword(raw)) {
     currentUser = null;
     currentUserPersistent = false;
     try { localStorage.removeItem(LOGIN_KEY); } catch(e){}

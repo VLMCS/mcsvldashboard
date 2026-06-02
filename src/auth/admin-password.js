@@ -59,13 +59,35 @@ function _ap_ref() {
   if (!_fbReady || !_fb_doc || !_fbDb) return null;
   return _fb_doc(_fbDb, 'system', 'adminAuth');
 }
+// Persistent breadcrumb: once we've seen a configured adminAuth doc, we
+// remember it so the legacy default can't sneak back in during a Firebase
+// outage / boot race (when we can't read the doc to verify the real hash).
+const _AP_SET_FLAG = 'vl_admin_pw_set';
+function _ap_markConfigured() { try { localStorage.setItem(_AP_SET_FLAG, '1'); } catch (e) {} }
+function _ap_clearConfigured() { try { localStorage.removeItem(_AP_SET_FLAG); } catch (e) {} }
+function _ap_knownConfigured() { try { return localStorage.getItem(_AP_SET_FLAG) === '1'; } catch (e) { return false; } }
+
 async function loadAdminAuth(force) {
   if (_ap_cache !== undefined && !force) return _ap_cache;
+  // The login overlay shows BEFORE Firebase finishes initializing. If init is
+  // still in flight, wait for it — otherwise we'd fall back to the legacy
+  // default during the race window and wrongly accept the old password.
+  if (!_fbReady && typeof _fbInitPromise !== 'undefined' && _fbInitPromise) {
+    try { await _fbInitPromise; } catch (e) {}
+  }
   const ref = _ap_ref();
-  if (!ref) return _ap_cache;            // offline — keep whatever we have
+  if (!ref) return _ap_cache;            // truly offline — keep whatever we have
   try {
     const snap = await _fb_getDoc(ref);
-    _ap_cache = snap.exists() ? snap.data() : null;
+    if (snap.exists()) {
+      _ap_cache = snap.data();
+      _ap_markConfigured();
+    } else {
+      // Doc absent → genuine first-run, OR an admin deleted it to reset.
+      // Clear the breadcrumb so the legacy default works again (escape hatch).
+      _ap_cache = null;
+      _ap_clearConfigured();
+    }
   } catch (e) {
     console.error('loadAdminAuth failed:', e);  // leave cache untouched
   }
@@ -78,12 +100,16 @@ function isAdminAuthConfigured() {
 /* ── Verification ── */
 async function verifyAdminPassword(input) {
   await loadAdminAuth();
-  if (!isAdminAuthConfigured()) {
-    // Legacy bootstrap — default password works until a custom one is set.
-    return String(input) === ADMIN_PW;
+  if (isAdminAuthConfigured()) {
+    const h = await _ap_sha256Hex(_ap_cache.pwSalt + String(input));
+    return h === _ap_cache.pwHash;
   }
-  const h = await _ap_sha256Hex(_ap_cache.pwSalt + String(input));
-  return h === _ap_cache.pwHash;
+  // Not configured in this session's cache. If we KNOW a custom password was
+  // set (breadcrumb) but couldn't load it (offline/unreachable), refuse the
+  // legacy default so a changed password can never be bypassed.
+  if (_ap_knownConfigured()) return false;
+  // True first-run bootstrap — the built-in default still works.
+  return String(input) === ADMIN_PW;
 }
 async function verifyRecoveryKey(input) {
   await loadAdminAuth();
@@ -107,6 +133,7 @@ async function _ap_saveInitial(password, recoveryKeyNorm) {
   };
   await _fb_setDoc(ref, data);
   _ap_cache = data;
+  _ap_markConfigured();
 }
 async function _ap_savePasswordOnly(password) {
   const ref = _ap_ref();
