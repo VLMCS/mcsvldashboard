@@ -736,6 +736,7 @@ function _decideLoginOrResume() {
         // Pure admin device (bootstrap admin, no team profile) — resume as admin.
         currentUser = null; _boundIsAdmin = true;
         isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        if (typeof dataMergeAdminPasskeys === 'function') dataMergeAdminPasskeys();
         try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
         _runMainBootstrap(); hideLogin();
         return;

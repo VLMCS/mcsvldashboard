@@ -441,14 +441,19 @@ async function regenerateTmPasskey() {
   if (!isAdminMode) return;
   if (!_tmDraft) return;
   if (!await customConfirm('Generate a new passkey for this profile? The old one will stop working immediately, including for any existing logged-in session.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
-  // NEW DATA MODEL: passkeys are hashes — generate, store the hash, show the
-  // plaintext ONCE (it can't be looked up again afterward).
+  // NEW DATA MODEL (viewable): generate a new plaintext passkey, store it in
+  // /team-secrets, and keep it on the in-memory profile so admins can see it.
   if (USE_NEW_DATA_MODEL) {
-    const next = generatePasskey();
-    try { await dataSetPasskeyHash(editingTmId, next); }
+    const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+    let next; do { next = generatePasskey(); } while (used.has(next.toUpperCase()));
+    try { await dataSetPasskey(editingTmId, next); }
     catch (e) { await customAlert('Could not save the new passkey (are you online?).', { title: 'Error' }); return; }
-    showNewProfilePasskey({ slackName: _tmDraft.slackName, realName: _tmDraft.realName, passkey: next });
-    showToast('Passkey reset — shown once');
+    _tmDraft.passkey = next;
+    const idx = (TEAM_DIRECTORY || []).findIndex(x => x.id === editingTmId);
+    if (idx >= 0) TEAM_DIRECTORY[idx].passkey = next;
+    if (currentUser && currentUser.tmId === editingTmId) setCurrentUser({ id: currentUser.tmId, slackName: currentUser.slackName, passkey: next }, currentUserPersistent);
+    renderTmDetail();
+    showToast('Passkey rotated');
     return;
   }
   // New code, globally unique within the directory.
@@ -1721,8 +1726,15 @@ function openAllPasskeys() {
   closeTeamModal();
   const inp = document.getElementById('pk-filter');
   if (inp) inp.value = '';
-  renderPasskeysTable();
   document.getElementById('pk-modal-overlay').classList.add('open');
+  // NEW DATA MODEL: passkeys live in /team-secrets — pull them in (admin-only)
+  // before rendering so the table shows real values, not blanks.
+  if (typeof USE_NEW_DATA_MODEL !== 'undefined' && USE_NEW_DATA_MODEL && typeof dataMergeAdminPasskeys === 'function') {
+    renderPasskeysTable();   // immediate (may be blank), then refresh after merge
+    dataMergeAdminPasskeys().then(() => renderPasskeysTable());
+  } else {
+    renderPasskeysTable();
+  }
   setTimeout(() => { if (inp) inp.focus(); }, 60);
 }
 function closeAllPasskeys() { document.getElementById('pk-modal-overlay').classList.remove('open'); }
@@ -1746,9 +1758,6 @@ function renderPasskeysTable() {
     wrap.innerHTML = `<div class="pk-empty">${q ? 'No matches.' : 'No team members yet.'}</div>`;
     return;
   }
-  // NEW DATA MODEL: passkeys are one-way hashes — no plaintext to show or copy.
-  // The column reads "hashed" and the only action is Reset (generate + show once).
-  const hashed = (typeof USE_NEW_DATA_MODEL !== 'undefined' && USE_NEW_DATA_MODEL);
   const html = `<table class="pk-table">
     <thead><tr>
       <th style="width:36px"></th>
@@ -1762,11 +1771,12 @@ function renderPasskeysTable() {
         <td>${m.image ? `<img class="pk-avatar" src="${escAttr(m.image)}" alt=""/>` : `<div class="pk-avatar"></div>`}</td>
         <td>${m.slackName ? escapeHtml('@' + m.slackName.replace(/^@/, '')) : '<span style="color:var(--mid)">(no slack)</span>'}</td>
         <td>${m.realName ? escapeHtml(m.realName) : '<span style="color:var(--mid)">(unnamed)</span>'}</td>
-        <td>${hashed ? '<span class="pk-code" style="color:var(--mid)">•••••••• (hashed)</span>' : `<span class="pk-code">${escapeHtml(m.passkey || '—')}</span>`}</td>
+        <td><span class="pk-code">${escapeHtml(m.passkey || '—')}</span></td>
         <td><div class="pk-actions">
-          ${hashed ? '' : `<button class="pk-mini-btn" title="Copy passkey to clipboard" onclick="copyPasskeyForId('${escJsAttr(m.id)}')">📋 Copy</button>`}
-          <button class="pk-mini-btn danger" title="${hashed ? 'Reset — generate a new passkey, shown once' : 'Rotate — old code stops working immediately'}"
-                  onclick="rotatePasskeyForId('${escJsAttr(m.id)}')">↻ ${hashed ? 'Reset' : 'Rotate'}</button>
+          <button class="pk-mini-btn" title="Copy passkey to clipboard"
+                  onclick="copyPasskeyForId('${escJsAttr(m.id)}')">📋 Copy</button>
+          <button class="pk-mini-btn danger" title="Rotate — old code stops working immediately"
+                  onclick="rotatePasskeyForId('${escJsAttr(m.id)}')">↻ Rotate</button>
         </div></td>
       </tr>`).join('')}
     </tbody>
@@ -1788,15 +1798,19 @@ async function rotatePasskeyForId(id) {
   const m = (TEAM_DIRECTORY || []).find(x => x.id === id);
   if (!m) return;
   const who = m.slackName ? '@' + m.slackName.replace(/^@/, '') : (m.realName || 'this member');
-  if (!await customConfirm('Reset passkey for ' + who + '? The old code will stop working immediately, and the new one is shown only once.', { danger: true, confirmLabel: 'Reset passkey' })) return;
-  // NEW DATA MODEL: generate, store hash, show plaintext once.
+  if (!await customConfirm('Rotate passkey for ' + who + '? The old code will stop working immediately.', { danger: true, confirmLabel: 'Rotate passkey' })) return;
+  // NEW DATA MODEL (viewable): generate plaintext, store in /team-secrets,
+  // keep on the in-memory profile so it stays viewable in the table.
   if (USE_NEW_DATA_MODEL) {
-    const next = generatePasskey();
-    try { await dataSetPasskeyHash(id, next); }
+    const usedN = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));
+    let nextN; do { nextN = generatePasskey(); } while (usedN.has(nextN.toUpperCase()));
+    try { await dataSetPasskey(id, nextN); }
     catch (e) { await customAlert('Could not save the new passkey (are you online?).', { title: 'Error' }); return; }
-    showNewProfilePasskey({ slackName: m.slackName, realName: m.realName, passkey: next });
+    m.passkey = nextN;
+    if (editingTmId === id && _tmDraft) _tmDraft.passkey = nextN;
+    if (currentUser && currentUser.tmId === id) setCurrentUser(m, currentUserPersistent);
     renderPasskeysTable();
-    showToast('Passkey reset — shown once');
+    showToast('Passkey rotated');
     return;
   }
   const used = new Set((TEAM_DIRECTORY || []).map(x => x && x.passkey ? String(x.passkey).toUpperCase() : '').filter(Boolean));

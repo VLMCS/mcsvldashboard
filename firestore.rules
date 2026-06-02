@@ -112,13 +112,14 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
     }
 
-    // ─── Passkey hashes: /team-secrets/{tmId} ────────────────────────────────
-    // Salted SHA-256(passkey). Readable only by NOT-YET-BOUND signed-in clients
-    // (to support the bind step). Once a client is bound, they can no longer
-    // pull these hashes — keeps the attack surface for offline brute-force
-    // limited to pre-bind anonymous sessions.
+    // ─── Passkeys: /team-secrets/{tmId} ──────────────────────────────────────
+    // VIEWABLE model: stores plaintext { passkey }. Readable by (a) NOT-YET-BOUND
+    // signed-in clients — needed for the login bind step — and (b) admins, who
+    // view/copy passkeys in the All-Passkeys page. Bound NON-admins cannot read
+    // these (so a regular team member can't dump everyone's passkeys). Weaker
+    // than hashing, but far better than the original fully-public dashboard doc.
     match /team-secrets/{tmId} {
-      allow read: if signedIn() && !bound();
+      allow read: if (signedIn() && !bound()) || isAdmin();
       allow write: if isAdmin();
     }
 

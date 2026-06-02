@@ -58,9 +58,14 @@ async function fbBindByPasskey(passkey, slackNameHint) {
     let matchTmId = null;
     for (const docSnap of secrets.docs) {
       const s = docSnap.data() || {};
-      if (!s.passkeyHash || !s.salt) continue;
-      const h = await _bind_sha256Hex(s.salt + entered);
-      if (h === s.passkeyHash) { matchTmId = docSnap.id; break; }
+      // VIEWABLE model: plaintext compare (case-insensitive). (Older hashed
+      // docs, if any, are still matched via the salted-hash fallback.)
+      if (s.passkey != null) {
+        if (String(s.passkey).trim().toUpperCase() === entered) { matchTmId = docSnap.id; break; }
+      } else if (s.passkeyHash && s.salt) {
+        const h = await _bind_sha256Hex(s.salt + entered);
+        if (h === s.passkeyHash) { matchTmId = docSnap.id; break; }
+      }
     }
     if (!matchTmId) return null;
     await _fb_setDoc(_fb_doc(_fbDb, 'users', fbCurrentUid()), {

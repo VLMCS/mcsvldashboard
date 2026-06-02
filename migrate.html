@@ -30,6 +30,7 @@
   <button id="btn-preview">1 · Preview (dry run — no writes)</button>
   <button id="btn-commit" disabled>2 · Commit migration</button>
   <button id="btn-verify" disabled>3 · Verify</button>
+  <button id="btn-repop" style="background:#0275d8;color:#fff;border-color:#0275d8">↻ Re-populate passkeys (plaintext)</button>
 </div>
 <div id="log"></div>
 
@@ -234,9 +235,37 @@ async function verify() {
   } catch (e) { log('VERIFY FAILED: ' + e.message, 'err'); console.error(e); }
 }
 
+// Overwrite /team-secrets + /project-secrets with PLAINTEXT passkeys read from
+// the intact dashboards/main (viewable-passkeys model). Safe to run anytime.
+async function repopulatePasskeys() {
+  try {
+    log('\nRE-POPULATE PASSKEYS (plaintext from dashboards/main)\n', 'head');
+    await connect();
+    const src = await readSource();
+    const team = src.team || [];
+    const projects = src.projects || [];
+    let n = 0;
+    for (const m of team) {
+      if (!m || !m.id || !m.passkey) continue;
+      await _setDoc(_doc(_db, 'team-secrets', String(m.id)), { passkey: String(m.passkey).trim() });
+      n++;
+    }
+    let p = 0;
+    for (const s of projects) {
+      if (!s || !s.passkey) continue;
+      await _setDoc(_doc(_db, 'project-secrets', sectionDocId('projects', s.num)), { passkey: String(s.passkey).trim() });
+      p++;
+    }
+    log('  team-secrets written (plaintext): ' + n, 'ok');
+    log('  project-secrets written (plaintext): ' + p, 'ok');
+    log('\nDONE. Admins can now view passkeys again. (Login uses plaintext compare.)', 'ok');
+  } catch (e) { log('RE-POPULATE FAILED: ' + e.message, 'err'); console.error(e); }
+}
+
 document.getElementById('btn-preview').onclick = preview;
 document.getElementById('btn-commit').onclick = commit;
 document.getElementById('btn-verify').onclick = verify;
+document.getElementById('btn-repop').onclick = repopulatePasskeys;
 log('Ready. Click "Preview" to begin.', 'dim');
 </script>
 </body>

@@ -261,18 +261,35 @@ async function dataSyncKey(key, value) {
   }
 }
 
-/* ════════════════ Passkey hashes (migration + reset flow) ════════════════ */
-async function dataSetPasskeyHash(tmId, plaintextPasskey) {
-  const salt = _data_randomHex(16);
-  const passkeyHash = await _data_sha256Hex(salt + String(plaintextPasskey).trim().toUpperCase());
+/* ════════════════ Passkeys (VIEWABLE plaintext model) ════════════════
+   Per the product decision, passkeys are stored as plaintext in /team-secrets
+   and /project-secrets so admins can view/copy them (like the old model). The
+   rules keep these readable only by admins + not-yet-bound clients (the login
+   check) — NOT by bound non-admins. Better than the original fully-public doc,
+   weaker than hashing. (dataSetPasskeyHash kept as an alias so existing callers
+   don't break; it now stores plaintext.) */
+async function dataSetPasskey(tmId, plaintextPasskey) {
   _fbWriting = true;
-  try { await _fb_setDoc(_fb_doc(_fbDb, 'team-secrets', String(tmId)), { passkeyHash, salt }); }
+  try { await _fb_setDoc(_fb_doc(_fbDb, 'team-secrets', String(tmId)), { passkey: String(plaintextPasskey).trim() }); }
   finally { setTimeout(() => { _fbWriting = false; }, 200); }
 }
+const dataSetPasskeyHash = dataSetPasskey;   // back-compat alias (now plaintext)
+
 async function dataSetProjectPasskey(base, num, plaintextPasskey) {
-  const salt = _data_randomHex(16);
-  const passkeyHash = await _data_sha256Hex(salt + String(plaintextPasskey).trim().toUpperCase());
   _fbWriting = true;
-  try { await _fb_setDoc(_fb_doc(_fbDb, 'project-secrets', _sectionDocId(base, num)), { passkeyHash, salt }); }
+  try { await _fb_setDoc(_fb_doc(_fbDb, 'project-secrets', _sectionDocId(base, num)), { passkey: String(plaintextPasskey).trim() }); }
   finally { setTimeout(() => { _fbWriting = false; }, 200); }
+}
+
+// Admin-only: read /team-secrets and merge plaintext passkeys into
+// TEAM_DIRECTORY[i].passkey so the All-Passkeys + profile UI can show them.
+// Safe to call repeatedly; silently no-ops if reads are denied (non-admin).
+async function dataMergeAdminPasskeys() {
+  if (!USE_NEW_DATA_MODEL || !_fbReady) return;
+  try {
+    const snap = await _fb_getDocs(_fb_collection(_fbDb, 'team-secrets'));
+    const byId = {};
+    snap.docs.forEach(d => { byId[d.id] = (d.data() || {}).passkey || ''; });
+    (TEAM_DIRECTORY || []).forEach(m => { if (m && byId[m.id] !== undefined) m.passkey = byId[m.id]; });
+  } catch (e) { /* non-admin read denied under locked rules — ignore */ }
 }

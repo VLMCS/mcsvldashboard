@@ -72,6 +72,11 @@ function enterAdminMode() {
   isAdminMode = true;
   document.body.classList.add('admin-mode');
   _swapAdminIcons(true);
+  // NEW DATA MODEL (viewable passkeys): pull plaintext passkeys from
+  // /team-secrets into TEAM_DIRECTORY so the admin can view them.
+  if (USE_NEW_DATA_MODEL && typeof dataMergeAdminPasskeys === 'function') {
+    dataMergeAdminPasskeys();
+  }
   renderSidebar(); renderAnnouncements();
   showToast('Admin mode active');
 }
