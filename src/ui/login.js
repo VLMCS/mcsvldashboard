@@ -169,6 +169,7 @@ async function _loginTryNewModel(raw, err, submitBtn) {
         currentUser = null; currentUserPersistent = false;
         _boundIsAdmin = true;
         isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
         try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
         _bootProceedAfterLogin({ slackName: 'Admin', isAdmin: true });
         return;
@@ -177,9 +178,11 @@ async function _loginTryNewModel(raw, err, submitBtn) {
       return;
     }
 
-    // 2) Team passkey → bind this device (/users/{uid}).
+    // 2) Team passkey → bind this device (/users/{uid}), then load collections
+    //    (now allowed — we're bound) and resolve the member for the welcome.
     const bound = await fbBindByPasskey(raw);
     if (bound && bound.tmId) {
+      try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
       const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId) || { id: bound.tmId };
       setCurrentUser(m, true);
       _boundIsAdmin = await fbIsBoundAdmin();   // lock button enters admin w/o pw; not auto-entered

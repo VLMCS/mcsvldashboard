@@ -43,6 +43,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    // Who may READ shared content: any passkey-bound device, OR an admin
+    // (a bootstrap admin has /admins but no /users, so isn't "bound").
+    function canRead() {
+      return bound() || isAdmin();
+    }
+
     function myTmId() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tmId;
     }
@@ -107,7 +113,7 @@ service cloud.firestore {
     // ─── Team profiles: /team/{tmId} ─────────────────────────────────────────
     // Public-within-team profile info. Passkeys are NOT stored here.
     match /team/{tmId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow update: if isAdmin() || myTmId() == tmId;
       allow create, delete: if isAdmin();
     }
@@ -127,7 +133,7 @@ service cloud.firestore {
     // sectionId format: '<base>__<num>'  (e.g., 'projects__3'). Bound users may
     // read for the unlock flow; admins write.
     match /project-secrets/{sectionId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
@@ -151,7 +157,7 @@ service cloud.firestore {
     // sectionId format: '<base>__<num>'. Section definitions (title, description,
     // order). Admins only for create/update/delete.
     match /sections/{sectionId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
@@ -159,7 +165,7 @@ service cloud.firestore {
     // One doc per handbook/project/custom entry. Handbook + custom: admin-only.
     // Projects: admin OR the requester holds an unlock for that section.
     match /entries/{entryId} {
-      allow read: if bound();
+      allow read: if canRead();
 
       allow create: if isAdmin()
         || (
@@ -185,13 +191,13 @@ service cloud.firestore {
 
     // ─── Announcements: /announcements/{annId} ───────────────────────────────
     match /announcements/{annId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
     // ─── Custom categories: /categories/{catId} ──────────────────────────────
     match /categories/{catId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
@@ -200,27 +206,24 @@ service cloud.firestore {
     // KPIs; admins can read everyone's. Writes are admin-only (only admins
     // import quarterly KPI CSVs).
     match /kpis/{kpiId} {
-      allow read: if bound()
-        && (
-          isAdmin()
-          || kpiId.matches('^' + myTmId() + '__.+')
-        );
+      allow read: if isAdmin()
+        || (bound() && kpiId.matches('^' + myTmId() + '__.+'));
       allow write: if isAdmin();
     }
 
     // ─── Small singleton config docs ─────────────────────────────────────────
     match /site/{docId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
     match /sidebar/{docId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 
     match /synonyms/{docId} {
-      allow read: if bound();
+      allow read: if canRead();
       allow write: if isAdmin();
     }
 

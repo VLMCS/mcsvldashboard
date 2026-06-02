@@ -105,12 +105,12 @@ async function initFirebase() {
     }
 
     // ── NEW DATA MODEL (Phase B) ──
-    // When the flag is on, load + subscribe via the per-entity collections
-    // (data/model.js) and short-circuit the entire single-doc path below.
-    // Dormant today (flag is false); this is the B6 flip point.
+    // Just become ready here — do NOT load collections yet. Under the
+    // locked-down rules, collection reads require a BOUND user, and at boot
+    // we're not bound. dataActivate() (load + subscribe) runs only AFTER the
+    // device is bound — from the resume/login paths. This short-circuits the
+    // entire single-doc path below.
     if (USE_NEW_DATA_MODEL) {
-      await dataLoadAll();
-      dataSubscribe();
       _fbReady = true;
       return true;
     }

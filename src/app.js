@@ -728,6 +728,7 @@ function _decideLoginOrResume() {
                   || { id: bound.tmId, slackName: bound.slackName || '' };
         setCurrentUser(m, true);
         _boundIsAdmin = isAdm;
+        try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
         try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
         _renderSignOutChip(); _runMainBootstrap(); hideLogin();
         return;
@@ -736,6 +737,7 @@ function _decideLoginOrResume() {
         // Pure admin device (bootstrap admin, no team profile) — resume as admin.
         currentUser = null; _boundIsAdmin = true;
         isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
         if (typeof dataMergeAdminPasskeys === 'function') dataMergeAdminPasskeys();
         try { localStorage.setItem('vl_bound_hint', '1'); } catch (e) {}
         _runMainBootstrap(); hideLogin();

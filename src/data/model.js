@@ -106,6 +106,17 @@ async function _readDoc(coll, id) {
   return snap.exists() ? snap.data() : null;
 }
 
+// Load collections + attach live listeners. Called AFTER the device is bound
+// (locked rules require a bound user to read collections), so it runs from the
+// resume/login paths rather than at boot. Idempotent enough to call once per
+// session; dataSubscribe() detaches any prior listeners first.
+let _dataActivated = false;
+async function dataActivate() {
+  await dataLoadAll();
+  dataSubscribe();
+  _dataActivated = true;
+}
+
 async function dataLoadAll() {
   const [entries, sections, categories, team, announcements, site, sidebar, synonyms] = await Promise.all([
     _readCollection('entries'),
