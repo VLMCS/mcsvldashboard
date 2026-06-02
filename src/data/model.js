@@ -113,6 +113,7 @@ async function _readDoc(coll, id) {
 let _dataActivated = false;
 async function dataActivate() {
   await dataLoadAll();
+  _seedSyncBaseline();   // capture last-persisted state for change detection
   dataSubscribe();
   _dataActivated = true;
 }
@@ -145,6 +146,7 @@ function dataSubscribe() {
       apply(snap.docs.map(d => d.data()));
       _dataRebuildArrays();
       if (first) { first = false; return; }
+      _seedSyncBaseline();                  // remote change → refresh baseline
       _dataReRender();
     });
     _dataUnsubs.push(unsub);
@@ -156,6 +158,7 @@ function dataSubscribe() {
       _dataRaw[key] = snap.exists() ? snap.data() : null;
       _dataRebuildArrays();
       if (first) { first = false; return; }
+      _seedSyncBaseline();
       _dataReRender();
     });
     _dataUnsubs.push(unsub);
@@ -190,18 +193,38 @@ function _dataReRender() {
 function _rawEntries(base)  { return (_dataRaw.entries  || []).filter(e => e.base === base); }
 function _rawSections(base) { return (_dataRaw.sections || []).filter(s => s.base === base); }
 
+// Order-insensitive canonical JSON (recursively sorted keys) for change
+// detection, so field-order differences don't trigger spurious writes —
+// essential under strict per-doc rules where a non-owner write is DENIED.
+function _canon(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(_canon).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + _canon(v[k])).join(',') + '}';
+}
+
+// Rebuild the write baseline (last-persisted canonical JSON per doc) from the
+// current snapshot (_dataRaw), using the SAME transforms as dataSyncKey so the
+// comparison lines up. Captured as frozen strings at load/snapshot time so
+// later in-memory edits can't corrupt the baseline. This makes _syncSubset
+// write ONLY genuinely-changed docs (so a non-owner save never touches docs it
+// doesn't own) and delete docs removed since the last load.
+function _seedSyncBaseline() {
+  const cache = {};
+  const set = (key, id, data) => { (cache[key] || (cache[key] = new Map())).set(id, _canon(data)); };
+  for (const e of (_dataRaw.entries || []))   set('entries:'  + e.base, _entryDocId(e.base, e.id),   Object.assign({}, e, { base: e.base }));
+  for (const s of (_dataRaw.sections || []))  set('sections:' + s.base, _sectionDocId(s.base, s.num), Object.assign(_stripPasskey(s), { base: s.base, num: String(s.num) }));
+  for (const c of (_dataRaw.categories || [])) { const o = Object.assign({}, c); delete o.sections; delete o.entries; set('categories', String(c.id), o); }
+  for (const m of (_dataRaw.team || []))          set('team', String(m.id), _stripPasskey(m));
+  for (const a of (_dataRaw.announcements || [])) set('announcements', String(a.id), Object.assign({}, a));
+  _dataSyncCache = cache;
+}
+
 // Upsert changed items + delete removed ones for one logical subset of a
 // collection (e.g. entries with base 'handbook'). idFn → doc id; docFn → data.
-// `existing` is the last-persisted items for this subset (from _dataRaw); it
-// SEEDS the diff cache so deletions are detected even on a fresh page load
-// (the in-memory cache alone is empty after a refresh) and unchanged docs
-// aren't needlessly rewritten.
-async function _syncSubset(collName, subsetKey, items, idFn, docFn, existing) {
+// Diffs against the baseline pre-seeded by _seedSyncBaseline. (Extra trailing
+// args from older call sites are ignored.)
+async function _syncSubset(collName, subsetKey, items, idFn, docFn) {
   const cache = _dataSyncCache[subsetKey] || (_dataSyncCache[subsetKey] = new Map());
-  if (existing) for (const ex of existing) {
-    const id = idFn(ex);
-    if (!cache.has(id)) { try { cache.set(id, JSON.stringify(docFn(ex))); } catch (e) {} }
-  }
   const seen = new Set();
   _fbWriting = true;
   try {
@@ -209,7 +232,7 @@ async function _syncSubset(collName, subsetKey, items, idFn, docFn, existing) {
       const id = idFn(it);
       seen.add(id);
       const data = docFn(it);
-      const json = JSON.stringify(data);
+      const json = _canon(data);
       if (cache.get(id) === json) continue;   // unchanged → skip write
       await _fb_setDoc(_fb_doc(_fbDb, collName, id), data);
       cache.set(id, json);
