@@ -25,11 +25,26 @@ const FIREBASE_CONFIG = {
 };
 const FIREBASE_DOC_PATH = ['dashboards', 'main']; // collection, doc
 
+// ── Phase B feature flag ──────────────────────────────────────────────────
+// false (current): app reads/writes the single dashboards/main doc.
+// true  (post-migration): app reads/writes per-entity collections.
+// Lets the new data model + auth binding ship dormant and flip in one place,
+// with instant rollback by setting this back to false (dashboards/main is
+// never deleted until well after the flip is verified).
+let USE_NEW_DATA_MODEL = false;
+
 let _fbApp = null, _fbDb = null, _fbDoc = null, _fbUnsub = null;
 let _fbReady = false;
 let _fbWriting = false;       // suppress our own writes triggering re-read
 let _fbWriteTimer = null;
 let _fbPendingWrite = {};     // accumulate writes for debounce
+
+// Anonymous Auth (Phase B): every device gets a stable Firebase UID so the
+// locked-down rules can identify the caller. Additive in the current model —
+// signing in anonymously changes nothing about how data is read/written today.
+let _fbAuth = null;
+let _fbUid = null;            // current anonymous UID, or null until signed in
+function fbCurrentUid() { return _fbUid; }
 
 function fbConfigured() {
   return FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== 'PASTE_YOUR_CONFIG_HERE';
@@ -57,14 +72,37 @@ async function initFirebase() {
   try {
     // Use Firebase Web v10 modular SDK (loaded via CDN)
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js');
-    const { getFirestore, doc, onSnapshot, setDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js');
+    const { getFirestore, doc, onSnapshot, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js');
     _fbApp = initializeApp(FIREBASE_CONFIG);
     _fbDb  = getFirestore(_fbApp);
     _fbDoc = doc(_fbDb, FIREBASE_DOC_PATH[0], FIREBASE_DOC_PATH[1]);
     _fb_setDoc = setDoc;
     _fb_onSnapshot = onSnapshot;
     _fb_getDoc = getDoc;
-    _fb_doc = doc;   // exposed so other modules (e.g. admin-password.js) can build refs to other docs
+    _fb_doc = doc;             // build refs to other docs (admin-password.js, bind.js, data layer)
+    _fb_deleteDoc = deleteDoc; // bind.js (sign-out), data layer (deletes)
+    _fb_collection = collection;
+    _fb_getDocs = getDocs;     // collection scans (bind.js team-secrets lookup, data layer)
+    _fb_serverTimestamp = serverTimestamp; // bind.js boundAt (rules require == request.time)
+
+    // ── Anonymous Auth (best-effort, non-fatal) ──
+    // Sign in anonymously so request.auth.uid exists for the locked-down rules.
+    // If it fails (e.g. Anonymous provider disabled), we log and continue —
+    // the current single-doc model works without it; binding stays dormant.
+    try {
+      const { getAuth, signInAnonymously, onAuthStateChanged } =
+        await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js');
+      _fbAuth = getAuth(_fbApp);
+      await new Promise((resolve) => {
+        let settled = false;
+        const done = () => { if (!settled) { settled = true; resolve(); } };
+        onAuthStateChanged(_fbAuth, (user) => { if (user) { _fbUid = user.uid; done(); } });
+        signInAnonymously(_fbAuth).catch((err) => { console.error('Anonymous auth failed:', err); done(); });
+        setTimeout(done, 4000); // don't hang init if auth never settles
+      });
+    } catch (err) {
+      console.error('Auth SDK load failed (continuing without it):', err);
+    }
 
     // If the previous session had unsaved writes pending (refresh happened
     // before the debounced fbSync fired or before the network round-trip
@@ -185,7 +223,7 @@ async function initFirebase() {
     return false;
   }
 }
-let _fb_setDoc, _fb_onSnapshot, _fb_getDoc, _fb_doc;
+let _fb_setDoc, _fb_onSnapshot, _fb_getDoc, _fb_doc, _fb_deleteDoc, _fb_collection, _fb_getDocs, _fb_serverTimestamp;
 
 function fbSync() {
   if (!_fbReady) return;
