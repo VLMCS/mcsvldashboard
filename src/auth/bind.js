@@ -131,3 +131,57 @@ async function fbDemoteAdmin(uid) {
   try { await _fb_deleteDoc(_fb_doc(_fbDb, 'admins', uid)); return true; }
   catch (e) { console.error('fbDemoteAdmin failed:', e); return false; }
 }
+
+/* ── Manage Admins UI (dynamic modal) ── */
+async function openManageAdmins() {
+  if (!USE_NEW_DATA_MODEL) { showToast('Available after the data-model migration.'); return; }
+  if (!(_boundIsAdmin || await fbIsBoundAdmin())) { await customAlert('Admins only.', { title: 'Manage Admins' }); return; }
+  let ov = document.getElementById('manage-admins-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'manage-admins-overlay';
+    ov.className = 'admin-modal-overlay';
+    ov.innerHTML = '<div class="admin-modal" style="max-width:520px">' +
+      '<h3 style="margin:0 0 6px">Manage Admins</h3>' +
+      '<p style="font-size:12.5px;color:var(--text-sub);margin:0 0 12px">Promote a signed-in device to admin, or revoke it. Admins can edit all content.</p>' +
+      '<div id="manage-admins-list" style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto"></div>' +
+      '<div style="margin-top:14px;text-align:right"><button class="btn btn-primary" id="manage-admins-close">Done</button></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#manage-admins-close').onclick = () => ov.classList.remove('open');
+  }
+  ov.classList.add('open');
+  await _renderManageAdmins();
+}
+async function _renderManageAdmins() {
+  const list = document.getElementById('manage-admins-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--mid);font-size:13px">Loading…</div>';
+  const [users, adminUids] = await Promise.all([fbListBoundUsers(), fbListAdminUids()]);
+  const adminSet = new Set(adminUids);
+  const myUid = fbCurrentUid();
+  // Union of bound devices + any admin uids not in the bound list (pure admins).
+  const rows = users.slice();
+  for (const uid of adminUids) if (!users.find(u => u.uid === uid)) rows.push({ uid, tmId: null, slackName: '(admin device, no profile)' });
+  if (!rows.length) { list.innerHTML = '<div style="color:var(--mid);font-size:13px">No signed-in devices yet.</div>'; return; }
+  list.innerHTML = rows.map(u => {
+    const m = u.tmId ? (TEAM_DIRECTORY || []).find(x => x.id === u.tmId) : null;
+    const name = m ? (m.realName || ('@' + String(m.slackName || '').replace(/^@/, ''))) : (u.slackName || u.tmId || u.uid);
+    const isAdm = adminSet.has(u.uid);
+    const isMe = u.uid === myUid;
+    const btn = isAdm
+      ? `<button class="btn btn-secondary" data-demote="${escAttr(u.uid)}">Revoke admin${isMe ? ' (you)' : ''}</button>`
+      : `<button class="btn btn-primary" data-promote="${escAttr(u.uid)}">Make admin</button>`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:6px">
+      <span style="font-size:13px">${escapeHtml(String(name))}${isAdm ? ' <span style="color:var(--admin-accent);font-weight:700">· admin</span>' : ''}</span>
+      ${btn}</div>`;
+  }).join('');
+  list.querySelectorAll('[data-promote]').forEach(b => b.onclick = async () => {
+    await fbPromoteAdmin(b.getAttribute('data-promote')); showToast('Promoted to admin'); _renderManageAdmins();
+  });
+  list.querySelectorAll('[data-demote]').forEach(b => b.onclick = async () => {
+    const uid = b.getAttribute('data-demote');
+    if (uid === myUid && !await customConfirm('Revoke YOUR OWN admin access? You may lock yourself out.', { danger: true, confirmLabel: 'Revoke mine' })) return;
+    await fbDemoteAdmin(uid); showToast('Admin revoked'); _renderManageAdmins();
+  });
+}
