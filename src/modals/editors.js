@@ -321,9 +321,18 @@ async function deleteCurrentSection() {
   if (base === 'projects') {
     PROJECT_ENTRIES = PROJECT_ENTRIES.filter(e => sectionNumOf(e.id) !== editSectionNum);
     PROJECTS = PROJECTS.filter(s => s.num !== editSectionNum);
-  } else {
+  } else if (base === 'handbook') {
     HANDBOOK = HANDBOOK.filter(e => sectionNumOf(e.id) !== editSectionNum);
     SECTIONS = SECTIONS.filter(s => s.num !== editSectionNum);
+  } else {
+    // Custom category — its sections/entries live on the CUSTOM_CATEGORIES
+    // entry, not the global SECTIONS/HANDBOOK arrays. This branch was missing,
+    // so deleting a custom-category section reported success but persisted.
+    const cc = (CUSTOM_CATEGORIES || []).find(c => c.id === base);
+    if (cc) {
+      cc.entries  = (cc.entries  || []).filter(e => sectionNumOf(e.id) !== editSectionNum);
+      cc.sections = (cc.sections || []).filter(s => s.num !== editSectionNum);
+    }
   }
   closeSectionModal();
   saveAll(`${label} deleted`);
