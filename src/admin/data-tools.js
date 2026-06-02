@@ -87,9 +87,18 @@ async function _dtScanAndRender() {
       '<div style="height:100%;width:' + pct.toFixed(3) + '%;background:' + (pct > 80 ? '#c0392b' : 'var(--admin-accent)') + '"></div></div>' +
     '<div style="font-size:12px;color:var(--text-sub);margin-bottom:12px">' + _dtFmt(total) + ' of 1 GiB (' + pct.toFixed(pct < 1 ? 4 : 1) + '%) · Spark free tier</div>' +
     '<table class="pk-table"><thead><tr><th>Collection</th><th style="text-align:right">Docs</th><th style="text-align:right">Size</th></tr></thead><tbody>' +
-    rows.map(c => '<tr><td>' + escapeHtml(c.name) + '</td><td style="text-align:right">' + c.count + '</td><td style="text-align:right">' + _dtFmt(c.bytes) + '</td></tr>').join('') +
+    rows.map(c => c.denied
+      ? '<tr style="color:#c0392b"><td>' + escapeHtml(c.name) + '</td><td colspan="2" style="text-align:right">🔒 not readable</td></tr>'
+      : '<tr><td>' + escapeHtml(c.name) + '</td><td style="text-align:right">' + c.count + '</td><td style="text-align:right">' + _dtFmt(c.bytes) + '</td></tr>'
+    ).join('') +
     '<tr><td>site/sidebar/synonyms</td><td style="text-align:right">3</td><td style="text-align:right">' + _dtFmt(scan.singletonBytes) + '</td></tr>' +
-    '</tbody></table>';
+    '</tbody></table>' +
+    (scan.denied && scan.denied.length
+      ? '<div style="margin-top:10px;padding:8px 12px;background:#fdf0ec;border-left:3px solid #c0392b;border-radius:3px;font-size:12px">' +
+        '<strong>Couldn’t read:</strong> ' + escapeHtml(scan.denied.join(', ')) +
+        '. Your published Firestore rules are blocking these for this admin — usage totals + orphan checks for them are skipped. ' +
+        '(If you expected fully-permissive rules, they may not be the ones currently published.)</div>'
+      : '');
 
   // ── Large-doc + base64 notices ──
   let notices = '';
@@ -123,18 +132,31 @@ async function _dtScanAndRender() {
 }
 
 async function _dtScan() {
+  // Read each collection independently — a permission denial on one (e.g. the
+  // per-user /users or /project-unlocks under locked rules) must NOT abort the
+  // whole scan. Track which collections we couldn't read.
   const got = {};
+  const denied = [];
   for (const c of _DT_COLLS) {
-    const snap = await _fb_getDocs(_fb_collection(_fbDb, c));
-    got[c] = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    try {
+      const snap = await _fb_getDocs(_fb_collection(_fbDb, c));
+      got[c] = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    } catch (e) {
+      got[c] = []; denied.push(c);
+      console.warn('data-tools: could not read /' + c + ' —', e && e.code);
+    }
   }
+  const readable = (c) => denied.indexOf(c) === -1;
+
   let singletonBytes = 0;
   for (const [coll, id] of _DT_SINGLETONS) {
     try { const s = await _fb_getDoc(_fb_doc(_fbDb, coll, id)); if (s.exists()) singletonBytes += _dtBytes(s.data()); } catch (e) {}
   }
 
   const collections = _DT_COLLS.map(name => ({
-    name, count: got[name].length, bytes: got[name].reduce((a, d) => a + _dtBytes(d.data) + d.id.length, 0)
+    name, denied: !readable(name),
+    count: got[name].length,
+    bytes: got[name].reduce((a, d) => a + _dtBytes(d.data) + d.id.length, 0)
   }));
 
   // Large docs (near 1 MiB) — almost always an entry with a big base64 image.
@@ -146,25 +168,33 @@ async function _dtScan() {
 
   const base64 = _dtCountBase64(got.entries);
 
-  // ── Orphan detection ──
+  // ── Orphan detection ── (only run a check when every collection it relies on
+  // was actually readable, so a permission gap can't produce false orphans.)
   const orphans = [];
   const catIds = new Set(got.categories.map(c => c.id));
   const validBases = new Set(['handbook', 'projects', ...catIds]);
   const tmIds = new Set(got.team.map(t => t.id));
   const projSectionIds = new Set(got.sections.filter(s => s.data.base === 'projects').map(s => 'projects__' + s.data.num));
 
-  for (const e of got.entries)  if (!validBases.has(e.data.base)) orphans.push({ coll: 'entries', id: e.id, why: 'Entry under a deleted category' });
-  for (const s of got.sections) if (!validBases.has(s.data.base)) orphans.push({ coll: 'sections', id: s.id, why: 'Section under a deleted category' });
-  for (const s of got['team-secrets']) if (!tmIds.has(s.id)) orphans.push({ coll: 'team-secrets', id: s.id, why: 'Passkey for a removed member' });
-  for (const k of got.kpis) if (!tmIds.has(String(k.id).split('__')[0])) orphans.push({ coll: 'kpis', id: k.id, why: 'KPI for a removed member' });
-  for (const u of got.users) if (u.data.tmId && !tmIds.has(u.data.tmId)) orphans.push({ coll: 'users', id: u.id, why: 'Login binding to a removed member' });
-  for (const p of got['project-secrets']) if (!projSectionIds.has(p.id)) orphans.push({ coll: 'project-secrets', id: p.id, why: 'Passkey for a removed project section' });
-  for (const u of got['project-unlocks']) {
-    const sid = String(u.id).split('__').slice(1).join('__');   // strip uid prefix → 'projects__num'
-    if (!projSectionIds.has(sid)) orphans.push({ coll: 'project-unlocks', id: u.id, why: 'Unlock for a removed project section' });
-  }
+  if (readable('entries') && readable('categories'))
+    for (const e of got.entries)  if (!validBases.has(e.data.base)) orphans.push({ coll: 'entries', id: e.id, why: 'Entry under a deleted category' });
+  if (readable('sections') && readable('categories'))
+    for (const s of got.sections) if (!validBases.has(s.data.base)) orphans.push({ coll: 'sections', id: s.id, why: 'Section under a deleted category' });
+  if (readable('team-secrets') && readable('team'))
+    for (const s of got['team-secrets']) if (!tmIds.has(s.id)) orphans.push({ coll: 'team-secrets', id: s.id, why: 'Passkey for a removed member' });
+  if (readable('kpis') && readable('team'))
+    for (const k of got.kpis) if (!tmIds.has(String(k.id).split('__')[0])) orphans.push({ coll: 'kpis', id: k.id, why: 'KPI for a removed member' });
+  if (readable('users') && readable('team'))
+    for (const u of got.users) if (u.data.tmId && !tmIds.has(u.data.tmId)) orphans.push({ coll: 'users', id: u.id, why: 'Login binding to a removed member' });
+  if (readable('project-secrets') && readable('sections'))
+    for (const p of got['project-secrets']) if (!projSectionIds.has(p.id)) orphans.push({ coll: 'project-secrets', id: p.id, why: 'Passkey for a removed project section' });
+  if (readable('project-unlocks') && readable('sections'))
+    for (const u of got['project-unlocks']) {
+      const sid = String(u.id).split('__').slice(1).join('__');   // strip uid prefix → 'projects__num'
+      if (!projSectionIds.has(sid)) orphans.push({ coll: 'project-unlocks', id: u.id, why: 'Unlock for a removed project section' });
+    }
 
-  return { collections, singletonBytes, largeDocs, base64, orphans };
+  return { collections, singletonBytes, largeDocs, base64, orphans, denied };
 }
 
 async function _dtDeleteOrphans() {
