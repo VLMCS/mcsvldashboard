@@ -31,16 +31,23 @@ function canEditSection(base, sectionNum) {
 // duplicate passkeys so login-by-passkey is unambiguous.
 function _ensureTeamPasskeys() {
   if (!Array.isArray(TEAM_DIRECTORY)) return false;
+  // NEW DATA MODEL: passkeys are salted hashes in /team-secrets — there are no
+  // plaintext passkeys in memory to backfill, and generating them here would be
+  // silently stripped on write. New-member passkeys are issued via the reset
+  // flow (dataSetPasskeyHash). So skip passkey generation; still backfill kpi.
+  const skipPasskeys = (typeof USE_NEW_DATA_MODEL !== 'undefined' && USE_NEW_DATA_MODEL);
   let changed = false;
   const seen = new Set();
   for (const m of TEAM_DIRECTORY) {
     if (!m || typeof m !== 'object') continue;
-    if (!m.passkey || seen.has(m.passkey.toUpperCase())) {
-      // Rotate until we land on something globally unique within the directory.
-      do { m.passkey = generatePasskey(); } while (seen.has(m.passkey.toUpperCase()));
-      changed = true;
+    if (!skipPasskeys) {
+      if (!m.passkey || seen.has(m.passkey.toUpperCase())) {
+        // Rotate until we land on something globally unique within the directory.
+        do { m.passkey = generatePasskey(); } while (seen.has(m.passkey.toUpperCase()));
+        changed = true;
+      }
+      seen.add(m.passkey.toUpperCase());
     }
-    seen.add(m.passkey.toUpperCase());
     // KPI map backfill — profiles pre-dating the KPI feature have no `kpi`
     // field. Initialize it to an empty object so the rest of the code can
     // assume it exists.

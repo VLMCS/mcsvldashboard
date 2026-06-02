@@ -91,6 +91,9 @@ async function loginTry() {
     return;
   }
 
+  // NEW DATA MODEL: bind by passkey (hash compare) + bootstrap-admin flow.
+  if (USE_NEW_DATA_MODEL) return _loginTryNewModel(raw, err, submitBtn);
+
   // 1) Admin password — bypass without attaching a specific user identity.
   //    verifyAdminPassword waits for Firebase init, checks the stored salted
   //    hash, and only falls back to the legacy ADMIN_PW on a genuine first run
@@ -143,6 +146,56 @@ async function loginTry() {
   inp.value = '';
   setTimeout(() => inp.classList.remove('error'), 400);
   inp.focus();
+}
+
+// NEW DATA MODEL login: admin-password (bootstrap / existing admin) first,
+// then team passkey → device binding via /team-secrets hash compare.
+async function _loginTryNewModel(raw, err, submitBtn) {
+  const inp = document.getElementById('login-pwd');
+  const origText = submitBtn.textContent;
+  submitBtn.disabled = true; submitBtn.textContent = 'Signing in…'; err.textContent = '';
+  try {
+    if (_fbInitResult === null) { try { await _fbInitPromise; } catch (e) {} }
+    if (_fbInitResult !== true) { err.textContent = "Couldn't reach the team server. Check your connection."; return; }
+
+    // 1) Admin password → admin (bootstrap the first admin, or an already-
+    //    promoted device). After bootstrap, the password alone can't promote a
+    //    new device — an existing admin must, via Manage Admins.
+    if (await verifyAdminPassword(raw)) {
+      const alreadyAdmin = await fbIsBoundAdmin();
+      const noAdminsYet  = !(await fbAdminsExist());
+      if (alreadyAdmin || noAdminsYet) {
+        if (noAdminsYet) await fbBootstrapAdmin();
+        currentUser = null; currentUserPersistent = false;
+        _boundIsAdmin = true;
+        isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true);
+        _bootProceedAfterLogin({ slackName: 'Admin', isAdmin: true });
+        return;
+      }
+      err.textContent = 'Correct password, but this device isn’t an admin yet. Sign in with your passkey, then ask an admin to promote this device.';
+      return;
+    }
+
+    // 2) Team passkey → bind this device (/users/{uid}).
+    const bound = await fbBindByPasskey(raw);
+    if (bound && bound.tmId) {
+      const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId) || { id: bound.tmId };
+      setCurrentUser(m, true);
+      _boundIsAdmin = await fbIsBoundAdmin();
+      if (_boundIsAdmin) { isAdminMode = true; document.body.classList.add('admin-mode'); _swapAdminIcons(true); }
+      _bootProceedAfterLogin({ slackName: (m.slackName || m.realName || ''), isAdmin: _boundIsAdmin });
+      return;
+    }
+
+    // 3) No match.
+    inp.classList.add('error');
+    err.textContent = 'Incorrect passkey. Try again, or use the admin password.';
+    inp.value = '';
+    setTimeout(() => inp.classList.remove('error'), 400);
+    inp.focus();
+  } finally {
+    submitBtn.disabled = false; submitBtn.textContent = origText;
+  }
 }
 
 // Plays the welcome fade, then dismisses the login overlay and lets the rest

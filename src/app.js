@@ -693,17 +693,40 @@ function _startFirebaseInBackground() {
 // immediately on top while this loads in the background.
 _startFirebaseInBackground();
 
-// Decide login vs resume. sessionStorage-scoped session: same tab refresh
-// keeps the session; closing the browser ends it (per "Stay signed in for
-// this session").
-const _restored = loadCurrentUser();
-if (_restored) {
-  _renderSignOutChip();
-  // No login overlay, no welcome fade — straight to the dashboard. Firebase
-  // is loading in the background; the status dot reflects connection state.
-} else {
-  showLogin();
+// Tracks whether this device's UID is a bound admin (new model). Set during
+// resume + after admin bootstrap/promote.
+let _boundIsAdmin = false;
+
+// Decide login vs resume.
+//  - OLD model: synchronous sessionStorage check (passkey validated locally).
+//  - NEW model: the "is this device logged in?" answer is a Firestore read of
+//    /users/{uid}, which needs Firebase ready — so we show the login overlay,
+//    wait for init, then resume if the device is bound.
+function _decideLoginOrResume() {
+  if (!USE_NEW_DATA_MODEL) {
+    const restored = loadCurrentUser();
+    if (restored) _renderSignOutChip();   // straight to dashboard
+    else showLogin();
+    return;
+  }
+  showLogin();   // overlay sits on top while we resolve the binding
+  (async () => {
+    try {
+      await _fbInitPromise;
+      if (_fbInitResult !== true) return;            // offline — leave login up
+      const bound = await fbBoundUser();
+      if (!bound || !bound.tmId) return;             // unbound — login stays
+      const m = (TEAM_DIRECTORY || []).find(x => x.id === bound.tmId)
+                || { id: bound.tmId, slackName: bound.slackName || '' };
+      setCurrentUser(m, true);
+      _boundIsAdmin = await fbIsBoundAdmin();
+      _renderSignOutChip();
+      _runMainBootstrap();
+      hideLogin();
+    } catch (e) { console.error('resume binding check failed:', e); }
+  })();
 }
+_decideLoginOrResume();
 
 // Kept as a stub for the post-login welcome handoff (called from
 // _bootProceedAfterLogin). Firebase already started; just refresh chrome

@@ -79,3 +79,55 @@ async function fbUnbindUser() {
   try { await _fb_deleteDoc(_fb_doc(_fbDb, 'users', fbCurrentUid())); }
   catch (e) { console.error('fbUnbindUser failed:', e); }
 }
+
+/* ── Admin model: bootstrap once, then promote devices ─────────────────────
+   Admin == presence of /admins/{uid}. The very first admin self-promotes via
+   the admin password (one-shot, gated by /system/adminsBootstrapped). After
+   that, only existing admins can promote other devices. */
+
+// Has the one-time bootstrap already happened?
+async function fbAdminsExist() {
+  if (!_bind_ready()) return false;
+  try {
+    const s = await _fb_getDoc(_fb_doc(_fbDb, 'system', 'adminsBootstrapped'));
+    return s.exists();
+  } catch (e) { console.error('fbAdminsExist failed:', e); return false; }
+}
+
+// First-admin bootstrap: write /admins/{uid} then the marker (sequential —
+// the marker write needs isAdmin() to already be true under the locked rules).
+async function fbBootstrapAdmin() {
+  if (!_bind_ready()) return false;
+  try {
+    const uid = fbCurrentUid();
+    await _fb_setDoc(_fb_doc(_fbDb, 'admins', uid), { promotedAt: _fb_serverTimestamp(), promotedBy: 'bootstrap' });
+    await _fb_setDoc(_fb_doc(_fbDb, 'system', 'adminsBootstrapped'), { at: _fb_serverTimestamp(), by: uid });
+    return true;
+  } catch (e) { console.error('fbBootstrapAdmin failed:', e); return false; }
+}
+
+// Bound devices (for the "Manage Admins" picker): [{ uid, tmId, slackName }].
+async function fbListBoundUsers() {
+  if (!_bind_ready()) return [];
+  try {
+    const snap = await _fb_getDocs(_fb_collection(_fbDb, 'users'));
+    return snap.docs.map(d => Object.assign({ uid: d.id }, d.data()));
+  } catch (e) { console.error('fbListBoundUsers failed:', e); return []; }
+}
+async function fbListAdminUids() {
+  if (!_bind_ready()) return [];
+  try {
+    const snap = await _fb_getDocs(_fb_collection(_fbDb, 'admins'));
+    return snap.docs.map(d => d.id);
+  } catch (e) { console.error('fbListAdminUids failed:', e); return []; }
+}
+async function fbPromoteAdmin(uid) {
+  if (!_bind_ready() || !uid) return false;
+  try { await _fb_setDoc(_fb_doc(_fbDb, 'admins', uid), { promotedAt: _fb_serverTimestamp(), promotedBy: fbCurrentUid() }); return true; }
+  catch (e) { console.error('fbPromoteAdmin failed:', e); return false; }
+}
+async function fbDemoteAdmin(uid) {
+  if (!_bind_ready() || !uid) return false;
+  try { await _fb_deleteDoc(_fb_doc(_fbDb, 'admins', uid)); return true; }
+  catch (e) { console.error('fbDemoteAdmin failed:', e); return false; }
+}
