@@ -175,10 +175,22 @@ function _dataReRender() {
 
 /* ════════════════ WRITE: whole-array sync → per-doc upserts/deletes ════════════════ */
 
+// Existing (last-persisted) items for a subset, from the loaded/live snapshot.
+function _rawEntries(base)  { return (_dataRaw.entries  || []).filter(e => e.base === base); }
+function _rawSections(base) { return (_dataRaw.sections || []).filter(s => s.base === base); }
+
 // Upsert changed items + delete removed ones for one logical subset of a
 // collection (e.g. entries with base 'handbook'). idFn → doc id; docFn → data.
-async function _syncSubset(collName, subsetKey, items, idFn, docFn) {
+// `existing` is the last-persisted items for this subset (from _dataRaw); it
+// SEEDS the diff cache so deletions are detected even on a fresh page load
+// (the in-memory cache alone is empty after a refresh) and unchanged docs
+// aren't needlessly rewritten.
+async function _syncSubset(collName, subsetKey, items, idFn, docFn, existing) {
   const cache = _dataSyncCache[subsetKey] || (_dataSyncCache[subsetKey] = new Map());
+  if (existing) for (const ex of existing) {
+    const id = idFn(ex);
+    if (!cache.has(id)) { try { cache.set(id, JSON.stringify(docFn(ex))); } catch (e) {} }
+  }
   const seen = new Set();
   _fbWriting = true;
   try {
@@ -217,33 +229,46 @@ async function dataSyncKey(key, value) {
     switch (key) {
       case 'handbook':
         return _syncSubset('entries', 'entries:handbook', value || [],
-          e => _entryDocId('handbook', e.id), e => Object.assign({}, e, { base: 'handbook' }));
+          e => _entryDocId('handbook', e.id), e => Object.assign({}, e, { base: 'handbook' }), _rawEntries('handbook'));
       case 'projectEntries':
         return _syncSubset('entries', 'entries:projects', value || [],
-          e => _entryDocId('projects', e.id), e => Object.assign({}, e, { base: 'projects' }));
+          e => _entryDocId('projects', e.id), e => Object.assign({}, e, { base: 'projects' }), _rawEntries('projects'));
       case 'sections':
         return _syncSubset('sections', 'sections:handbook', value || [],
-          s => _sectionDocId('handbook', s.num), s => Object.assign(_stripPasskey(s), { base: 'handbook', num: String(s.num) }));
+          s => _sectionDocId('handbook', s.num), s => Object.assign(_stripPasskey(s), { base: 'handbook', num: String(s.num) }), _rawSections('handbook'));
       case 'projects':
         return _syncSubset('sections', 'sections:projects', value || [],
-          s => _sectionDocId('projects', s.num), s => Object.assign(_stripPasskey(s), { base: 'projects', num: String(s.num) }));
+          s => _sectionDocId('projects', s.num), s => Object.assign(_stripPasskey(s), { base: 'projects', num: String(s.num) }), _rawSections('projects'));
       case 'announcements':
         return _syncSubset('announcements', 'announcements', value || [],
-          a => String(a.id), a => Object.assign({}, a));
+          a => String(a.id), a => Object.assign({}, a), _dataRaw.announcements || []);
       case 'team':
         return _syncSubset('team', 'team', value || [],
-          m => String(m.id), m => _stripPasskey(m));
+          m => String(m.id), m => _stripPasskey(m), _dataRaw.team || []);
       case 'customCategories': {
         const cats = value || [];
+        const catMeta = c => { const o = Object.assign({}, c); delete o.sections; delete o.entries; return o; };
         // category metadata docs (without the nested sections/entries arrays)
         await _syncSubset('categories', 'categories', cats,
-          c => String(c.id), c => { const o = Object.assign({}, c); delete o.sections; delete o.entries; return o; });
-        // each category's sections + entries, namespaced by base=catId
+          c => String(c.id), catMeta, _dataRaw.categories || []);
+        // each surviving category's sections + entries, namespaced by base=catId
         for (const c of cats) {
           await _syncSubset('sections', 'sections:' + c.id, c.sections || [],
-            s => _sectionDocId(c.id, s.num), s => Object.assign(_stripPasskey(s), { base: c.id, num: String(s.num) }));
+            s => _sectionDocId(c.id, s.num), s => Object.assign(_stripPasskey(s), { base: c.id, num: String(s.num) }), _rawSections(c.id));
           await _syncSubset('entries', 'entries:' + c.id, c.entries || [],
-            e => _entryDocId(c.id, e.id), e => Object.assign({}, e, { base: c.id }));
+            e => _entryDocId(c.id, e.id), e => Object.assign({}, e, { base: c.id }), _rawEntries(c.id));
+        }
+        // Clean up sections/entries belonging to REMOVED categories (their
+        // subsets aren't visited by the loop above, so sync them empty to
+        // delete the orphaned docs).
+        const liveIds = new Set(cats.map(c => String(c.id)));
+        const removedIds = (_dataRaw.categories || [])
+          .map(c => String(c.id)).filter(id => !liveIds.has(id));
+        for (const rid of removedIds) {
+          await _syncSubset('sections', 'sections:' + rid, [],
+            s => _sectionDocId(rid, s.num), s => Object.assign(_stripPasskey(s), { base: rid, num: String(s.num) }), _rawSections(rid));
+          await _syncSubset('entries', 'entries:' + rid, [],
+            e => _entryDocId(rid, e.id), e => Object.assign({}, e, { base: rid }), _rawEntries(rid));
         }
         return;
       }
