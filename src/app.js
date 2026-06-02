@@ -4643,43 +4643,6 @@ async function rotatePasskeyForId(id) {
 }
 
 /* ══════════════════════════════════════════
-   IMAGE LIGHTBOX
-   ══════════════════════════════════════════ */
-function openLightbox(src) {
-  lightboxZoom = 1;
-  const img = document.getElementById('lightbox-img');
-  img.src = src;
-  img.style.transform = 'scale(1)';
-  document.getElementById('lightbox-zoom-label').textContent = '100%';
-  document.getElementById('lightbox-overlay').classList.add('open');
-}
-function closeLightbox() {
-  document.getElementById('lightbox-overlay').classList.remove('open');
-  document.getElementById('lightbox-img').src = '';
-}
-function maybeCloseLightbox(e) {
-  if (e.target.id === 'lightbox-overlay' || e.target.id === 'lightbox-stage') closeLightbox();
-}
-function zoomLightbox(d) {
-  lightboxZoom = Math.min(4, Math.max(0.25, lightboxZoom + d));
-  document.getElementById('lightbox-img').style.transform = `scale(${lightboxZoom})`;
-  document.getElementById('lightbox-zoom-label').textContent = Math.round(lightboxZoom * 100) + '%';
-}
-function resetLightboxZoom() { zoomLightbox(1 - lightboxZoom); }
-
-// Delegated image click for lightbox
-document.addEventListener('click', e => {
-  const t = e.target;
-  if (t.tagName !== 'IMG') return;
-  // Skip toolbar/UI images
-  if (t.closest('.rt-toolbar') || t.closest('.icon-btn') || t.closest('#lightbox-overlay')) return;
-  // Trigger lightbox for content images
-  if (t.closest('.entry-content') || t.closest('.dv-entry-content') || t.classList.contains('entry-img')) {
-    openLightbox(t.src);
-  }
-});
-
-/* ══════════════════════════════════════════
    DOCUMENTATION VIEW
    ══════════════════════════════════════════ */
 function showDocView() {
@@ -5197,32 +5160,6 @@ function _renderSignOutChip() {
     chip.classList.remove('visible');
   }
 }
-
-/* ══════════════════════════════════════════
-   KEYBOARD
-   ══════════════════════════════════════════ */
-document.addEventListener('keydown', e => {
-  // Lightbox first
-  if (document.getElementById('lightbox-overlay').classList.contains('open')) {
-    if (e.key === 'Escape') closeLightbox();
-    else if (e.key === '+' || e.key === '=') zoomLightbox(0.25);
-    else if (e.key === '-' || e.key === '_') zoomLightbox(-0.25);
-    else if (e.key === '0') resetLightboxZoom();
-    return;
-  }
-
-  if (e.key === 'Escape') {
-    for (const id of ['new-pk-overlay','pk-modal-overlay','kpi-overlay','tm-detail-overlay','team-modal-overlay','syn-modal-overlay','settings-modal-overlay','entry-modal-overlay','section-modal-overlay','si-modal-overlay','ann-modal-overlay','pwd-modal-overlay','cat-modal-overlay']) {
-      const m = document.getElementById(id);
-      if (m && m.classList.contains('open')) { m.classList.remove('open'); return; }
-    }
-    if (document.getElementById('search-modal-overlay').classList.contains('open')) { closeSearchModal(); return; }
-  }
-  if (e.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable) {
-    e.preventDefault();
-    openSearchModal();
-  }
-});
 
 /* ══════════════════════════════════════════
    INIT
