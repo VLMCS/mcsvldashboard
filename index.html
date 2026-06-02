@@ -45,16 +45,7 @@
   </div>
 
   <div id="admin-toolbar" class="sidebar-collapsible">
-    <button class="admin-tool-btn btn-admin" onclick="showDocView()" style="color:#fff;border-color:var(--admin-accent);background:var(--admin-accent)">📑 Documentation View</button>
-    <button class="admin-tool-btn" onclick="openSiteSettings()" title="Edit dashboard name, department, and category labels">⚙ Site Settings</button>
-    <button class="admin-tool-btn" onclick="openSynonymsEditor()" title="Manage search synonyms">🧠 Manage Synonyms</button>
-    <button class="admin-tool-btn" onclick="changeAdminPassword()" title="Change the Admin Mode password (requires your master recovery key)">🔑 Change Admin Password</button>
-    <button class="admin-tool-btn" onclick="openManageAdmins()" title="Promote or revoke admin devices">👥 Manage Admins</button>
-    <button class="admin-tool-btn" onclick="openDataTools()" title="Firestore usage + orphaned-document cleanup">🗄 Data &amp; Storage</button>
-    <div class="admin-tool-row">
-      <button class="admin-tool-btn" onclick="exportData()" title="Download backup">↓ Export</button>
-      <button class="admin-tool-btn" onclick="document.getElementById('import-file').click()" title="Upload backup">↑ Import</button>
-    </div>
+    <button class="admin-tool-btn btn-admin" onclick="openAdminTools()" title="Open admin tools" style="color:#fff;border-color:var(--admin-accent);background:var(--admin-accent)">⚙ Admin Tools…</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
   </div>
 
@@ -717,6 +708,7 @@
 <script src="src/firebase.js"></script>
 <script src="src/data/model.js"></script>
 <script src="src/admin/data-tools.js"></script>
+<script src="src/admin/admin-tools.js"></script>
 <script src="src/auth/session.js"></script>
 <script src="src/auth/access.js"></script>
 <script src="src/auth/admin-password.js"></script>
