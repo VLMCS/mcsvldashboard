@@ -205,8 +205,16 @@ function openSectionEditor(num, base) {
   const showPasskey = (base === 'projects') && isAdminMode;
   document.getElementById('sef-passkey-row').style.display = showPasskey ? '' : 'none';
   if (showPasskey) {
-    if (!sec.passkey) sec.passkey = generatePasskey();
-    document.getElementById('sef-passkey').value = sec.passkey;
+    if (USE_NEW_DATA_MODEL && typeof dataReadProjectPasskey === 'function') {
+      // Passkey lives in /project-secrets — load it into the field (async).
+      document.getElementById('sef-passkey').value = '…';
+      dataReadProjectPasskey('projects', num).then(pk => {
+        document.getElementById('sef-passkey').value = pk || generatePasskey();
+      });
+    } else {
+      if (!sec.passkey) sec.passkey = generatePasskey();
+      document.getElementById('sef-passkey').value = sec.passkey;
+    }
   }
   document.getElementById('section-modal-overlay').classList.add('open');
 }
@@ -234,7 +242,13 @@ function _saveUnlocks() {
 async function promptUnlockProjectSection(num) {
   const sec = findSection(num, 'projects');
   if (!sec) return;
-  if (!sec.passkey) {
+  // NEW DATA MODEL: the project passkey lives in /project-secrets (plaintext),
+  // not on the section doc.
+  let secretPasskey = sec.passkey;
+  if (USE_NEW_DATA_MODEL && typeof dataReadProjectPasskey === 'function') {
+    secretPasskey = await dataReadProjectPasskey('projects', num);
+  }
+  if (!secretPasskey) {
     if (await customConfirm(`Project "${sec.title}" has no passkey set. Only admins can edit it. Continue to Section view?`, { confirmLabel: 'Continue' })) {
       showSection(num, 'projects');
     }
@@ -244,9 +258,14 @@ async function promptUnlockProjectSection(num) {
     title: 'Unlock project section', placeholder: 'Passkey', confirmLabel: 'Unlock'
   });
   if (entered === null) return;
-  if (entered.trim().toUpperCase() === sec.passkey.toUpperCase()) {
+  if (entered.trim().toUpperCase() === String(secretPasskey).toUpperCase()) {
     unlockedProjects.add(String(num));
     _saveUnlocks();
+    // NEW DATA MODEL: write a per-device unlock record so the strict rules
+    // permit this device to edit this project section's entries.
+    if (USE_NEW_DATA_MODEL && typeof dataWriteProjectUnlock === 'function') {
+      try { await dataWriteProjectUnlock('projects', num); } catch (e) {}
+    }
     renderSidebar();
     if (currentView === 'section' && currentBase === 'projects' && currentSectionNum === String(num)) showSection(num, 'projects');
     showToast(`🔓 Edit access granted for "${sec.title}"`);
@@ -258,6 +277,10 @@ async function promptUnlockProjectSection(num) {
 function lockProjectSection(num) {
   unlockedProjects.delete(String(num));
   _saveUnlocks();
+  // NEW DATA MODEL: revoke the per-device unlock record too.
+  if (USE_NEW_DATA_MODEL && typeof dataDeleteProjectUnlock === 'function') {
+    try { dataDeleteProjectUnlock('projects', num); } catch (e) {}
+  }
   renderSidebar();
   if (currentView === 'section' && currentBase === 'projects' && currentSectionNum === String(num)) showSection(num, 'projects');
   showToast('🔒 Edit access locked');
@@ -285,12 +308,13 @@ function saveSection() {
   const sectionsArr = sectionsOf(base);
   const entriesArr = entriesOf(base);
 
+  let _projNum = null, _projPasskey = null;
   if (editSectionNum) {
     // Number is auto-managed and immutable; only title/description/passkey change.
     const sec = findSection(editSectionNum, base);
     if (!sec) return;
     sec.title = title; sec.description = desc;
-    if (base === 'projects' && passkey) sec.passkey = passkey;
+    if (base === 'projects' && passkey) { sec.passkey = passkey; _projNum = editSectionNum; _projPasskey = passkey; }
     entriesArr.forEach(e => {
       if (sectionNumOf(e.id) === editSectionNum) e.section = `${editSectionNum}. ${title}`;
     });
@@ -299,12 +323,17 @@ function saveSection() {
     const nums = sectionsArr.map(s => parseInt(s.num)).filter(n => !isNaN(n));
     const num = String(nums.length ? Math.max(...nums) + 1 : 1);
     const newSec = { num, title, description: desc };
-    if (base === 'projects') newSec.passkey = passkey || generatePasskey();
+    if (base === 'projects') { newSec.passkey = passkey || generatePasskey(); _projNum = num; _projPasskey = newSec.passkey; }
     sectionsArr.push(newSec);
   }
 
   closeSectionModal();
   saveAll('Saved');
+  // NEW DATA MODEL: the project passkey is stripped from the /sections doc, so
+  // persist it to /project-secrets (only when a passkey was set/changed).
+  if (USE_NEW_DATA_MODEL && base === 'projects' && _projNum && _projPasskey && typeof dataSetProjectPasskey === 'function') {
+    dataSetProjectPasskey('projects', _projNum, _projPasskey).catch(() => showToast('Could not save project passkey'));
+  }
   renderSidebar();
   if (currentView === 'section' && currentBase === base) showSection(currentSectionNum, base);
   else if (currentView === 'docview') renderDocView();

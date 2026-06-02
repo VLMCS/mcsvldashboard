@@ -50,6 +50,10 @@ const FIREBASE_CONFIG = {
 const SEP = '__';
 const entryDocId   = (base, id)  => base + SEP + id;
 const sectionDocId = (base, num) => base + SEP + num;
+const sectionNumOf = (id) => String(id).split('.')[0];
+// Entry doc shape — MUST match src/data/model.js _entryDocData (base +
+// denormalized sectionNum so the strict rules can verify project unlocks).
+const entryDoc = (e, base) => Object.assign({}, e, { base, sectionNum: sectionNumOf(e.id) });
 
 let _db, _doc, _getDoc, _setDoc, _getDocs, _collection, _writeBatch;
 let _source = null;        // the dashboards/main data
@@ -106,8 +110,8 @@ function buildPlan(src) {
   const anns           = src.announcements || [];
 
   // entries
-  for (const e of handbook)       push('entries', entryDocId('handbook', e.id), Object.assign({}, e, { base: 'handbook' }));
-  for (const e of projectEntries) push('entries', entryDocId('projects', e.id), Object.assign({}, e, { base: 'projects' }));
+  for (const e of handbook)       push('entries', entryDocId('handbook', e.id), entryDoc(e, 'handbook'));
+  for (const e of projectEntries) push('entries', entryDocId('projects', e.id), entryDoc(e, 'projects'));
   // sections (strip passkeys → project-secrets handled below)
   for (const s of sections) push('sections', sectionDocId('handbook', s.num), Object.assign(stripPasskey(s), { base: 'handbook', num: String(s.num) }));
   for (const s of projects) push('sections', sectionDocId('projects', s.num), Object.assign(stripPasskey(s), { base: 'projects', num: String(s.num) }));
@@ -116,7 +120,7 @@ function buildPlan(src) {
     const meta = Object.assign({}, c); delete meta.sections; delete meta.entries;
     push('categories', String(c.id), meta);
     for (const s of (c.sections || [])) push('sections', sectionDocId(c.id, s.num), Object.assign(stripPasskey(s), { base: c.id, num: String(s.num) }));
-    for (const e of (c.entries  || [])) push('entries', entryDocId(c.id, e.id), Object.assign({}, e, { base: c.id }));
+    for (const e of (c.entries  || [])) push('entries', entryDocId(c.id, e.id), entryDoc(e, c.id));
   }
   // team profiles (passkeys → team-secrets below)
   for (const m of team) push('team', String(m.id), stripPasskey(m));

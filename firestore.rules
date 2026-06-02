@@ -154,11 +154,20 @@ service cloud.firestore {
     }
 
     // ─── Sections: /sections/{sectionId} ─────────────────────────────────────
-    // sectionId format: '<base>__<num>'. Section definitions (title, description,
-    // order). Admins only for create/update/delete.
+    // sectionId format: '<base>__<num>'. Create/delete are admin-only. A
+    // project-section's title/description may also be UPDATED by a device that
+    // holds the unlock for it (base/num immutable).
     match /sections/{sectionId} {
-      allow read: if canRead();
-      allow write: if isAdmin();
+      allow read:   if canRead();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          resource.data.base == 'projects'
+          && hasUnlocked(resource.data.base + '__' + resource.data.num)
+          && request.resource.data.base == resource.data.base
+          && request.resource.data.num == resource.data.num
+        );
     }
 
     // ─── Entries: /entries/{entryId} ─────────────────────────────────────────

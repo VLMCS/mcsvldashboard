@@ -31,6 +31,11 @@
 const _DSEP = '__';
 function _entryDocId(base, id) { return base + _DSEP + id; }
 function _sectionDocId(base, num) { return base + _DSEP + num; }
+// Entry doc shape. sectionNum is denormalized onto the doc so the strict rules
+// can map an entry to its project section for the passkey-unlock check.
+function _entryDocData(e, base) {
+  return Object.assign({}, e, { base, sectionNum: (typeof sectionNumOf === 'function' ? sectionNumOf(e.id) : String(e.id).split('.')[0]) });
+}
 
 // Raw snapshot mirrors (filled by load + onSnapshot); arrays derive from these.
 let _dataRaw = {
@@ -211,12 +216,17 @@ function _canon(v) {
 function _seedSyncBaseline() {
   const cache = {};
   const set = (key, id, data) => { (cache[key] || (cache[key] = new Map())).set(id, _canon(data)); };
-  for (const e of (_dataRaw.entries || []))   set('entries:'  + e.base, _entryDocId(e.base, e.id),   Object.assign({}, e, { base: e.base }));
+  for (const e of (_dataRaw.entries || []))   set('entries:'  + e.base, _entryDocId(e.base, e.id),   _entryDocData(e, e.base));
   for (const s of (_dataRaw.sections || []))  set('sections:' + s.base, _sectionDocId(s.base, s.num), Object.assign(_stripPasskey(s), { base: s.base, num: String(s.num) }));
   for (const c of (_dataRaw.categories || [])) { const o = Object.assign({}, c); delete o.sections; delete o.entries; set('categories', String(c.id), o); }
   for (const m of (_dataRaw.team || []))          set('team', String(m.id), _stripPasskey(m));
   for (const a of (_dataRaw.announcements || [])) set('announcements', String(a.id), Object.assign({}, a));
   _dataSyncCache = cache;
+  // Singletons: seed from the in-memory values computed the SAME way the write
+  // serializes them, so an unchanged save is correctly skipped.
+  if (typeof SITE_SETTINGS !== 'undefined' && SITE_SETTINGS) _dataSyncCache['__singleton:site'] = _canon(Object.assign({}, SITE_SETTINGS));
+  if (typeof SIDEBAR_CFG !== 'undefined') _dataSyncCache['__singleton:sidebar'] = _canon({ items: SIDEBAR_CFG || [] });
+  if (typeof SYNONYMS !== 'undefined') _dataSyncCache['__singleton:synonyms'] = _canon({ groups: encodeForFirestore('synonyms', SYNONYMS || []) });
 }
 
 // Upsert changed items + delete removed ones for one logical subset of a
@@ -249,8 +259,13 @@ async function _syncSubset(collName, subsetKey, items, idFn, docFn) {
 }
 
 async function _syncSingleton(coll, data) {
+  // Skip if unchanged — important under strict rules so a non-admin save
+  // doesn't fire denied writes at these admin-only docs every time.
+  const k = '__singleton:' + coll;
+  const json = _canon(data);
+  if (_dataSyncCache[k] === json) return;
   _fbWriting = true;
-  try { await _fb_setDoc(_fb_doc(_fbDb, coll, 'main'), data); }
+  try { await _fb_setDoc(_fb_doc(_fbDb, coll, 'main'), data); _dataSyncCache[k] = json; }
   finally { setTimeout(() => { _fbWriting = false; }, 200); }
 }
 
@@ -263,10 +278,10 @@ async function dataSyncKey(key, value) {
     switch (key) {
       case 'handbook':
         return _syncSubset('entries', 'entries:handbook', value || [],
-          e => _entryDocId('handbook', e.id), e => Object.assign({}, e, { base: 'handbook' }), _rawEntries('handbook'));
+          e => _entryDocId('handbook', e.id), e => _entryDocData(e, 'handbook'), _rawEntries('handbook'));
       case 'projectEntries':
         return _syncSubset('entries', 'entries:projects', value || [],
-          e => _entryDocId('projects', e.id), e => Object.assign({}, e, { base: 'projects' }), _rawEntries('projects'));
+          e => _entryDocId('projects', e.id), e => _entryDocData(e, 'projects'), _rawEntries('projects'));
       case 'sections':
         return _syncSubset('sections', 'sections:handbook', value || [],
           s => _sectionDocId('handbook', s.num), s => Object.assign(_stripPasskey(s), { base: 'handbook', num: String(s.num) }), _rawSections('handbook'));
@@ -290,7 +305,7 @@ async function dataSyncKey(key, value) {
           await _syncSubset('sections', 'sections:' + c.id, c.sections || [],
             s => _sectionDocId(c.id, s.num), s => Object.assign(_stripPasskey(s), { base: c.id, num: String(s.num) }), _rawSections(c.id));
           await _syncSubset('entries', 'entries:' + c.id, c.entries || [],
-            e => _entryDocId(c.id, e.id), e => Object.assign({}, e, { base: c.id }), _rawEntries(c.id));
+            e => _entryDocId(c.id, e.id), e => _entryDocData(e, c.id), _rawEntries(c.id));
         }
         // Clean up sections/entries belonging to REMOVED categories (their
         // subsets aren't visited by the loop above, so sync them empty to
@@ -302,7 +317,7 @@ async function dataSyncKey(key, value) {
           await _syncSubset('sections', 'sections:' + rid, [],
             s => _sectionDocId(rid, s.num), s => Object.assign(_stripPasskey(s), { base: rid, num: String(s.num) }), _rawSections(rid));
           await _syncSubset('entries', 'entries:' + rid, [],
-            e => _entryDocId(rid, e.id), e => Object.assign({}, e, { base: rid }), _rawEntries(rid));
+            e => _entryDocId(rid, e.id), e => _entryDocData(e, rid), _rawEntries(rid));
         }
         return;
       }
@@ -337,6 +352,32 @@ const dataSetPasskeyHash = dataSetPasskey;   // back-compat alias (now plaintext
 async function dataSetProjectPasskey(base, num, plaintextPasskey) {
   _fbWriting = true;
   try { await _fb_setDoc(_fb_doc(_fbDb, 'project-secrets', _sectionDocId(base, num)), { passkey: String(plaintextPasskey).trim() }); }
+  finally { setTimeout(() => { _fbWriting = false; }, 200); }
+}
+
+// Project passkey read (for the unlock prompt) + per-device unlock record so
+// the strict rules permit this device to edit that project section's entries.
+async function dataReadProjectPasskey(base, num) {
+  try {
+    const snap = await _fb_getDoc(_fb_doc(_fbDb, 'project-secrets', _sectionDocId(base, num)));
+    return snap.exists() ? (snap.data().passkey || '') : '';
+  } catch (e) { console.error('dataReadProjectPasskey failed:', e); return ''; }
+}
+async function dataWriteProjectUnlock(base, num) {
+  const uid = fbCurrentUid();
+  if (!uid) return false;
+  const lockId = uid + '__' + _sectionDocId(base, num);   // uid__projects__num
+  _fbWriting = true;
+  try { await _fb_setDoc(_fb_doc(_fbDb, 'project-unlocks', lockId), { unlockedAt: _fb_serverTimestamp() }); return true; }
+  catch (e) { console.error('dataWriteProjectUnlock failed:', e); return false; }
+  finally { setTimeout(() => { _fbWriting = false; }, 200); }
+}
+async function dataDeleteProjectUnlock(base, num) {
+  const uid = fbCurrentUid();
+  if (!uid) return;
+  _fbWriting = true;
+  try { await _fb_deleteDoc(_fb_doc(_fbDb, 'project-unlocks', uid + '__' + _sectionDocId(base, num))); }
+  catch (e) { console.error('dataDeleteProjectUnlock failed:', e); }
   finally { setTimeout(() => { _fbWriting = false; }, 200); }
 }
 
