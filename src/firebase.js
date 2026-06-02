@@ -104,6 +104,17 @@ async function initFirebase() {
       console.error('Auth SDK load failed (continuing without it):', err);
     }
 
+    // ── NEW DATA MODEL (Phase B) ──
+    // When the flag is on, load + subscribe via the per-entity collections
+    // (data/model.js) and short-circuit the entire single-doc path below.
+    // Dormant today (flag is false); this is the B6 flip point.
+    if (USE_NEW_DATA_MODEL) {
+      await dataLoadAll();
+      dataSubscribe();
+      _fbReady = true;
+      return true;
+    }
+
     // If the previous session had unsaved writes pending (refresh happened
     // before the debounced fbSync fired or before the network round-trip
     // completed), the local cache is newer than Firestore for those keys.
@@ -293,6 +304,15 @@ function _fbFlushNow() {
 
 function fbSyncKey(key, value) {
   if (!_fbReady) return;
+  // NEW DATA MODEL (Phase B): route whole-array saves to per-doc collection
+  // writes. Dormant today (flag false). Keeps the save indicator behaviour.
+  if (USE_NEW_DATA_MODEL) {
+    _markPending([key]);
+    dataSyncKey(key, value)
+      .then(() => { _markPending([]); _renderSaveIndicator(false, true); })
+      .catch(err => console.error('dataSyncKey failed:', err));
+    return;
+  }
   _fbPendingWrite[key] = encodeForFirestore(key, value);
   _markPending(Object.keys(_fbPendingWrite));
   if (_fbWriteTimer) clearTimeout(_fbWriteTimer);
