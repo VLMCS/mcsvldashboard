@@ -333,6 +333,9 @@ function onDropSection(e) {
   if (tgtIdx === -1) { arr.splice(srcIdx, 0, moved); clearDragStyles(); return; }
   arr.splice(after ? tgtIdx + 1 : tgtIdx, 0, moved);
   renumberSectionsForBase(tgtBase);
+  // Capture the moved section's POST-renumber num so we can flash the
+  // accent color on its new sidebar row once the save settles.
+  const movedNewNum = String(moved.num);
   clearDragStyles();
   showSidebarSaving();
   // Section reorder rewrites entry IDs + section nums across the category —
@@ -357,8 +360,30 @@ function onDropSection(e) {
   // 10s ceiling so a stuck/dropped write can't lock the sidebar indefinitely.
   Promise.race([idleP, new Promise(r => setTimeout(r, 10000))]).then(() => {
     const wait = Math.max(0, 350 - (Date.now() - overlayStart));
-    setTimeout(hideSidebarSaving, wait);
+    setTimeout(() => {
+      hideSidebarSaving();
+      flashMovedSection(tgtBase, movedNewNum);
+    }, wait);
   });
+}
+
+// Briefly highlight the moved section's new sidebar row in the accent color
+// so the user can spot where it landed after the saving overlay clears.
+// Looks up the row in the live DOM (rather than relying on a stale node
+// reference) because renderSidebar may have replaced the entire sidebar
+// content between the drop and this call.
+function flashMovedSection(base, num) {
+  const row = [...document.querySelectorAll('.sb-parent')].find(el =>
+    el.dataset.sectionNum === String(num) && (el.dataset.base || 'handbook') === base
+  );
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  row.classList.remove('sb-just-moved');
+  // Reflow so re-adding the class restarts the animation if the user does
+  // a second reorder before the previous flash finished.
+  void row.offsetWidth;
+  row.classList.add('sb-just-moved');
+  setTimeout(() => row.classList.remove('sb-just-moved'), 1700);
 }
 
 function onDropSI(e) {
