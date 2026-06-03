@@ -202,6 +202,30 @@ async function _loginTryNewModel(raw, err, submitBtn) {
   }
 }
 
+// Full-screen dim backdrop + spinner shown DURING a sign-in. It sits above the
+// login overlay so the transition (which involves async Firebase work, then the
+// login box fading out and the dashboard building underneath) reads as one
+// smooth "signing you in…" beat instead of the button visibly snapping back to
+// its label — which looked like the click had failed.
+function _showLoginBusy(text) {
+  const el = document.getElementById('login-busy');
+  if (!el) return;
+  const t = document.getElementById('login-busy-text');
+  if (t && text) t.textContent = text;
+  el.classList.remove('fading-out');
+  el.classList.add('open');
+}
+function _setLoginBusyText(text) {
+  const t = document.getElementById('login-busy-text');
+  if (t && text) t.textContent = text;
+}
+function _hideLoginBusy() {
+  const el = document.getElementById('login-busy');
+  if (!el) return;
+  el.classList.add('fading-out');               // CSS fades opacity to 0 (0.25s)
+  setTimeout(() => { el.classList.remove('open'); el.classList.remove('fading-out'); }, 280);
+}
+
 // GUEST sign-in — no passkey. Binds this device read-only (see fbEnterGuest)
 // so the locked rules let the dashboard load, but keeps currentUser=null and
 // admin off, so every edit affordance stays hidden. Intended for demoing the
@@ -212,33 +236,38 @@ async function loginAsGuest() {
   const btn = document.getElementById('login-guest');
   if (err) err.textContent = '';
   const orig = btn ? btn.textContent : '';
+  // On any failure: drop the backdrop, restore the button, surface the message.
+  const fail = (msg) => {
+    _hideLoginBusy();
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+    if (err && msg) err.textContent = msg;
+  };
   if (btn) { btn.disabled = true; btn.textContent = 'Entering…'; }
+  _showLoginBusy('Signing you in…');
+
   try {
-    if (!USE_NEW_DATA_MODEL) {
-      // Old single-doc model has no per-device read gate — just enter view-only.
-      currentUser = null; currentUserPersistent = false;
-      isAdminMode = false; _isGuest = true;
-      try { sessionStorage.removeItem(LOGIN_KEY); } catch (e) {}
-      try { localStorage.setItem('vl_guest', '1'); } catch (e) {}
-      _bootProceedAfterLogin({ slackName: 'Guest', isAdmin: false, guest: true });
-      return;
-    }
-    if (_fbInitResult === null) { try { await _fbInitPromise; } catch (e) {} }
-    if (_fbInitResult !== true) {
-      if (err) err.textContent = "Couldn't reach the team server. Check your connection.";
-      return;
-    }
-    if (!await fbEnterGuest()) {
-      if (err) err.textContent = "Couldn't start a guest session. Try again, or sign in with a passkey.";
-      return;
+    if (USE_NEW_DATA_MODEL) {
+      if (_fbInitResult === null) { try { await _fbInitPromise; } catch (e) {} }
+      if (_fbInitResult !== true) { fail("Couldn't reach the team server. Check your connection."); return; }
+      if (!await fbEnterGuest()) { fail("Couldn't start a guest session. Try again, or sign in with a passkey."); return; }
     }
     currentUser = null; currentUserPersistent = false;
     isAdminMode = false; _boundIsAdmin = false; _isGuest = true;
-    try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
+    try { sessionStorage.removeItem(LOGIN_KEY); } catch (e) {}
+    if (USE_NEW_DATA_MODEL) { try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); } }
     try { localStorage.setItem('vl_guest', '1'); } catch (e) {}
-    _bootProceedAfterLogin({ slackName: 'Guest', isAdmin: false, guest: true });
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = orig; }
+
+    // Smooth handoff: keep the dim backdrop up, fade the login box out and build
+    // the dashboard behind it, then fade the backdrop away to reveal the ready
+    // dashboard. The reverting button is never visible.
+    _setLoginBusyText('Welcome — viewing as guest');
+    hideLogin();
+    _runMainBootstrap();
+    _renderSignOutChip();
+    setTimeout(_hideLoginBusy, 700);
+  } catch (e) {
+    console.error('guest sign-in failed:', e);
+    fail('Something went wrong starting the guest session. Please try again.');
   }
 }
 
