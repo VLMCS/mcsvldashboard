@@ -547,6 +547,66 @@ function allBaseIds() {
   for (const c of (CUSTOM_CATEGORIES || [])) if (c && c.id) out.push(c.id);
   return out;
 }
+
+// Sections in `base` participate in 1..N auto-numbering (drag-reorder + close
+// gaps after delete). Excludes 'projects' because project section numbers are
+// part of /project-secrets and /project-unlocks doc IDs — renumbering there
+// would orphan passkey + unlock records.
+function sectionsRenumberable(base) { return (base || 'handbook') !== 'projects'; }
+
+// Renumber sections of `base` to 1..N in their current array order, and
+// rewrite every entry ID under those sections to use its new section number.
+// Mutates in-memory arrays. No-op for 'projects'. Also rewrites the keys in
+// `expandedSections` and updates `currentSectionNum` / `currentEntryId` if the
+// active view targets a renumbered item, so the same logical row stays
+// selected. Returns { numRemap, idRemap } for callers that need to fix up
+// extra references (e.g. recently-viewed lists).
+function renumberSectionsForBase(base) {
+  base = base || 'handbook';
+  const numRemap = new Map();   // oldNum -> newNum
+  const idRemap  = new Map();   // oldEntryId -> newEntryId
+  if (!sectionsRenumberable(base)) return { numRemap, idRemap };
+  const sections = sectionsOf(base);
+  const entries  = entriesOf(base);
+  sections.forEach((sec, i) => {
+    const newNum = String(i + 1);
+    if (String(sec.num) !== newNum) numRemap.set(String(sec.num), newNum);
+    sec.num = newNum;
+  });
+  if (numRemap.size === 0) return { numRemap, idRemap };
+  for (const e of entries) {
+    const oldSec = sectionNumOf(e.id);
+    if (!numRemap.has(oldSec)) continue;
+    const newSec = numRemap.get(oldSec);
+    idRemap.set(e.id, newSec + String(e.id).slice(oldSec.length));
+  }
+  for (const e of entries) {
+    if (!idRemap.has(e.id)) continue;
+    e.id = idRemap.get(e.id);
+    const sec = findSection(sectionNumOf(e.id), base);
+    if (sec) e.section = `${sec.num}. ${sec.title}`;
+  }
+  // Migrate expandedSections keys (stored as "base:numOrId").
+  if (typeof expandedSections !== 'undefined' && expandedSections instanceof Set) {
+    for (const key of [...expandedSections]) {
+      const colon = key.indexOf(':');
+      if (colon === -1 || key.slice(0, colon) !== base) continue;
+      const v = key.slice(colon + 1);
+      const nv = idRemap.has(v) ? idRemap.get(v) : (numRemap.has(v) ? numRemap.get(v) : null);
+      if (nv !== null) { expandedSections.delete(key); expandedSections.add(base + ':' + nv); }
+    }
+  }
+  // Keep the active view pointing at the same logical item.
+  if (typeof currentBase !== 'undefined' && currentBase === base) {
+    if (currentView === 'entry' && currentEntryId && idRemap.has(currentEntryId)) {
+      currentEntryId = idRemap.get(currentEntryId);
+      currentSectionNum = sectionNumOf(currentEntryId);
+    } else if (currentSectionNum != null && numRemap.has(String(currentSectionNum))) {
+      currentSectionNum = numRemap.get(String(currentSectionNum));
+    }
+  }
+  return { numRemap, idRemap };
+}
 // Lookup an entry by id across all bases — returns { entry, base } or null.
 function findEntryAnywhere(id) {
   for (const base of allBaseIds()) {

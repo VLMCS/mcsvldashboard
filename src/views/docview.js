@@ -309,8 +309,12 @@ function dvNewSectionInline(base) {
   const itemLabel = base === 'projects' ? 'Project' : 'Section';
   const edId = `dvNSEC-ed-${base}`, tbId = `dvNSEC-tb-${base}`;
   if (document.getElementById(`${edId}__wrap`)) { document.getElementById(`${edId}__wrap`).scrollIntoView({ behavior:'smooth' }); return; }
-  const nums = sectionsOf(base).map(s => parseInt(s.num)).filter(n => !isNaN(n));
-  const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
+  // Handbook + custom categories auto-renumber to 1..N on save, so the new
+  // section will land at length+1 regardless of any current gaps. Projects
+  // keeps its existing max+1 numbering (renumbering disabled there).
+  const nextNum = sectionsRenumberable(base)
+    ? sectionsOf(base).length + 1
+    : (() => { const nums = sectionsOf(base).map(s => parseInt(s.num)).filter(n => !isNaN(n)); return nums.length ? Math.max(...nums) + 1 : 1; })();
   const pk = (base === 'projects' && isAdminMode) ? _dvPasskeyHtml(edId, generatePasskey()) : '';
   const html = `<div class="dv-inline-new" id="${edId}__wrap"><div class="dv-inline-new-title">New ${escapeHtml(itemLabel)} — number ${nextNum} assigned automatically</div>` +
     dvSectionFormHTML(itemLabel, edId, tbId, '', pk, `dvSaveNewSectionInline('${escJsAttr(base)}')`, '') + `</div>`;

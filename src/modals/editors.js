@@ -320,11 +320,22 @@ function saveSection() {
     });
   } else {
     // New section number is auto-assigned (next available), never typed.
+    // Use max+1 (not length+1) so the placeholder num doesn't collide with an
+    // existing section's num when renumberSectionsForBase runs immediately
+    // below — a collision would cause the numRemap to drop the old section's
+    // mapping and orphan its entries.
     const nums = sectionsArr.map(s => parseInt(s.num)).filter(n => !isNaN(n));
     const num = String(nums.length ? Math.max(...nums) + 1 : 1);
     const newSec = { num, title, description: desc };
     if (base === 'projects') { newSec.passkey = passkey || generatePasskey(); _projNum = num; _projPasskey = newSec.passkey; }
     sectionsArr.push(newSec);
+    if (sectionsRenumberable(base)) {
+      const { numRemap } = renumberSectionsForBase(base);
+      // The new section itself may have been renumbered (e.g. existing sections
+      // were 2..16, new pushed as 17, renumbered to 16). Keep _projNum in sync
+      // for the passkey write below (no-op when base !== 'projects', but cheap).
+      if (numRemap.has(num) && _projNum === num) _projNum = numRemap.get(num);
+    }
   }
 
   closeSectionModal();
@@ -363,6 +374,8 @@ async function deleteCurrentSection() {
       cc.sections = (cc.sections || []).filter(s => s.num !== editSectionNum);
     }
   }
+  // Close the gap left by the deleted section so the list stays 1..N.
+  renumberSectionsForBase(base);
   closeSectionModal();
   saveAll(`${label} deleted`);
   if (currentSectionNum === editSectionNum && currentBase === base) showHome();

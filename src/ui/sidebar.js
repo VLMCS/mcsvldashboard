@@ -91,7 +91,10 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
     const addEntryBtn = canEdit
       ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escJsAttr(sec.num)}','${escJsAttr(base)}')" title="Add entry">＋</button>`
       : '';
-    html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}">
+    const canReorderSection = isAdminMode && sectionsRenumberable(base);
+    const secDragHandle = canReorderSection ? `<span class="drag-handle" title="Drag to reorder section">⠿</span>` : '';
+    html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}" ${canReorderSection?'draggable="true"':''}>
+      ${secDragHandle}
       <span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escJsAttr(sec.num)}','${escJsAttr(base)}')">▶</span>
       <span class="sb-parent-text" onclick="showSection('${escJsAttr(sec.num)}','${escJsAttr(base)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>
       ${lockBtn}
@@ -197,6 +200,14 @@ function attachSidebarDnD() {
     el.addEventListener('drop', onDropEntry);
     el.addEventListener('dragend', onDragEnd);
   });
+  // Sections (draggable within their category — handbook + custom only)
+  document.querySelectorAll('.sb-parent[draggable]').forEach(el => {
+    el.addEventListener('dragstart', e => onDragStart(e, 'section'));
+    el.addEventListener('dragover', onDragOver);
+    el.addEventListener('dragleave', onDragLeave);
+    el.addEventListener('drop', onDropSection);
+    el.addEventListener('dragend', onDragEnd);
+  });
   // SI Items
   document.querySelectorAll('.sb-link[draggable]').forEach(el => {
     el.addEventListener('dragstart', e => onDragStart(e, 'siItem'));
@@ -214,6 +225,11 @@ function onDragStart(e, type) {
   if (type === 'entry') {
     dragSrcSection = e.currentTarget.dataset.sectionNum;
     dragSrcItemId = e.currentTarget.dataset.entryId;
+  } else if (type === 'section') {
+    // For sections, dragSrcSection holds the BASE (category id) and
+    // dragSrcItemId holds the section num being dragged.
+    dragSrcSection = e.currentTarget.dataset.base || 'handbook';
+    dragSrcItemId = e.currentTarget.dataset.sectionNum;
   } else {
     dragSrcSection = e.currentTarget.dataset.sectionId;
     dragSrcItemId = e.currentTarget.dataset.itemId;
@@ -260,6 +276,42 @@ function onDropEntry(e) {
   clearDragStyles();
   saveSidebarOnly();
   renderSidebar();
+}
+
+function onDropSection(e) {
+  e.preventDefault();
+  if (!isAdminMode || dragSrcType !== 'section') { clearDragStyles(); return; }
+  const tgtBase = e.currentTarget.dataset.base || 'handbook';
+  const tgtSecNum = e.currentTarget.dataset.sectionNum;
+  // No cross-category drops, no self-drops, no drops into a non-renumberable base.
+  if (dragSrcSection !== tgtBase) { clearDragStyles(); return; }
+  if (!sectionsRenumberable(tgtBase)) { clearDragStyles(); return; }
+  if (dragSrcItemId === tgtSecNum) { clearDragStyles(); return; }
+  const arr = sectionsOf(tgtBase);
+  const srcIdx = arr.findIndex(s => String(s.num) === String(dragSrcItemId));
+  if (srcIdx === -1) { clearDragStyles(); return; }
+  const [moved] = arr.splice(srcIdx, 1);
+  const rect = e.currentTarget.getBoundingClientRect();
+  const after = e.clientY >= rect.top + rect.height / 2;
+  const tgtIdx = arr.findIndex(s => String(s.num) === String(tgtSecNum));
+  if (tgtIdx === -1) { arr.splice(srcIdx, 0, moved); clearDragStyles(); return; }
+  arr.splice(after ? tgtIdx + 1 : tgtIdx, 0, moved);
+  renumberSectionsForBase(tgtBase);
+  clearDragStyles();
+  // Section reorder rewrites entry IDs + section nums across the category —
+  // saveAll covers sections, entries (handbook/projects/per-category), and
+  // custom-category metadata.
+  saveAll('Section moved');
+  renderSidebar();
+  if (currentView === 'section' && currentBase === tgtBase && currentSectionNum) {
+    showSection(currentSectionNum, tgtBase);
+  } else if (currentView === 'entry' && currentBase === tgtBase && currentEntryId) {
+    showEntry(currentEntryId, tgtBase);
+  } else if (currentView === 'category' && currentCategoryId === tgtBase) {
+    if (typeof showCategoryOverview === 'function') showCategoryOverview(currentCategoryId, currentCategoryType);
+  } else if (currentView === 'docview') {
+    if (typeof renderDocView === 'function') renderDocView();
+  }
 }
 
 function onDropSI(e) {
