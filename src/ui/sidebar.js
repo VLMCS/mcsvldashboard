@@ -92,8 +92,13 @@ function _renderKbSection(base, label, sectionsArr, emptyHint, addLabel) {
       ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewEntryEditor('${escJsAttr(sec.num)}','${escJsAttr(base)}')" title="Add entry">＋</button>`
       : '';
     const canReorderSection = isAdminMode && sectionsRenumberable(base);
-    const secDragHandle = canReorderSection ? `<span class="drag-handle" title="Drag to reorder section">⠿</span>` : '';
-    html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}" ${canReorderSection?'draggable="true"':''}>
+    // draggable goes on the handle (not the row) so dragstart can only fire
+    // from the handle — no risk of accidentally starting a drag from clicking
+    // the row title, and no need for an e.target.closest gate (which fails
+    // when the mousedown lands a pixel off the ⠿ glyph onto the parent's flex
+    // gap and reports e.target as the row itself).
+    const secDragHandle = canReorderSection ? `<span class="drag-handle" draggable="true" title="Drag to reorder section">⠿</span>` : '';
+    html += `<div class="sb-parent${isActiveParent?' active':''}" data-section-num="${escAttr(sec.num)}" data-base="${escAttr(base)}">
       ${secDragHandle}
       <span class="sb-chevron${isExpanded?' expanded':''}" onclick="event.stopPropagation();toggleSectionExpand('${escJsAttr(sec.num)}','${escJsAttr(base)}')">▶</span>
       <span class="sb-parent-text" onclick="showSection('${escJsAttr(sec.num)}','${escJsAttr(base)}')">${escapeHtml(sec.num + '. ' + sec.title)}</span>
@@ -200,13 +205,19 @@ function attachSidebarDnD() {
     el.addEventListener('drop', onDropEntry);
     el.addEventListener('dragend', onDragEnd);
   });
-  // Sections (draggable within their category — handbook + custom only)
-  document.querySelectorAll('.sb-parent[draggable]').forEach(el => {
-    el.addEventListener('dragstart', e => onDragStart(e, 'section'));
+  // Sections (draggable within their category — handbook + custom only).
+  // dragstart fires from the .drag-handle SPAN itself (so it's the only
+  // valid drag origin); the .sb-parent row is the drop target. We only
+  // wire drop on rows that ALSO have a handle, so projects rows (which we
+  // exclude from renumbering) never show drop-here feedback.
+  document.querySelectorAll('.sb-parent').forEach(el => {
+    const handle = el.querySelector(':scope > .drag-handle[draggable]');
+    if (!handle) return;
+    handle.addEventListener('dragstart', e => onDragStart(e, 'section'));
+    handle.addEventListener('dragend', onDragEnd);
     el.addEventListener('dragover', onDragOver);
     el.addEventListener('dragleave', onDragLeave);
     el.addEventListener('drop', onDropSection);
-    el.addEventListener('dragend', onDragEnd);
   });
   // SI Items
   document.querySelectorAll('.sb-link[draggable]').forEach(el => {
@@ -220,23 +231,34 @@ function attachSidebarDnD() {
 
 function onDragStart(e, type) {
   if (!isAdminMode) { e.preventDefault(); return; }
-  if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
   dragSrcType = type;
   if (type === 'entry') {
+    // entry drag handle gate (dragstart fires on the row, not the handle)
+    if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
     dragSrcSection = e.currentTarget.dataset.sectionNum;
     dragSrcItemId = e.currentTarget.dataset.entryId;
   } else if (type === 'section') {
-    // For sections, dragSrcSection holds the BASE (category id) and
-    // dragSrcItemId holds the section num being dragged.
-    dragSrcSection = e.currentTarget.dataset.base || 'handbook';
-    dragSrcItemId = e.currentTarget.dataset.sectionNum;
+    // dragstart fires on the .drag-handle span itself (the row isn't
+    // draggable). Read the section context from the surrounding .sb-parent.
+    const row = e.currentTarget.closest('.sb-parent');
+    if (!row) { e.preventDefault(); return; }
+    dragSrcSection = row.dataset.base || 'handbook';
+    dragSrcItemId = row.dataset.sectionNum;
   } else {
+    if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
     dragSrcSection = e.currentTarget.dataset.sectionId;
     dragSrcItemId = e.currentTarget.dataset.itemId;
   }
+  if (!dragSrcItemId) { e.preventDefault(); return; }
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', dragSrcItemId);
-  setTimeout(() => e.currentTarget.classList.add('dragging'), 0);
+  const rowEl = type === 'section' ? (e.currentTarget.closest('.sb-parent') || e.currentTarget) : e.currentTarget;
+  // For section drag the dragstart target is the small ⠿ handle — use the
+  // whole row as the drag preview so the user sees what's actually moving.
+  if (type === 'section' && rowEl !== e.currentTarget && e.dataTransfer.setDragImage) {
+    try { e.dataTransfer.setDragImage(rowEl, 12, rowEl.offsetHeight / 2); } catch (err) {}
+  }
+  setTimeout(() => rowEl.classList.add('dragging'), 0);
 }
 function onDragOver(e) {
   if (!isAdminMode || !dragSrcItemId) return;
