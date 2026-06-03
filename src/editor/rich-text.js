@@ -320,7 +320,8 @@ async function initEditor(editorId, toolbarId, content) {
   }
   if (!document.body.contains(mount)) return;   // modal closed while loading
   const placeholder = mount.getAttribute('data-placeholder') || 'Write here…';
-  const editor = new T.Editor({
+  let editor;
+  editor = new T.Editor({
     element: mount,
     extensions: [
       T.StarterKit.configure({ heading: { levels: [1,2,3,4] } }),
@@ -339,7 +340,21 @@ async function initEditor(editorId, toolbarId, content) {
     content: content || '',
     editorProps: {
       attributes: { class: 'rt-prose' },
-      handlePaste: (view, event) => rtHandleImagePaste(editorId, event)
+      handlePaste: (view, event) => rtHandleImagePaste(editorId, event),
+      // Shift+Enter normally inserts a soft <br> (HardBreak). ProseMirror
+      // also collapses consecutive hard breaks in some paths, so pressing
+      // it multiple times to "add space" doesn't produce visible spacing.
+      // Override it to split the block — same effect as Enter — so the
+      // user reliably gets a new paragraph with paragraph margin every
+      // time. Plain Enter is unchanged.
+      handleKeyDown: (_view, event) => {
+        if (event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          event.preventDefault();
+          editor.chain().focus().splitBlock().run();
+          return true;
+        }
+        return false;
+      }
     },
     onSelectionUpdate: () => rtUpdateToolbar(editorId),
     onTransaction: () => rtUpdateToolbar(editorId)

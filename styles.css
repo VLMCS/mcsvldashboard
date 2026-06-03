@@ -768,9 +768,16 @@
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h2 { font-size: 1.5em; font-weight: 700; line-height: 1.28; margin: 0.6em 0 0.3em; }
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h3 { font-size: 1.28em; font-weight: 700; line-height: 1.3; margin: 0.55em 0 0.3em; }
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) h4 { font-size: 1.1em; font-weight: 700; line-height: 1.35; margin: 0.5em 0 0.25em; }
-  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) p { margin: 0.5em 0; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) p { margin: 0 0 1em; }
+  /* Empty paragraphs (e.g. blank lines the user inserts by hitting Enter on
+     an empty line) collapse to zero height without explicit content. Force
+     them to one line of height so they read as a visible blank line —
+     otherwise multiple Enter presses look like one. */
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) p:empty {
+    min-height: 1em;
+  }
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul,
-  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ol { margin: 0.4em 0 0.4em 22px; }
+  :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ol { margin: 0 0 1em 22px; }
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ul { list-style: disc; }
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) ol { list-style: decimal; }
   :is(.rt-prose, .entry-content, .dv-entry-content, .section-desc) li { margin: 0.15em 0; }
