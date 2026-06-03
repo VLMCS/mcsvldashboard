@@ -262,11 +262,18 @@ function parseKpiCsv(text) {
         weight     = catWeight;
         maxScore   = catMax;
       } else if (rating > 0) {
-        // Box-ticked path (legacy CSVs): derive per-metric weight from the
-        // ticked cell so each metric keeps its own Sheet-formula weight.
+        // Box-ticked path. Rating is exactly the ticked box (1–5) and the
+        // SCORE is whatever the Sheet wrote into col 8 (= rating × the
+        // Sheet's old per-metric weight, typically 4 or 5). We deliberately
+        // do NOT re-derive a per-metric weight here — in mixed CSVs that
+        // pair box-ticked and column-C-overridden metrics in the same
+        // category, deriving per-metric maxScore from the box cell gives
+        // a different denominator than the override path (which uses
+        // catMax). Using catMax for every metric keeps the category bar
+        // on a single /catMax scale (e.g. /30 for Creative, not /28).
         finalScore = isFinite(totalCol8) && totalCol8 > 0 ? totalCol8 : score;
-        weight     = +(finalScore / rating).toFixed(3);
-        maxScore   = +(weight * 5).toFixed(3);
+        weight     = catWeight;
+        maxScore   = catMax;
       } else {
         // No box ticked and no col-2 override — accept col 8 as a soft
         // fallback (split CSVs that only fill the total column) so the
