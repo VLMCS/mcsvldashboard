@@ -331,7 +331,8 @@ let lightboxZoom = 1;
 
 let dragSrcSection = null;
 let dragSrcItemId = null;
-let dragSrcType = null; // 'entry' | 'siItem'
+let dragSrcType = null;     // 'entry' | 'section' | 'siItem'
+let dragSrcBase = null;     // base id for 'entry' and 'section' drags (cross-base drops are rejected)
 
 let editEntryId = null;
 let editEntryPresetId = null;     // preset (auto) id for a new entry/sub being created via the modal
@@ -606,6 +607,73 @@ function renumberSectionsForBase(base) {
     }
   }
   return { numRemap, idRemap };
+}
+
+// Renumber the direct children of `parentId` (which can be a section number
+// like "14" OR an entry id like "14.2") to take positions 0..N-1 in the order
+// given by `orderedChildren` (an array of entry objects already present in
+// entriesOf(base)). Cascades the rename to EVERY descendant of every renamed
+// child (a child's subtree follows when its root id changes). Mutates the
+// entries in place. Also migrates expandedSections keys and the active-view
+// globals so the same logical entry stays selected. Returns Map(oldEntryId →
+// newEntryId).
+//
+// Naming follows the same depth-alternating pattern as suggestChildId: a
+// parent at length L gets children with last-segment numbers when L+1 is
+// even ("14"→"14.1", "14.2") and letters when L+1 is odd ("14.1"→"14.1.a").
+function renumberChildrenInOrder(parentId, base, orderedChildren) {
+  base = base || 'handbook';
+  const idRemap = new Map();
+  if (!Array.isArray(orderedChildren) || orderedChildren.length === 0) return idRemap;
+  const parentStr = String(parentId);
+  const childLen = idComponents(parentStr).length + 1;
+  const useLetter = (childLen % 2 === 1);
+  for (let i = 0; i < orderedChildren.length; i++) {
+    const kid = orderedChildren[i];
+    if (!kid || !kid.id) continue;
+    const newLast = useLetter ? letterFor(i) : String(i + 1);
+    const newKidId = parentStr + '.' + newLast;
+    if (kid.id === newKidId) continue;
+    idRemap.set(kid.id, newKidId);
+    // Cascade: every descendant of this kid inherits the new prefix.
+    for (const d of descendantsOf(kid.id, base)) {
+      idRemap.set(d.id, newKidId + d.id.slice(kid.id.length));
+    }
+  }
+  if (idRemap.size === 0) return idRemap;
+  const arr = entriesOf(base);
+  for (const e of arr) {
+    if (!idRemap.has(e.id)) continue;
+    e.id = idRemap.get(e.id);
+    const sec = findSection(sectionNumOf(e.id), base);
+    if (sec) e.section = `${sec.num}. ${sec.title}`;
+  }
+  // Re-sort the array by natural id order so childrenOf (which preserves
+  // array order) returns the user's intended order on the very next render.
+  // A swap-style reorder (e.g. 14.2 ↔ 14.1) only rewrites IDs without
+  // moving array positions, so without this resort the new "14.1" still
+  // lives at the old "14.2" slot in the array and the rows render in the
+  // wrong order until the next snapshot rebuild sorts it for us.
+  if (typeof _natCmpId === 'function') arr.sort((x, y) => _natCmpId(x.id, y.id));
+  // Migrate expandedSections keys (entry ids appear as "base:entryId").
+  if (typeof expandedSections !== 'undefined' && expandedSections instanceof Set) {
+    for (const key of [...expandedSections]) {
+      const colon = key.indexOf(':');
+      if (colon === -1 || key.slice(0, colon) !== base) continue;
+      const v = key.slice(colon + 1);
+      if (idRemap.has(v)) {
+        expandedSections.delete(key);
+        expandedSections.add(base + ':' + idRemap.get(v));
+      }
+    }
+  }
+  // Keep the active view pointing at the same logical entry.
+  if (typeof currentBase !== 'undefined' && currentBase === base
+      && currentView === 'entry' && currentEntryId && idRemap.has(currentEntryId)) {
+    currentEntryId = idRemap.get(currentEntryId);
+    currentSectionNum = sectionNumOf(currentEntryId);
+  }
+  return idRemap;
 }
 // Lookup an entry by id across all bases — returns { entry, base } or null.
 function findEntryAnywhere(id) {

@@ -170,7 +170,8 @@
      `animation-delay: -<elapsed>s` inline when re-rendering during a flash
      so the animation continues from where it was instead of restarting from
      0 each time a snapshot echo rebuilds the sidebar. */
-  .sb-parent.sb-just-moved {
+  .sb-parent.sb-just-moved,
+  .sb-child.sb-just-moved {
     animation: sb-just-moved-pulse 2.4s ease-out forwards;
   }
   @keyframes sb-just-moved-pulse {
@@ -182,7 +183,8 @@
     80%  { background: var(--admin-accent) !important; color: #fff !important; box-shadow: 0 0 0 2px var(--admin-accent); }
     100% { background: transparent; color: inherit; box-shadow: 0 0 0 0 transparent; }
   }
-  body.dark .sb-parent.sb-just-moved {
+  body.dark .sb-parent.sb-just-moved,
+  body.dark .sb-child.sb-just-moved {
     animation-name: sb-just-moved-pulse-dark;
   }
   @keyframes sb-just-moved-pulse-dark {

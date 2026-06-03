@@ -44,8 +44,12 @@ function _renderEntryBranch(entry, base, canEdit, depth) {
     ? `<button class="sb-add-btn" onclick="event.stopPropagation();openNewSubEntry('${escJsAttr(entry.id)}','${escJsAttr(base)}')" title="Add sub-entry">＋</button>`
     : '';
 
-  let html = `<div class="sb-child${isActive?' active':''}" style="padding-left:${indent}px" data-entry-id="${escAttr(entry.id)}" data-section-num="${escAttr(sectionNumOf(entry.id))}" data-base="${escAttr(base)}" ${canEdit?'draggable="true"':''}>
-    ${canEdit ? `<span class="drag-handle" title="Drag to reorder">⠿</span>` : ''}
+  // draggable goes on the handle span (not the row) so dragstart only fires
+  // when the user grabs the ⠿, matching the section-drag pattern. The row
+  // remains the drop target.
+  const entryDragHandle = canEdit ? `<span class="drag-handle" draggable="true" title="Drag to reorder or move to another section">⠿</span>` : '';
+  let html = `<div class="sb-child${isActive?' active':''}" style="padding-left:${indent}px" data-entry-id="${escAttr(entry.id)}" data-section-num="${escAttr(sectionNumOf(entry.id))}" data-base="${escAttr(base)}">
+    ${entryDragHandle}
     ${chevron}
     <span class="sb-child-text" onclick="showEntry('${escJsAttr(entry.id)}','${escJsAttr(base)}')">${escapeHtml(entry.id + ' ' + entry.title)}</span>
     ${addSubBtn}
@@ -201,24 +205,26 @@ function toggleSectionExpand(num, base) {
    DRAG & DROP
    ══════════════════════════════════════════ */
 function attachSidebarDnD() {
-  // Entries (draggable within section)
-  document.querySelectorAll('.sb-child[draggable]').forEach(el => {
-    el.addEventListener('dragstart', e => onDragStart(e, 'entry'));
+  // Entries — dragstart fires from the handle span, drop target is the row.
+  document.querySelectorAll('.sb-child').forEach(el => {
+    const handle = el.querySelector(':scope > .drag-handle[draggable]');
+    if (handle) {
+      handle.addEventListener('dragstart', e => onDragStart(e, 'entry'));
+      handle.addEventListener('dragend', onDragEnd);
+    }
     el.addEventListener('dragover', onDragOver);
     el.addEventListener('dragleave', onDragLeave);
     el.addEventListener('drop', onDropEntry);
-    el.addEventListener('dragend', onDragEnd);
   });
-  // Sections (draggable within their category — handbook + custom only).
-  // dragstart fires from the .drag-handle SPAN itself (so it's the only
-  // valid drag origin); the .sb-parent row is the drop target. We only
-  // wire drop on rows that ALSO have a handle, so projects rows (which we
-  // exclude from renumbering) never show drop-here feedback.
+  // Sections — dragstart fires from the handle (only present on renumberable
+  // bases). Drop is wired on EVERY .sb-parent so entries can also be dropped
+  // onto a section header to move them into that section.
   document.querySelectorAll('.sb-parent').forEach(el => {
     const handle = el.querySelector(':scope > .drag-handle[draggable]');
-    if (!handle) return;
-    handle.addEventListener('dragstart', e => onDragStart(e, 'section'));
-    handle.addEventListener('dragend', onDragEnd);
+    if (handle) {
+      handle.addEventListener('dragstart', e => onDragStart(e, 'section'));
+      handle.addEventListener('dragend', onDragEnd);
+    }
     el.addEventListener('dragover', onDragOver);
     el.addEventListener('dragleave', onDragLeave);
     el.addEventListener('drop', onDropSection);
@@ -236,30 +242,36 @@ function attachSidebarDnD() {
 function onDragStart(e, type) {
   if (!isAdminMode) { e.preventDefault(); return; }
   dragSrcType = type;
+  // The handle span is the drag origin for all types now; the row that
+  // describes the data lives one level up (.sb-child for entries,
+  // .sb-parent for sections, .sb-link for quick links).
   if (type === 'entry') {
-    // entry drag handle gate (dragstart fires on the row, not the handle)
-    if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
-    dragSrcSection = e.currentTarget.dataset.sectionNum;
-    dragSrcItemId = e.currentTarget.dataset.entryId;
+    const row = e.currentTarget.closest('.sb-child');
+    if (!row) { e.preventDefault(); return; }
+    dragSrcBase = row.dataset.base || 'handbook';
+    dragSrcSection = row.dataset.sectionNum;
+    dragSrcItemId = row.dataset.entryId;
   } else if (type === 'section') {
-    // dragstart fires on the .drag-handle span itself (the row isn't
-    // draggable). Read the section context from the surrounding .sb-parent.
     const row = e.currentTarget.closest('.sb-parent');
     if (!row) { e.preventDefault(); return; }
-    dragSrcSection = row.dataset.base || 'handbook';
+    dragSrcBase = row.dataset.base || 'handbook';
+    dragSrcSection = dragSrcBase; // back-compat for any callers reading dragSrcSection
     dragSrcItemId = row.dataset.sectionNum;
   } else {
     if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+    dragSrcBase = null;
     dragSrcSection = e.currentTarget.dataset.sectionId;
     dragSrcItemId = e.currentTarget.dataset.itemId;
   }
   if (!dragSrcItemId) { e.preventDefault(); return; }
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', dragSrcItemId);
-  const rowEl = type === 'section' ? (e.currentTarget.closest('.sb-parent') || e.currentTarget) : e.currentTarget;
-  // For section drag the dragstart target is the small ⠿ handle — use the
-  // whole row as the drag preview so the user sees what's actually moving.
-  if (type === 'section' && rowEl !== e.currentTarget && e.dataTransfer.setDragImage) {
+  // Whole row is the visible drag preview, not the small ⠿ handle.
+  const rowEl =
+    type === 'section' ? (e.currentTarget.closest('.sb-parent') || e.currentTarget)
+  : type === 'entry'   ? (e.currentTarget.closest('.sb-child')  || e.currentTarget)
+  :                       e.currentTarget;
+  if (rowEl !== e.currentTarget && e.dataTransfer.setDragImage) {
     try { e.dataTransfer.setDragImage(rowEl, 12, rowEl.offsetHeight / 2); } catch (err) {}
   }
   setTimeout(() => rowEl.classList.add('dragging'), 0);
@@ -273,35 +285,104 @@ function onDragOver(e) {
   e.currentTarget.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-above' : 'drag-over-below');
 }
 function onDragLeave(e) { e.currentTarget.classList.remove('drag-over-above','drag-over-below'); }
-function onDragEnd() { clearDragStyles(); dragSrcType=dragSrcSection=dragSrcItemId=null; }
+function onDragEnd() { clearDragStyles(); dragSrcType=dragSrcSection=dragSrcItemId=dragSrcBase=null; }
 function clearDragStyles() {
   document.querySelectorAll('.drag-over-above,.drag-over-below,.dragging').forEach(el => el.classList.remove('drag-over-above','drag-over-below','dragging'));
 }
 
 function onDropEntry(e) {
   e.preventDefault();
-  if (!isAdminMode || dragSrcType !== 'entry') return;
-  const tgtSection = e.currentTarget.dataset.sectionNum;
+  if (!isAdminMode || dragSrcType !== 'entry') { clearDragStyles(); return; }
+  const tgtBase    = e.currentTarget.dataset.base || 'handbook';
   const tgtEntryId = e.currentTarget.dataset.entryId;
-  const tgtBase = e.currentTarget.dataset.base || 'handbook';
-  const srcBase = (document.querySelector('.sb-child.dragging')||{}).dataset && document.querySelector('.sb-child.dragging').dataset.base || 'handbook';
-  if (srcBase !== tgtBase) { clearDragStyles(); return; } // no cross-base drops
-  if (dragSrcSection !== tgtSection) { clearDragStyles(); return; }
+  if (dragSrcBase !== tgtBase) { clearDragStyles(); return; }   // no cross-base
   if (dragSrcItemId === tgtEntryId) { clearDragStyles(); return; }
-  // Only allow reordering between true siblings (same parent in the tree).
-  if (String(parentOf(dragSrcItemId)) !== String(parentOf(tgtEntryId))) { clearDragStyles(); return; }
-  const arr = entriesOf(tgtBase);
-  const srcEntry = arr.find(en => en.id === dragSrcItemId);
-  const allIdxOfSrc = arr.findIndex(en => en.id === dragSrcItemId);
-  if (allIdxOfSrc === -1) { clearDragStyles(); return; }
-  arr.splice(allIdxOfSrc, 1);
+  const srcEntry = findEntry(dragSrcItemId, tgtBase);
+  const tgtEntry = findEntry(tgtEntryId, tgtBase);
+  if (!srcEntry || !tgtEntry) { clearDragStyles(); return; }
+  // Reject dropping a node onto one of its own descendants (would create a cycle).
+  if (String(tgtEntryId).startsWith(srcEntry.id + '.')) { clearDragStyles(); return; }
+  // Source becomes a sibling of the target — same parent in the tree.
+  const newParent = parentOf(tgtEntry.id);
+  const oldParent = parentOf(srcEntry.id);
+  let newSiblings = childrenOf(newParent, tgtBase).filter(s => s.id !== srcEntry.id);
+  const tgtIdx = newSiblings.findIndex(s => s.id === tgtEntryId);
   const rect = e.currentTarget.getBoundingClientRect();
   const after = e.clientY >= rect.top + rect.height / 2;
-  const newTgtIdx = arr.findIndex(en => en.id === tgtEntryId);
-  arr.splice(after ? newTgtIdx + 1 : newTgtIdx, 0, srcEntry);
+  if (tgtIdx === -1) newSiblings.push(srcEntry);
+  else newSiblings.splice(after ? tgtIdx + 1 : tgtIdx, 0, srcEntry);
+  _commitEntryMove(srcEntry, oldParent, newParent, newSiblings, tgtBase);
+}
+
+// Shared tail for entry moves (same-parent reorder OR cross-section/cross-
+// parent move via onDropEntry / onDropSection). Renumbers the new parent's
+// children to match the supplied order (cascading to descendants), then
+// closes the gap in the old parent if the move crossed parents. Wraps the
+// save in the same overlay + flash pattern as section reorder.
+function _commitEntryMove(srcEntry, oldParent, newParent, newSiblings, base) {
+  // Depth guard: the entry-id naming style alternates between numbers and
+  // letters by depth (parent at length 1 → numeric children "14.1", parent
+  // at length 2 → letter children "14.1.a"). A cross-depth drop would
+  // require re-styling every descendant's last segment, not just rewriting
+  // the prefix. Reject those drops for now — both of the user-requested
+  // cases (sibling reorder, cross-section move at the section level) are
+  // depth-preserving and still work.
+  const newParentLen = idComponents(String(newParent)).length;
+  const oldParentLen = idComponents(String(oldParent)).length;
+  if (newParentLen !== oldParentLen) {
+    clearDragStyles();
+    if (typeof showToast === 'function') {
+      showToast('Use Edit Entry to change nesting depth — drag only reorders within the same level.');
+    }
+    return;
+  }
+  renumberChildrenInOrder(newParent, base, newSiblings);
+  if (String(oldParent) !== String(newParent)) {
+    // Source's row is gone from oldParent's children now (its id was rewritten)
+    // — childrenOf returns the survivors in their current array order.
+    renumberChildrenInOrder(oldParent, base, childrenOf(oldParent, base));
+  }
+  const movedNewId = srcEntry.id; // mutated by renumberChildrenInOrder
   clearDragStyles();
-  saveSidebarOnly();
+  showSidebarSaving();
+  saveAll('Entry moved');
   renderSidebar();
+  if (currentView === 'entry' && currentBase === base && currentEntryId) {
+    showEntry(currentEntryId, base);
+  } else if (currentView === 'section' && currentBase === base && currentSectionNum) {
+    showSection(currentSectionNum, base);
+  } else if (currentView === 'category' && currentCategoryId === base) {
+    if (typeof showCategoryOverview === 'function') showCategoryOverview(currentCategoryId, currentCategoryType);
+  } else if (currentView === 'docview') {
+    if (typeof renderDocView === 'function') renderDocView();
+  }
+  const overlayStart = Date.now();
+  const idleP = (typeof fbWritesIdle === 'function') ? fbWritesIdle() : Promise.resolve();
+  Promise.race([idleP, new Promise(r => setTimeout(r, 10000))]).then(() => {
+    const wait = Math.max(0, 350 - (Date.now() - overlayStart));
+    setTimeout(() => {
+      hideSidebarSaving();
+      // Make sure the section that now holds the entry is expanded so the
+      // flash is actually visible (the user can't see a row that's hidden
+      // inside a collapsed branch).
+      const ancestorIds = [];
+      let cur = parentOf(movedNewId);
+      while (cur) { ancestorIds.push(cur); cur = parentOf(cur); }
+      // The outermost ancestor is the section num — expand that branch + every
+      // intermediate entry so the row renders.
+      let expanded = false;
+      for (const a of ancestorIds) {
+        const k = expandKey(base, a);
+        if (!expandedSections.has(k)) { expandedSections.add(k); expanded = true; }
+      }
+      if (expanded) { saveExpandedOnly(); renderSidebar(); }
+      const row = [...document.querySelectorAll('.sb-child')].find(el =>
+        el.dataset.entryId === String(movedNewId) && (el.dataset.base || 'handbook') === base
+      );
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      startEntryFlash(base, movedNewId);
+    }, wait);
+  });
 }
 
 // Toggle the sidebar's "saving in progress" overlay. Hides the sidebar
@@ -323,10 +404,12 @@ function hideSidebarSaving() {
    own writes arrive after fbWritesIdle resolves (without this, the
    .sb-just-moved class gets wiped half a second into the animation). */
 const FLASH_DURATION_MS = 2400;
-let _justMovedFlash = null; // { base, num, startedAt }
+let _justMovedFlash = null; // { base, kind: 'section' | 'entry', id, startedAt }
 
-function startSectionFlash(base, num) {
-  _justMovedFlash = { base, num: String(num), startedAt: Date.now() };
+function startSectionFlash(base, num) { _startFlash(base, 'section', num); }
+function startEntryFlash(base, id)    { _startFlash(base, 'entry',   id); }
+function _startFlash(base, kind, id) {
+  _justMovedFlash = { base, kind, id: String(id), startedAt: Date.now() };
   applyPendingSectionFlash();
   setTimeout(() => {
     if (_justMovedFlash && Date.now() - _justMovedFlash.startedAt >= FLASH_DURATION_MS) {
@@ -335,20 +418,27 @@ function startSectionFlash(base, num) {
   }, FLASH_DURATION_MS + 50);
 }
 
-// Re-applies the flash class to the matching .sb-parent row after a
-// renderSidebar call. Uses a negative animation-delay so the pulse picks
-// up where it left off instead of restarting from frame 0 each time.
+// Re-applies the flash class to the matching .sb-parent / .sb-child row
+// after a renderSidebar call. Uses a negative animation-delay so the pulse
+// picks up where it left off instead of restarting from frame 0 each time.
+// Name kept for back-compat with the renderSidebar hook.
 function applyPendingSectionFlash() {
   if (!_justMovedFlash) return;
   const elapsed = Date.now() - _justMovedFlash.startedAt;
   if (elapsed >= FLASH_DURATION_MS) { _justMovedFlash = null; return; }
-  const { base, num } = _justMovedFlash;
-  const row = [...document.querySelectorAll('.sb-parent')].find(el =>
-    el.dataset.sectionNum === String(num) && (el.dataset.base || 'handbook') === base
-  );
+  const { base, kind, id } = _justMovedFlash;
+  let row;
+  if (kind === 'entry') {
+    row = [...document.querySelectorAll('.sb-child')].find(el =>
+      el.dataset.entryId === id && (el.dataset.base || 'handbook') === base
+    );
+  } else {
+    row = [...document.querySelectorAll('.sb-parent')].find(el =>
+      el.dataset.sectionNum === id && (el.dataset.base || 'handbook') === base
+    );
+  }
   if (!row) return;
   row.style.animationDelay = `-${(elapsed / 1000).toFixed(3)}s`;
-  // Force restart so we don't fight a partially-completed prior animation
   row.classList.remove('sb-just-moved');
   void row.offsetWidth;
   row.classList.add('sb-just-moved');
@@ -356,11 +446,30 @@ function applyPendingSectionFlash() {
 
 function onDropSection(e) {
   e.preventDefault();
-  if (!isAdminMode || dragSrcType !== 'section') { clearDragStyles(); return; }
+  if (!isAdminMode) { clearDragStyles(); return; }
+  // Entry dropped onto a section header → move that entry into this section
+  // as its last direct child. Works for any base (including projects);
+  // renumberChildrenInOrder only touches entry IDs, not section nums or
+  // /project-secrets keys.
+  if (dragSrcType === 'entry') {
+    const tgtBase = e.currentTarget.dataset.base || 'handbook';
+    const tgtSecNum = e.currentTarget.dataset.sectionNum;
+    if (dragSrcBase !== tgtBase) { clearDragStyles(); return; } // no cross-base
+    const srcEntry = findEntry(dragSrcItemId, tgtBase);
+    if (!srcEntry) { clearDragStyles(); return; }
+    const oldParent = parentOf(srcEntry.id);
+    const newParent = String(tgtSecNum);
+    // Append source at the end of this section's direct children.
+    const newSiblings = childrenOf(newParent, tgtBase).filter(s => s.id !== srcEntry.id);
+    newSiblings.push(srcEntry);
+    _commitEntryMove(srcEntry, oldParent, newParent, newSiblings, tgtBase);
+    return;
+  }
+  if (dragSrcType !== 'section') { clearDragStyles(); return; }
   const tgtBase = e.currentTarget.dataset.base || 'handbook';
   const tgtSecNum = e.currentTarget.dataset.sectionNum;
   // No cross-category drops, no self-drops, no drops into a non-renumberable base.
-  if (dragSrcSection !== tgtBase) { clearDragStyles(); return; }
+  if (dragSrcBase !== tgtBase) { clearDragStyles(); return; }
   if (!sectionsRenumberable(tgtBase)) { clearDragStyles(); return; }
   if (dragSrcItemId === tgtSecNum) { clearDragStyles(); return; }
   const arr = sectionsOf(tgtBase);
