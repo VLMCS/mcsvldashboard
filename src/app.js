@@ -320,6 +320,7 @@ let currentUserPersistent = false;  // true → stored in sessionStorage; false 
 const LOGIN_KEY = 'vl_session_user';
 
 let isAdminMode = false;
+let _isGuest = false;               // true → read-only "Sign in as guest" session (no identity, no edit)
 let sidebarCollapsed = false;
 let isDark = false;
 let currentView = 'home';
@@ -845,6 +846,24 @@ function _decideLoginOrResume() {
   // Sign-out clears it, so when it's absent we show login and do NOT attempt
   // any resume — otherwise a lingering /admins grant (e.g. from a bootstrap)
   // would silently re-log-in as a pure admin right after sign-out.
+  // Guest (view-only demo) session — re-enter read-only mode without a passkey.
+  // Checked before the bound-member resume so a guest never resumes AS the
+  // team member their device is incidentally bound to.
+  let isGuest = false;
+  try { isGuest = localStorage.getItem('vl_guest') === '1'; } catch (e) {}
+  if (isGuest) {
+    (async () => {
+      try {
+        await _fbInitPromise;
+        if (_fbInitResult !== true) { showLogin(); return; }
+        if (!await fbEnterGuest()) { try { localStorage.removeItem('vl_guest'); } catch (e) {} showLogin(); return; }
+        currentUser = null; isAdminMode = false; _boundIsAdmin = false; _isGuest = true;
+        try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
+        _renderSignOutChip(); _runMainBootstrap(); hideLogin();
+      } catch (e) { console.error('guest resume failed:', e); showLogin(); }
+    })();
+    return;
+  }
   let likelyBound = false;
   try { likelyBound = localStorage.getItem('vl_bound_hint') === '1'; } catch (e) {}
   if (!likelyBound) { showLogin(); return; }

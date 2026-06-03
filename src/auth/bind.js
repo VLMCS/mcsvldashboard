@@ -77,6 +77,35 @@ async function fbBindByPasskey(passkey, slackNameHint) {
   } catch (e) { console.error('fbBindByPasskey failed:', e); return null; }
 }
 
+// GUEST (view-only) session — no passkey required. The locked rules only grant
+// read access to a "bound" device (one with a /users/{uid} doc), so to let a
+// guest see the dashboard we bind this device to SOME existing team member.
+// The bound identity is never surfaced as the current user: the guest login
+// path keeps currentUser=null, so canEditTm/canEditSection both return false
+// and the whole dashboard renders read-only. Returns true on success.
+//
+// Used to demo the site without issuing a real passkey. The /team bind rule
+// only requires the tmId to exist — no passkey check — and an unbound signed-in
+// device is explicitly allowed to read /team-secrets (rules line ~128), which
+// is how we obtain a valid tmId before we're bound.
+async function fbEnterGuest() {
+  if (!_bind_ready()) return false;
+  try {
+    // Returning guest on the same anonymous UID? Reuse the existing binding.
+    const existing = await fbBoundUser();
+    if (existing && existing.tmId) return true;
+    const secrets = await _fb_getDocs(_fb_collection(_fbDb, 'team-secrets'));
+    const first = secrets.docs[0];
+    if (!first) return false;   // empty directory — nothing to bind to
+    await _fb_setDoc(_fb_doc(_fbDb, 'users', fbCurrentUid()), {
+      tmId: first.id,
+      slackName: 'Guest',
+      boundAt: _fb_serverTimestamp()
+    });
+    return true;
+  } catch (e) { console.error('fbEnterGuest failed:', e); return false; }
+}
+
 // Unbind this device (sign-out): drop /users/{uid}. The anonymous auth
 // session itself is left as-is (a fresh passkey can re-bind the same UID).
 async function fbUnbindUser() {
