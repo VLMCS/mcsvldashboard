@@ -992,6 +992,30 @@
     content: ""; flex: 1; height: 1px; background: var(--border);
   }
 
+  /* ── SIGN-IN progress backdrop (dim filter over the login screen) ── */
+  #login-busy {
+    display: none; position: fixed; inset: 0; z-index: 100002;
+    align-items: center; justify-content: center;
+    background: rgba(15, 18, 24, 0.55);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  #login-busy.open { display: flex; opacity: 1; }
+  #login-busy.fading-out { opacity: 0; }
+  .login-busy-card {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 26px 34px; border-radius: 12px;
+    background: var(--white); color: var(--text-body);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  }
+  .login-busy-spinner {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--admin-accent);
+    animation: login-busy-spin 0.8s linear infinite;
+  }
+  @keyframes login-busy-spin { to { transform: rotate(360deg); } }
+  .login-busy-text { font-size: 14px; letter-spacing: 0.02em; color: var(--mid); }
+
   /* ── WELCOME fade (post-login, pre-maintenance) ── */
   #welcome-overlay {
     display: none; position: fixed; inset: 0; z-index: 99998;

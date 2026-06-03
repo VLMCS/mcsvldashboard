@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>VL Dashboard — MCS</title>
-<link rel="stylesheet" href="styles.css?v=20260603b" />
+<link rel="stylesheet" href="styles.css?v=20260603c" />
 </head>
 <body>
 
@@ -646,6 +646,15 @@
       No passkey yet? Ask your direct report to add you to the directory.<br>
       Guest access is read-only — for previewing the dashboard.
     </div>
+  </div>
+</div>
+
+<!-- ── SIGN-IN progress (dim backdrop shown while a sign-in is in flight, so the
+     transition never looks like the click failed) ── -->
+<div id="login-busy" aria-hidden="true">
+  <div class="login-busy-card">
+    <div class="login-busy-spinner" aria-hidden="true"></div>
+    <div class="login-busy-text" id="login-busy-text">Signing you in…</div>
   </div>
 </div>
 
