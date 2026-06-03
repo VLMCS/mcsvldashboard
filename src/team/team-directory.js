@@ -901,21 +901,41 @@ function _kpiClassifyCmp(r) {
   else if (status === 'attention') concern += 500;
 
   // Phrase = trend clause + level clause + (priority nudge).
+  //
+  // Connector logic: when the trend and the level point in the same
+  // direction (e.g. improved → solid, slipped → weak) use "now …" — the
+  // landing state is the result of the move. When they disagree (improved
+  // → still weak, slipped → still solid) use "but still …" so the
+  // contrast is explicit instead of reading as a contradiction. When the
+  // category held steady there's no "now" at all (nothing newly true).
   const dabs = Math.abs(r.delta).toFixed(1);
-  const trendClause =
-      r.deltaPct >= 15  ? `Surged +${r.delta.toFixed(1)} pts`
-    : improved          ? `Improved +${r.delta.toFixed(1)} pts`
-    : r.deltaPct <= -15 ? `Dropped sharply −${dabs} pts`
-    : declined          ? `Slipped −${dabs} pts`
-    :                     `Held steady`;
-  const levelClause = {
-    critical:    'now at a critical low',
-    weak:        'now in the weak range',
-    solid:       'now at a solid level',
-    strong:      'and still strong',
-    outstanding: 'and outstanding'
+  const dpos = r.delta.toFixed(1);
+  const trendUp   = improved || r.deltaPct >= 15;
+  const trendDown = declined || r.deltaPct <= -15;
+  const levelGood = (level === 'solid' || level === 'strong' || level === 'outstanding');
+  const levelTail = {
+    critical:    'at a critical low',
+    weak:        'in the weak range',
+    solid:       'at a solid level',
+    strong:      'strong',
+    outstanding: 'outstanding'
   }[level];
-  let phrase = `${trendClause} — ${levelClause}.`;
+  let phrase;
+  if (!trendUp && !trendDown) {
+    // No meaningful change — describe the stable state, no "now".
+    const steadyTail = (level === 'strong' || level === 'outstanding')
+      ? `— still ${levelTail}` : levelTail;
+    phrase = `Held steady ${steadyTail}.`;
+  } else {
+    const trendClause =
+        r.deltaPct >= 15  ? `Surged +${dpos} pts`
+      : trendUp           ? `Improved +${dpos} pts`
+      : r.deltaPct <= -15 ? `Dropped sharply −${dabs} pts`
+      :                     `Slipped −${dabs} pts`;
+    const sameDir = (trendUp && levelGood) || (trendDown && !levelGood);
+    const connector = sameDir ? 'now' : 'but still';
+    phrase = `${trendClause} — ${connector} ${levelTail}.`;
+  }
   if (status === 'critical')        phrase += ' Top priority to address.';
   else if (status === 'attention' && lowNow && !sharpDrop) phrase += ' A persistent weak spot worth a focused push.';
   else if (status === 'attention' && sharpDrop) phrase += ' Watch this closely next quarter.';
