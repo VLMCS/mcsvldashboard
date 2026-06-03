@@ -182,6 +182,10 @@ function _renderSidebarUnsafe() {
 
   c.innerHTML = html;
   attachSidebarDnD();
+  // If a recent section reorder is still inside its highlight window,
+  // re-apply the flash class to the new DOM so the pulse survives
+  // re-renders (snapshot echoes, showSection refresh, etc).
+  applyPendingSectionFlash();
 }
 
 function toggleSectionExpand(num, base) {
@@ -314,6 +318,42 @@ function hideSidebarSaving() {
   if (sb) sb.classList.remove('sidebar-saving');
 }
 
+/* "Just moved" highlight — kept in module state so it survives the
+   renderSidebar calls that happen when Firestore snapshot echoes from our
+   own writes arrive after fbWritesIdle resolves (without this, the
+   .sb-just-moved class gets wiped half a second into the animation). */
+const FLASH_DURATION_MS = 2400;
+let _justMovedFlash = null; // { base, num, startedAt }
+
+function startSectionFlash(base, num) {
+  _justMovedFlash = { base, num: String(num), startedAt: Date.now() };
+  applyPendingSectionFlash();
+  setTimeout(() => {
+    if (_justMovedFlash && Date.now() - _justMovedFlash.startedAt >= FLASH_DURATION_MS) {
+      _justMovedFlash = null;
+    }
+  }, FLASH_DURATION_MS + 50);
+}
+
+// Re-applies the flash class to the matching .sb-parent row after a
+// renderSidebar call. Uses a negative animation-delay so the pulse picks
+// up where it left off instead of restarting from frame 0 each time.
+function applyPendingSectionFlash() {
+  if (!_justMovedFlash) return;
+  const elapsed = Date.now() - _justMovedFlash.startedAt;
+  if (elapsed >= FLASH_DURATION_MS) { _justMovedFlash = null; return; }
+  const { base, num } = _justMovedFlash;
+  const row = [...document.querySelectorAll('.sb-parent')].find(el =>
+    el.dataset.sectionNum === String(num) && (el.dataset.base || 'handbook') === base
+  );
+  if (!row) return;
+  row.style.animationDelay = `-${(elapsed / 1000).toFixed(3)}s`;
+  // Force restart so we don't fight a partially-completed prior animation
+  row.classList.remove('sb-just-moved');
+  void row.offsetWidth;
+  row.classList.add('sb-just-moved');
+}
+
 function onDropSection(e) {
   e.preventDefault();
   if (!isAdminMode || dragSrcType !== 'section') { clearDragStyles(); return; }
@@ -362,28 +402,14 @@ function onDropSection(e) {
     const wait = Math.max(0, 350 - (Date.now() - overlayStart));
     setTimeout(() => {
       hideSidebarSaving();
-      flashMovedSection(tgtBase, movedNewNum);
+      // Scroll the moved row into view (if needed) before starting the flash.
+      const row = [...document.querySelectorAll('.sb-parent')].find(el =>
+        el.dataset.sectionNum === String(movedNewNum) && (el.dataset.base || 'handbook') === tgtBase
+      );
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      startSectionFlash(tgtBase, movedNewNum);
     }, wait);
   });
-}
-
-// Briefly highlight the moved section's new sidebar row in the accent color
-// so the user can spot where it landed after the saving overlay clears.
-// Looks up the row in the live DOM (rather than relying on a stale node
-// reference) because renderSidebar may have replaced the entire sidebar
-// content between the drop and this call.
-function flashMovedSection(base, num) {
-  const row = [...document.querySelectorAll('.sb-parent')].find(el =>
-    el.dataset.sectionNum === String(num) && (el.dataset.base || 'handbook') === base
-  );
-  if (!row) return;
-  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  row.classList.remove('sb-just-moved');
-  // Reflow so re-adding the class restarts the animation if the user does
-  // a second reorder before the previous flash finished.
-  void row.offsetWidth;
-  row.classList.add('sb-just-moved');
-  setTimeout(() => row.classList.remove('sb-just-moved'), 1700);
 }
 
 function onDropSI(e) {

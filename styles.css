@@ -164,23 +164,35 @@
   @keyframes sb-saving-spin { to { transform: rotate(360deg); } }
   @keyframes sb-saving-fade { from { opacity: 0; } to { opacity: 1; } }
 
-  /* Brief accent-color flash on a sidebar row that was just moved, so the
-     user can see where the item landed after the saving overlay clears. */
+  /* Multi-pulse accent flash on a sidebar row that was just moved. Animation
+     uses !important so it wins over the .sb-parent.active rule (the moved
+     row is often the currently-active section), and the parent sets
+     `animation-delay: -<elapsed>s` inline when re-rendering during a flash
+     so the animation continues from where it was instead of restarting from
+     0 each time a snapshot echo rebuilds the sidebar. */
   .sb-parent.sb-just-moved {
-    animation: sb-just-moved-flash 1.6s ease-out;
+    animation: sb-just-moved-pulse 2.4s ease-out forwards;
   }
-  @keyframes sb-just-moved-flash {
-    0%   { background: var(--admin-accent); color: #fff; box-shadow: 0 0 0 1px var(--admin-accent); }
-    55%  { background: var(--admin-accent); color: #fff; box-shadow: 0 0 0 1px var(--admin-accent); }
-    100% { background: transparent;        color: inherit; box-shadow: 0 0 0 1px transparent; }
+  @keyframes sb-just-moved-pulse {
+    0%   { background: var(--admin-accent) !important; color: #fff !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    20%  { background: var(--admin-accent) !important; color: #fff !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    35%  { background: var(--admin-accent-light) !important; color: var(--black) !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    50%  { background: var(--admin-accent) !important; color: #fff !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    65%  { background: var(--admin-accent-light) !important; color: var(--black) !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    80%  { background: var(--admin-accent) !important; color: #fff !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    100% { background: transparent; color: inherit; box-shadow: 0 0 0 0 transparent; }
   }
   body.dark .sb-parent.sb-just-moved {
-    animation-name: sb-just-moved-flash-dark;
+    animation-name: sb-just-moved-pulse-dark;
   }
-  @keyframes sb-just-moved-flash-dark {
-    0%   { background: var(--admin-accent); color: #161616; box-shadow: 0 0 0 1px var(--admin-accent); }
-    55%  { background: var(--admin-accent); color: #161616; box-shadow: 0 0 0 1px var(--admin-accent); }
-    100% { background: transparent;        color: inherit;  box-shadow: 0 0 0 1px transparent; }
+  @keyframes sb-just-moved-pulse-dark {
+    0%   { background: var(--admin-accent) !important; color: #111 !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    20%  { background: var(--admin-accent) !important; color: #111 !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    35%  { background: #2a2207 !important; color: var(--admin-accent) !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    50%  { background: var(--admin-accent) !important; color: #111 !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    65%  { background: #2a2207 !important; color: var(--admin-accent) !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    80%  { background: var(--admin-accent) !important; color: #111 !important; box-shadow: 0 0 0 2px var(--admin-accent); }
+    100% { background: transparent; color: inherit; box-shadow: 0 0 0 0 transparent; }
   }
 
   /* Drag handles */
