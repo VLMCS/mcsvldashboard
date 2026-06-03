@@ -161,6 +161,8 @@ async function signOut() {
     _boundIsAdmin = false;
     try { localStorage.removeItem('vl_bound_hint'); } catch (e) {}
   }
+  _isGuest = false;
+  try { localStorage.removeItem('vl_guest'); } catch (e) {}
   currentUser = null;
   currentUserPersistent = false;
   try { localStorage.removeItem(LOGIN_KEY); } catch(e){}

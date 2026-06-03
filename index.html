@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>VL Dashboard — MCS</title>
-<link rel="stylesheet" href="styles.css?v=20260603a" />
+<link rel="stylesheet" href="styles.css?v=20260603b" />
 </head>
 <body>
 
@@ -640,8 +640,11 @@
       Stay signed in for this session
     </label>
     <button class="btn btn-primary" id="login-submit" onclick="loginTry()">Sign in</button>
+    <div class="login-or"><span>or</span></div>
+    <button class="btn btn-secondary" id="login-guest" onclick="loginAsGuest()">Sign in as guest</button>
     <div class="login-helper">
-      No passkey yet? Ask your direct report to add you to the directory.
+      No passkey yet? Ask your direct report to add you to the directory.<br>
+      Guest access is read-only — for previewing the dashboard.
     </div>
   </div>
 </div>

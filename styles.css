@@ -981,6 +981,16 @@
     margin-top: 4px; font-style: italic;
   }
   #login-submit { width: 240px; }
+  #login-guest { width: 240px; }
+  /* "or" divider between passkey sign-in and the guest button */
+  .login-or {
+    width: 240px; display: flex; align-items: center; gap: 10px;
+    color: var(--mid); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; margin: 2px 0;
+  }
+  .login-or::before, .login-or::after {
+    content: ""; flex: 1; height: 1px; background: var(--border);
+  }
 
   /* ── WELCOME fade (post-login, pre-maintenance) ── */
   #welcome-overlay {

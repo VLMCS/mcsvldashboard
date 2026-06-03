@@ -202,6 +202,46 @@ async function _loginTryNewModel(raw, err, submitBtn) {
   }
 }
 
+// GUEST sign-in — no passkey. Binds this device read-only (see fbEnterGuest)
+// so the locked rules let the dashboard load, but keeps currentUser=null and
+// admin off, so every edit affordance stays hidden. Intended for demoing the
+// site. We deliberately DON'T set vl_bound_hint (that path resumes as the bound
+// member); instead vl_guest re-enters this same view-only mode on reload.
+async function loginAsGuest() {
+  const err = document.getElementById('login-err');
+  const btn = document.getElementById('login-guest');
+  if (err) err.textContent = '';
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Entering…'; }
+  try {
+    if (!USE_NEW_DATA_MODEL) {
+      // Old single-doc model has no per-device read gate — just enter view-only.
+      currentUser = null; currentUserPersistent = false;
+      isAdminMode = false; _isGuest = true;
+      try { sessionStorage.removeItem(LOGIN_KEY); } catch (e) {}
+      try { localStorage.setItem('vl_guest', '1'); } catch (e) {}
+      _bootProceedAfterLogin({ slackName: 'Guest', isAdmin: false, guest: true });
+      return;
+    }
+    if (_fbInitResult === null) { try { await _fbInitPromise; } catch (e) {} }
+    if (_fbInitResult !== true) {
+      if (err) err.textContent = "Couldn't reach the team server. Check your connection.";
+      return;
+    }
+    if (!await fbEnterGuest()) {
+      if (err) err.textContent = "Couldn't start a guest session. Try again, or sign in with a passkey.";
+      return;
+    }
+    currentUser = null; currentUserPersistent = false;
+    isAdminMode = false; _boundIsAdmin = false; _isGuest = true;
+    try { await dataActivate(); } catch (e) { console.error('dataActivate failed:', e); }
+    try { localStorage.setItem('vl_guest', '1'); } catch (e) {}
+    _bootProceedAfterLogin({ slackName: 'Guest', isAdmin: false, guest: true });
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+}
+
 // Plays the welcome fade, then dismisses the login overlay and lets the rest
 // of the boot sequence (maintenance overlay + Firebase init) take over.
 function _bootProceedAfterLogin(info) {
@@ -217,7 +257,10 @@ function playWelcome(info, done) {
   const msg = document.getElementById('welcome-msg');
   const sub = document.getElementById('welcome-sub');
   if (!overlay || !msg) { done && done(); return; }
-  if (info && info.isAdmin) {
+  if (info && info.guest) {
+    msg.textContent = 'Welcome!';
+    sub.textContent = 'Viewing as guest — read-only.';
+  } else if (info && info.isAdmin) {
     msg.textContent = 'Welcome, Admin!';
     sub.textContent = 'Admin Mode enabled for this session.';
   } else {
@@ -238,7 +281,10 @@ function playWelcome(info, done) {
 function _renderSignOutChip() {
   const chip = document.getElementById('signout-chip');
   if (!chip) return;
-  if (currentUser && currentUser.slackName) {
+  if (_isGuest) {
+    chip.innerHTML = '<span>Viewing as</span><span class="so-name">Guest</span><span>· Sign out</span>';
+    chip.classList.add('visible');
+  } else if (currentUser && currentUser.slackName) {
     chip.innerHTML = '<span>Logged in as</span><span class="so-name">@' +
       escapeHtml(String(currentUser.slackName).replace(/^@/, '')) +
       '</span><span>· Sign out</span>';
