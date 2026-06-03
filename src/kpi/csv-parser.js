@@ -47,6 +47,19 @@ function _kpiCell(rows, r, c) {
   return (rows[r] && rows[r][c] !== undefined) ? String(rows[r][c]).trim() : '';
 }
 
+// Per-category min/max for the override path. Each category has its own
+// scoring range (rating 1 = min, rating 5 = max) — Creative & Production
+// are weighted heavier (5–30) while Feedback & Leadership use 4–20, so the
+// four maxes sum to a clean 100 for the overall gauge. Anything not in this
+// map falls back to a 4–20 default so unknown / future categories still render.
+const _KPI_CATEGORY_RANGES = {
+  'Creative Vision & Art Direction':            { min: 5, max: 30 },
+  'Production & Pipeline Management':           { min: 5, max: 30 },
+  'Feedback & Team Direction':                  { min: 4, max: 20 },
+  'Leadership, Mentorship & Team Development':  { min: 4, max: 20 },
+};
+const _KPI_DEFAULT_RANGE = { min: 4, max: 20 };
+
 // Public parser. Returns { ok:true, data:{…} } or { ok:false, error:"…" }.
 function parseKpiCsv(text) {
   const rows = _parseCsv(text);
@@ -192,6 +205,15 @@ function parseKpiCsv(text) {
     const subtotalRowIdx = headerRowIdx + 1;
     const subtotal = parseFloat(_kpiCell(rows, subtotalRowIdx, 9)) || 0;
 
+    // Resolve this category's override range once per category so every
+    // metric inside it shares the same min/max scale. catSpan is the
+    // distance between rating 1 and rating 5 (= weight per rating point).
+    const catRange = _KPI_CATEGORY_RANGES[start.title] || _KPI_DEFAULT_RANGE;
+    const catMin = catRange.min;
+    const catMax = catRange.max;
+    const catSpan = catMax - catMin;
+    const catWeight = catSpan > 0 ? +(catSpan / 4).toFixed(3) : 0;
+
     // Metric rows: scan from subtotal+1 forward. A metric row has a non-
     // empty col 1 (title+description) AND non-trivial rating cells. A
     // comment row has empty col 1 and "Comments/Recommendations:" in col 3.
@@ -202,7 +224,8 @@ function parseKpiCsv(text) {
       if (_kpiCell(rows, k, 3) === 'Comments/Recommendations:') continue;
 
       const ratingCells = [3, 4, 5, 6, 7].map(c => parseFloat(_kpiCell(rows, k, c)) || 0);
-      // Cells map left→right to ratings 5,4,3,2,1.
+      // Cells map left→right to ratings 5,4,3,2,1. A non-zero cell = that
+      // box was ticked, and the cell value IS the score (rating × weight).
       let rating = 0, score = 0;
       for (let m = 0; m < 5; m++) {
         if (ratingCells[m] > 0) {
@@ -211,11 +234,48 @@ function parseKpiCsv(text) {
           break;
         }
       }
-      // Cell at col 8 is the per-metric total. Fall back to `score` if blank.
-      const total  = parseFloat(_kpiCell(rows, k, 8));
-      const finalScore = isFinite(total) && total > 0 ? total : score;
-      const weight   = rating > 0 ? +(finalScore / rating).toFixed(3) : 0;
-      const maxScore = +(weight * 5).toFixed(3);
+
+      // Column C (col 2) carries the SCORE OVERRIDE — used when the user
+      // wants a fractional rating that no preset box can represent. The
+      // Sheet template mirrors col 2 into col 8 (the per-metric total),
+      // but col 2 is the source of truth. The override path uses the
+      // CATEGORY-specific min/max range looked up above (see catRange):
+      // rating 1 = catMin, rating 5 = catMax, linearly interpolated
+      // between them. Per-metric maxScore is therefore catMax, so the
+      // four category maxes (30 + 30 + 20 + 20) sum to overall max 100.
+      const overrideCol2 = parseFloat(_kpiCell(rows, k, 2));
+      const totalCol8    = parseFloat(_kpiCell(rows, k, 8));
+
+      const _ratingFromOverride = (s) => {
+        if (!(s > 0) || catSpan <= 0) return 0;
+        // Linear interp: rating = 1 + (score − min) / (max − min) × 4.
+        // Clamp to [0, 5]: scores below min show sub-1 ratings (partial
+        // first pip), scores above max cap at 5/5.
+        return Math.max(0, Math.min(5, +(1 + (s - catMin) / catSpan * 4).toFixed(3)));
+      };
+
+      let finalScore, weight, maxScore;
+      if (isFinite(overrideCol2) && overrideCol2 > 0) {
+        // Override mode: col 2 wins regardless of box state.
+        finalScore = overrideCol2;
+        rating     = _ratingFromOverride(finalScore);
+        weight     = catWeight;
+        maxScore   = catMax;
+      } else if (rating > 0) {
+        // Box-ticked path (legacy CSVs): derive per-metric weight from the
+        // ticked cell so each metric keeps its own Sheet-formula weight.
+        finalScore = isFinite(totalCol8) && totalCol8 > 0 ? totalCol8 : score;
+        weight     = +(finalScore / rating).toFixed(3);
+        maxScore   = +(weight * 5).toFixed(3);
+      } else {
+        // No box ticked and no col-2 override — accept col 8 as a soft
+        // fallback (split CSVs that only fill the total column) so the
+        // metric still renders something rather than silently zeroing out.
+        finalScore = isFinite(totalCol8) && totalCol8 > 0 ? totalCol8 : 0;
+        rating     = _ratingFromOverride(finalScore);
+        weight     = finalScore > 0 ? catWeight : 0;
+        maxScore   = finalScore > 0 ? catMax : 0;
+      }
 
       const lines = titleDesc.split(/\r?\n/);
       const mTitle = (lines[0] || '').trim();
