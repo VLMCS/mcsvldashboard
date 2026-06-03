@@ -137,6 +137,33 @@
 
   .sb-divider { height: 1px; background: var(--border); margin: 8px 12px; transition: background 0.2s; }
 
+  /* "Saving in progress" overlay on the sidebar — toggled around batch
+     saves (section reorder rewrites many docs) so the user can't kick off
+     a second batch before the first finishes. Pseudo-elements live in
+     #sidebar's content box (which is exactly the viewport height because
+     .sidebar-scroll is the only descendant that overflows), so the
+     spinner stays centered regardless of inner scrolling. */
+  #sidebar.sidebar-saving > * { pointer-events: none; }
+  #sidebar.sidebar-saving::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(0,0,0,0.42);
+    z-index: 100;
+    animation: sb-saving-fade 0.16s ease-out;
+  }
+  #sidebar.sidebar-saving::before {
+    content: ''; position: absolute;
+    top: 50%; left: 50%;
+    width: 36px; height: 36px;
+    margin: -18px 0 0 -18px;
+    border: 3px solid rgba(255,255,255,0.22);
+    border-top-color: #fff;
+    border-radius: 50%;
+    z-index: 101;
+    animation: sb-saving-spin 0.7s linear infinite;
+  }
+  @keyframes sb-saving-spin { to { transform: rotate(360deg); } }
+  @keyframes sb-saving-fade { from { opacity: 0; } to { opacity: 1; } }
+
   /* Drag handles */
   /* Drag handles, edit/add buttons, and the dashed "+ Add..." buttons in the
      sidebar are rendered into the DOM by JS only when the user has edit access

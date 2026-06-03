@@ -300,6 +300,20 @@ function onDropEntry(e) {
   renderSidebar();
 }
 
+// Toggle the sidebar's "saving in progress" overlay. Hides the sidebar
+// behind a dimmed scrim + spinner and blocks pointer events on its rows
+// until the in-flight writes settle. Used by onDropSection — a section
+// reorder rewrites every entry doc under that section and we don't want
+// the user starting a second drag while the first is mid-flight.
+function showSidebarSaving() {
+  const sb = document.getElementById('sidebar');
+  if (sb) sb.classList.add('sidebar-saving');
+}
+function hideSidebarSaving() {
+  const sb = document.getElementById('sidebar');
+  if (sb) sb.classList.remove('sidebar-saving');
+}
+
 function onDropSection(e) {
   e.preventDefault();
   if (!isAdminMode || dragSrcType !== 'section') { clearDragStyles(); return; }
@@ -320,6 +334,7 @@ function onDropSection(e) {
   arr.splice(after ? tgtIdx + 1 : tgtIdx, 0, moved);
   renumberSectionsForBase(tgtBase);
   clearDragStyles();
+  showSidebarSaving();
   // Section reorder rewrites entry IDs + section nums across the category —
   // saveAll covers sections, entries (handbook/projects/per-category), and
   // custom-category metadata.
@@ -334,6 +349,16 @@ function onDropSection(e) {
   } else if (currentView === 'docview') {
     if (typeof renderDocView === 'function') renderDocView();
   }
+  // Hide the overlay once all Firestore writes for this batch have settled.
+  // Enforce a small minimum visible duration so the overlay doesn't flash
+  // out instantly on cache hits (or when offline → no writes at all).
+  const overlayStart = Date.now();
+  const idleP = (typeof fbWritesIdle === 'function') ? fbWritesIdle() : Promise.resolve();
+  // 10s ceiling so a stuck/dropped write can't lock the sidebar indefinitely.
+  Promise.race([idleP, new Promise(r => setTimeout(r, 10000))]).then(() => {
+    const wait = Math.max(0, 350 - (Date.now() - overlayStart));
+    setTimeout(hideSidebarSaving, wait);
+  });
 }
 
 function onDropSI(e) {

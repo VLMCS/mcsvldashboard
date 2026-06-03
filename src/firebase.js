@@ -302,15 +302,37 @@ function _fbFlushNow() {
   }
 }
 
+// In-flight Firestore writes counter. fbWritesIdle() returns a Promise that
+// resolves the next time the counter hits zero (resolves immediately if
+// nothing is in flight). Used by the sidebar to keep its "Saving…" overlay
+// up until destructive batch operations (e.g. section reorder, which rewrites
+// many docs) have actually landed before letting the user act again.
+let _fbInFlight = 0;
+let _fbIdleResolvers = [];
+function _fbWriteBegin() { _fbInFlight++; }
+function _fbWriteEnd() {
+  if (_fbInFlight > 0) _fbInFlight--;
+  if (_fbInFlight === 0 && _fbIdleResolvers.length) {
+    const list = _fbIdleResolvers; _fbIdleResolvers = [];
+    for (const r of list) { try { r(); } catch (e) {} }
+  }
+}
+function fbWritesIdle() {
+  if (_fbInFlight === 0) return Promise.resolve();
+  return new Promise(resolve => _fbIdleResolvers.push(resolve));
+}
+
 function fbSyncKey(key, value) {
   if (!_fbReady) return;
   // NEW DATA MODEL (Phase B): route whole-array saves to per-doc collection
   // writes. Dormant today (flag false). Keeps the save indicator behaviour.
   if (USE_NEW_DATA_MODEL) {
     _markPending([key]);
+    _fbWriteBegin();
     dataSyncKey(key, value)
       .then(() => { _markPending([]); _renderSaveIndicator(false, true); })
-      .catch(err => console.error('dataSyncKey failed:', err));
+      .catch(err => console.error('dataSyncKey failed:', err))
+      .finally(() => _fbWriteEnd());
     return;
   }
   _fbPendingWrite[key] = encodeForFirestore(key, value);
