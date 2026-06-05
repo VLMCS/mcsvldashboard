@@ -1,0 +1,5 @@
+# Working data exports/patches — kept LOCAL only.
+# This repo publishes to public GitHub Pages, and admin-made backups can
+# contain handbook content and plaintext passkeys (see src/data/model.js
+# dataMergeAdminPasskeys). Never commit them.
+data/*.json
