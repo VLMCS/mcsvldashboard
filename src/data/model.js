@@ -183,6 +183,11 @@ function dataUnsubscribe() {
 }
 function _dataReRender() {
   try {
+    // Incoming remote (team) change is rewriting the sidebar list — briefly
+    // lock it (scrim + spinner + no controls, can't leave admin) so the user
+    // isn't clicking rows that are shifting under them. Coalesces snapshot
+    // bursts. Same visual as the reorder / import flow.
+    if (typeof flashSidebarSaving === 'function') flashSidebarSaving();
     applyAllSettings();
     renderSidebar();
     renderAnnouncements();
