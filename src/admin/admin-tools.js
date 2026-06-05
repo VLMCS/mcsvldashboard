@@ -13,8 +13,9 @@ const _ADMIN_TOOL_GROUPS = [
   { label: 'Content', items: [
     { icon: '📑', text: 'Documentation View', fn: 'showDocView',        note: 'Full read-through with inline editing' },
     { icon: '🧠', text: 'Manage Synonyms',    fn: 'openSynonymsEditor', note: 'Search synonym groups' },
-    { icon: '📤', text: 'Export backup',      fn: 'exportData',         note: 'Download a JSON backup' },
-    { icon: '📥', text: 'Import backup',      fn: '_adminToolsImport',  note: 'Restore from a JSON backup' }
+    { icon: '📤', text: 'Export backup',      fn: 'exportData',            note: 'Download a JSON backup' },
+    { icon: '🔀', text: 'Merge import',       fn: '_adminToolsMergeImport', note: 'Upsert from a file — updates/adds, never deletes' },
+    { icon: '📥', text: 'Import backup',      fn: '_adminToolsImport',     note: 'Replace ALL data from a JSON backup' }
   ] },
   { label: 'Site', items: [
     { icon: '⚙️', text: 'Site Settings', fn: 'openSiteSettings', note: 'Names, search, favicon, theme' }
@@ -29,6 +30,13 @@ const _ADMIN_TOOL_GROUPS = [
 // Import is triggered via the hidden file input in the sidebar.
 function _adminToolsImport() {
   const inp = document.getElementById('import-file');
+  if (inp) inp.click();
+}
+
+// Non-destructive merge import — separate hidden input so it can't be
+// confused with the replace-all path.
+function _adminToolsMergeImport() {
+  const inp = document.getElementById('merge-import-file');
   if (inp) inp.click();
 }
 
