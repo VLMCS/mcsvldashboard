@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard</title>
+<link rel="stylesheet" href="styles.css?v=20260603c" />
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<aside id="sidebar">
+  <div id="sidebar-logo">
+    <div id="sidebar-logo-text" class="sidebar-collapsible">
+      <div class="studio-label">Your Studio</div>
+      <h1 onclick="showHome()">Dashboard</h1>
+    </div>
+    <button class="icon-btn sidebar-collapsible" onclick="toggleDark()" id="dark-btn" title="Toggle dark mode">
+      <svg id="dark-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="icon-btn sidebar-collapsible" onclick="openTeamDirectory()" id="team-btn" title="Team Directory">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span id="fb-status-dot"></span>
+    </button>
+    <button class="icon-btn" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="admin-banner" onclick="exitAdminMode()" title="Click to exit Admin Mode">
+    Admin Mode — Click to Exit
+  </div>
+
+  <div class="sidebar-scroll sidebar-collapsible">
+    <div id="sidebar-sections-container"></div>
+  </div>
+
+  <div id="admin-toolbar" class="sidebar-collapsible">
+    <button class="admin-tool-btn btn-admin" onclick="openAdminTools()" title="Open admin tools" style="color:#fff;border-color:var(--admin-accent);background:var(--admin-accent)">⚙ Admin Tools…</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
+    <input type="file" id="merge-import-file" accept=".json" style="display:none" onchange="mergeImportData(event)" />
+  </div>
+
+</aside>
+
+<!-- ── MAIN ── -->
+<main id="main">
+  <div id="top-bar">
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <button id="search-trigger" onclick="openSearchModal()" title="Search (/)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Search
+      <span class="search-shortcut">/</span>
+    </button>
+    <!-- Sign-out chip: visible whenever a user is logged in via passkey. Shown
+         to the left of the admin lock button so the current identity (and the
+         way out) is always reachable from the top bar. -->
+    <div id="signout-chip" onclick="signOut()" title="Sign out of this account"></div>
+    <button id="admin-btn" onclick="openAdminAuth()" title="Admin Mode">
+      <svg id="admin-icon-locked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <svg id="admin-icon-unlocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- HOME VIEW -->
+  <div id="view-home" class="view active">
+    <div class="hero-label">Your Department · Your Studio</div>
+    <h2 class="hero-title">Dashboard</h2>
+    <p class="hero-sub">Browse from the sidebar, or search for anything below.</p>
+
+    <div id="whats-new"></div>
+
+    <div id="search-wrap">
+      <input id="search-input" type="text"
+        placeholder="Search the handbook…"
+        autocomplete="off" onkeydown="if(event.key==='Enter') runHomeSearch()" />
+      <button id="search-btn-home" onclick="runHomeSearch()" title="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- CATEGORY OVERVIEW VIEW -->
+  <div id="view-category" class="view">
+    <div class="section-inner">
+      <div class="section-num-label" id="cv-label">Category</div>
+      <h1 class="section-title" id="cv-title">Title</h1>
+      <div class="section-desc" id="cv-desc"></div>
+      <div class="section-card-grid" id="cv-grid"></div>
+    </div>
+  </div>
+
+  <!-- SECTION VIEW -->
+  <div id="view-section" class="view">
+    <div class="section-inner">
+      <div class="section-num-label" id="sv-num">Section</div>
+      <h1 class="section-title" id="sv-title">Title</h1>
+      <div class="section-desc" id="sv-desc"></div>
+      <div class="section-actions" id="sv-actions"></div>
+      <div class="section-card-grid" id="sv-grid"></div>
+    </div>
+  </div>
+
+  <!-- ENTRY VIEW -->
+  <div id="view-entry" class="view">
+    <div class="entry-inner">
+      <button class="entry-back" id="ev-back" onclick="backToSection()">← Back</button>
+      <div class="entry-id-label" id="ev-id">Entry</div>
+      <h1 class="entry-title" id="ev-title">Title</h1>
+      <div class="entry-actions">
+        <button class="btn btn-secondary" onclick="openEntryEditor(currentEntryId, currentBase)">✎ Edit Entry</button>
+      </div>
+      <div class="entry-content" id="ev-content"></div>
+      <!-- Sub-entries (direct children of this entry) -->
+      <div id="ev-children-wrap" style="display:none">
+        <div id="ev-children-label" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--mid);font-weight:700;margin:28px 0 12px;border-top:1px solid var(--border);padding-top:20px">Sub-Entries</div>
+        <div class="section-card-grid" id="ev-children-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DOCUMENTATION VIEW (admin) -->
+  <div id="view-docview" class="view">
+    <div id="docview-wrap">
+      <aside id="docview-outline"></aside>
+      <div id="docview-content"></div>
+    </div>
+  </div>
+</main>
+
+<!-- ── SEARCH MODAL ── -->
+<div id="search-modal-overlay" onclick="maybeCloseSearchModal(event)">
+  <div id="search-modal">
+    <div class="search-modal-header">
+      <input id="search-modal-input" type="text" placeholder="Search the handbook…"
+             onkeydown="if(event.key==='Enter') performSearchModal(); if(event.key==='Escape') closeSearchModal()" />
+      <button id="search-modal-close" onclick="closeSearchModal()" title="Close (Esc)">✕</button>
+    </div>
+    <div id="search-modal-body">
+      <div id="results-count"></div>
+      <div id="results-list"></div>
+      <button id="add-entry-btn-modal" onclick="openNewEntryEditor()">＋ Add New Handbook Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PASSWORD MODAL ── -->
+<div id="pwd-modal-overlay" class="admin-modal-overlay" onclick="maybeClosePwd(event)">
+  <div class="admin-modal" style="max-width:400px" id="pwd-modal">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">Admin Access <span class="admin-tag">Protected</span></div>
+      <button class="admin-modal-close" onclick="closePwdModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="lock-icon">🔐</div>
+      <div class="pwd-title">Enter Admin Password</div>
+      <div class="pwd-sub">Edit handbook entries, add new content, post announcements, and access Documentation View.</div>
+      <input id="pwd-input" type="password" placeholder="Password"
+             onkeydown="if(event.key==='Enter')checkPassword()" autocomplete="off" />
+      <div id="pwd-error"></div>
+    </div>
+    <div class="admin-modal-footer" style="justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closePwdModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="checkPassword()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ENTRY EDITOR MODAL ── -->
+<div id="entry-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseEntry(event)">
+  <div class="admin-modal" style="max-width:720px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="entry-modal-title-text">Edit Entry</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeEntryModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field" id="ef-section-field">
+        <label class="form-label">Section</label>
+        <select class="form-select" id="ef-section-select" onchange="onSectionSelectChange()"></select>
+        <span class="form-hint">The entry ID is assigned automatically.</span>
+      </div>
+      <div class="form-field" id="ef-new-section-group" style="display:none">
+        <label class="form-label">New Section Title</label>
+        <input class="form-input" id="ef-new-section-title" type="text" placeholder="New section title — number assigned automatically" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Entry Title</label>
+        <input class="form-input" id="ef-title" type="text" placeholder="Entry title" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Keywords</label>
+        <input class="form-input" id="ef-keywords" type="text" placeholder="keyword one, keyword two…" />
+        <span class="form-hint">Comma-separated. Used by the search engine.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Content</label>
+        <div class="rt-wrap">
+          <div class="rt-toolbar" id="ef-rt-toolbar"></div>
+          <div class="rt-editor" id="ef-content-editor" data-placeholder="Write the entry content…"></div>
+        </div>
+        <span class="form-hint">Use the toolbar to format text. Paste images from clipboard or click 🖼 to upload.</span>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-entry-btn" onclick="deleteCurrentEntry()">Delete Entry</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeEntryModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEntry()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION EDITOR MODAL ── -->
+<div id="section-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSection(event)">
+  <div class="admin-modal" style="max-width:540px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="section-modal-title-text">Edit Section</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSectionModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Section Title</label>
+        <input class="form-input" id="sef-title" type="text" placeholder="Section title" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Description</label>
+        <div class="rt-wrap">
+          <div class="rt-toolbar" id="sef-rt-toolbar"></div>
+          <div class="rt-editor" id="sef-desc-editor" data-placeholder="Brief description shown on the section page. Use the toolbar to format."></div>
+        </div>
+        <span class="form-hint">Supports formatting, links, and images — same toolbar as entry editor.</span>
+      </div>
+      <div class="form-field" id="sef-passkey-row" style="display:none">
+        <label class="form-label">Edit Passkey <span style="font-weight:400;text-transform:none;letter-spacing:0">(share with users who can edit this section)</span></label>
+        <div style="display:flex;gap:6px">
+          <input class="form-input" id="sef-passkey" type="text" readonly style="flex:1;font-family:'Consolas','Courier New',monospace;letter-spacing:0.08em" />
+          <button type="button" class="btn btn-secondary" onclick="copySectionPasskey()" title="Copy">📋</button>
+          <button type="button" class="btn btn-secondary" onclick="regenerateSectionPasskey()" title="Generate a new passkey (invalidates the old one)">🔄</button>
+        </div>
+        <span class="form-hint">Anyone with this passkey can add/edit/delete entries within this project section. They cannot edit other sections.</span>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-section-btn" onclick="deleteCurrentSection()">Delete Section</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSectionModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSection()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SIDEBAR-ITEM EDITOR (Quick Links / Team Directory) ── -->
+<div id="si-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSI(event)">
+  <div class="admin-modal" style="max-width:460px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">Edit Sidebar Link <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSIModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Display Text</label>
+        <input class="form-input" id="si-text" type="text" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">URL <span style="font-weight:400;text-transform:none">(leave blank for placeholder)</span></label>
+        <input class="form-input" id="si-href" type="text" placeholder="https://..." />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Visibility</label>
+        <select class="form-select" id="si-visible">
+          <option value="true">Visible</option>
+          <option value="false">Hidden (admin only)</option>
+        </select>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" onclick="deleteSidebarItem()">Remove</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSIModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSidebarItem()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ANNOUNCEMENT EDITOR ── -->
+<div id="ann-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseAnn(event)">
+  <div class="admin-modal" style="max-width:500px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="ann-modal-title-text">New Announcement</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeAnnModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Message</label>
+        <textarea class="form-textarea" id="ann-text-input" rows="4" placeholder="Announcement message…"></textarea>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Author / Tag <span style="font-weight:400;text-transform:none">(optional)</span></label>
+        <input class="form-input" id="ann-author-input" type="text" placeholder="e.g. Piper, AD…" />
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-ann-btn" onclick="deleteCurrentAnn()">Delete</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeAnnModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveAnn()">Post</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LIGHTBOX ── -->
+<div id="lightbox-overlay" onclick="maybeCloseLightbox(event)">
+  <div id="lightbox-stage" id="lightbox-stage">
+    <img id="lightbox-img" alt="" onclick="event.stopPropagation()" />
+  </div>
+  <button id="lightbox-close-corner" onclick="closeLightbox()" title="Close (Esc)">✕ Close</button>
+  <div class="lightbox-controls" onclick="event.stopPropagation()">
+    <button class="lb-btn" onclick="zoomLightbox(-0.25)" title="Zoom out (-)">−</button>
+    <div id="lightbox-zoom-label">100%</div>
+    <button class="lb-btn" onclick="zoomLightbox(0.25)" title="Zoom in (+)">+</button>
+    <button class="lb-btn" onclick="resetLightboxZoom()" title="Reset zoom (0)">Reset</button>
+  </div>
+</div>
+
+<!-- ── TEAM DIRECTORY MODAL ── -->
+<div id="team-modal-overlay" onclick="maybeCloseTeamModal(event)">
+  <div id="team-modal">
+    <div id="team-modal-header">
+      <div id="team-modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        Team Directory
+      </div>
+      <div id="team-modal-actions">
+        <button class="btn btn-admin" id="team-passkeys-btn" onclick="openAllPasskeys()" style="display:none">🔑 All Passkeys</button>
+        <button class="btn btn-primary" onclick="openNewTeamMember()">＋ Add Team Member</button>
+        <button class="btn btn-secondary" onclick="closeTeamModal()">Close</button>
+      </div>
+    </div>
+    <div id="team-modal-body">
+      <div class="team-roster-grid" id="team-roster-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TEAM MEMBER DETAIL MODAL ── -->
+<div id="tm-detail-overlay" onclick="maybeCloseTmDetail(event)">
+  <div id="tm-detail">
+    <div class="tm-detail-header">
+      <div class="tm-detail-title" id="tm-detail-title">Team Member</div>
+      <div style="display:flex;gap:6px">
+        <button class="tm-detail-mode-toggle" id="tm-mode-btn" onclick="toggleTmEditMode()">✎ Edit</button>
+        <button class="admin-modal-close" onclick="closeTmDetail()">✕</button>
+      </div>
+    </div>
+    <div class="tm-detail-body" id="tm-detail-body"></div>
+    <div class="tm-detail-footer">
+      <button class="btn btn-danger" id="tm-delete-btn" onclick="deleteCurrentTm()" style="display:none">Delete Profile</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-secondary" onclick="closeTmDetail()">Close</button>
+        <button class="btn btn-primary" id="tm-save-btn" onclick="saveTm()" style="display:none">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ALL PASSKEYS modal (admin only) — quick lookup + rotation ── -->
+<div id="pk-modal-overlay" class="admin-modal-overlay" onclick="maybeClosePk(event)">
+  <div class="admin-modal" style="max-width:760px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">🔑 All Passkeys <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeAllPasskeys()">✕</button>
+    </div>
+    <div class="admin-modal-body" style="max-height:70vh">
+      <div class="syn-help">
+        Quick reference for support: every team member has a unique 8-char passkey that lets them edit their own profile.
+        Use 📋 to copy a code (e.g. to paste into a DM), or ↻ to rotate one if it was compromised.
+        Rotating instantly invalidates the old code.
+      </div>
+      <div class="pk-search-row">
+        <input class="form-input" id="pk-filter" type="text" placeholder="Filter by name, slack, or passkey…"
+          oninput="renderPasskeysTable()" autocomplete="off"/>
+      </div>
+      <div id="pk-table-wrap"></div>
+    </div>
+    <div class="admin-modal-footer">
+      <div style="font-size:11.5px;color:var(--mid)">Codes are stored in the same backup as the rest of the directory.</div>
+      <button class="btn btn-primary" onclick="closeAllPasskeys()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── KPI VIEWER MODAL (per team-member quarterly report) ── -->
+<!-- Opened from the "📊 Open KPI Report" button on each team-member profile.
+     Owns its own modal so KPI workspace doesn't compete with profile editing
+     for screen real estate. Re-rendered via renderKpiViewer(). -->
+<div id="kpi-overlay" onclick="maybeCloseKpi(event)">
+  <div id="kpi-modal">
+    <div class="kpi-modal-header">
+      <div class="kpi-modal-avatar" id="kpi-modal-avatar"></div>
+      <div>
+        <div class="kpi-modal-name" id="kpi-modal-name">Team Member</div>
+        <div class="kpi-modal-sub" id="kpi-modal-sub"></div>
+      </div>
+      <div class="kpi-modal-spacer"></div>
+      <button class="admin-modal-close" onclick="closeKpiViewer()" type="button" title="Close (Esc)">✕</button>
+    </div>
+    <div id="kpi-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── SYNONYMS EDITOR MODAL ── -->
+<div id="syn-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSyn(event)">
+  <div class="admin-modal" style="max-width:760px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">🧠 Manage Search Synonyms <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSynModal()">✕</button>
+    </div>
+    <div class="admin-modal-body" style="max-height:65vh">
+      <div class="syn-help">
+        Each row is a <strong>group of related/equivalent terms</strong>. When a user searches for any term in a group, the others get boosted as concept matches. The first term is just convention — order doesn't matter.<br>
+        <strong>Auto-extension:</strong> every handbook entry's <em>keywords</em> are also treated as a synonym group automatically, so you mainly need to add cross-section concept bridges here.
+      </div>
+      <div id="syn-groups-list"></div>
+      <button class="admin-add-btn" style="display:block" onclick="addSynGroup()">＋ Add New Synonym Group</button>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-secondary" onclick="resetSynonymsToDefault()">↺ Reset to Defaults</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSynModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSynonyms()">Save Synonyms</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SITE SETTINGS MODAL (admin) ── -->
+<div id="settings-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseSettings(event)">
+  <div class="admin-modal" style="max-width:580px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title">⚙ Site Settings <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeSettingsModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div style="background:var(--admin-accent-light);padding:10px 14px;border-radius:5px;font-size:12px;color:var(--text-body);margin-bottom:6px">
+        Changes apply across the whole dashboard and sync to everyone via Firebase.
+      </div>
+      <div class="form-field">
+        <label class="form-label">Dashboard Name</label>
+        <input class="form-input" id="set-siteName" type="text" placeholder="Dashboard" />
+        <span class="form-hint">Shown in the sidebar logo, home page hero, browser tab title, and breadcrumb.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Studio Name</label>
+        <input class="form-input" id="set-studioName" type="text" placeholder="Your Studio" />
+        <span class="form-hint">Shown under the dashboard name in the sidebar and home hero.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Department Name</label>
+        <input class="form-input" id="set-departmentName" type="text" placeholder="Your Department" />
+        <span class="form-hint">Prefixes the studio name above the home page title.</span>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Home Page Subtitle</label>
+        <textarea class="form-textarea" id="set-heroSub" rows="2" placeholder="Browse the handbook from the sidebar, or search for anything below." style="min-height:60px"></textarea>
+        <span class="form-hint">The grey description text under the home page title.</span>
+      </div>
+      <div style="font-size:11px;color:var(--mid);font-style:italic;padding:4px 2px">
+        💡 To rename a sidebar category (Handbook, Quick Links, Projects, custom), click the ✎ pencil that appears next to its label in the sidebar.
+      </div>
+
+      <!-- Search engine toggles -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Search</div>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="set-kwSearch" style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+          <div style="flex:1">
+            <div style="font-size:13.5px;font-weight:500">Enable keyword-based search</div>
+            <div class="form-hint" style="margin-top:2px">The classic search path: matches titles, keywords, content, and the Synonyms list (with stemming + bigrams). Best for exact terms, IDs, and acronyms. Also covers Quick Links and section descriptions.</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none;margin-top:10px">
+          <input type="checkbox" id="set-aiSearch" style="margin-top:3px;width:16px;height:16px;cursor:pointer" />
+          <div style="flex:1">
+            <div style="font-size:13.5px;font-weight:500">Enable AI-powered semantic search</div>
+            <div class="form-hint" style="margin-top:2px">Uses a small in-browser AI model (MiniLM, ~25 MB) to find entries by meaning rather than exact words. Runs fully client-side — no API key, no data leaves the browser. When both toggles are on, the two are blended for the best of each.</div>
+          </div>
+        </label>
+        <div id="search-both-off-warning" style="display:none;margin-top:10px;padding:8px 12px;background:var(--admin-accent-light);border-left:3px solid var(--admin-accent);border-radius:3px;font-size:12px;color:var(--text-body)">
+          ⚠ Both search modes are off — the search box will return no results until at least one is re-enabled.
+        </div>
+      </div>
+
+      <!-- Favicon -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Favicon</div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="favicon-preview" style="width:48px;height:48px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--bg-form-input);overflow:hidden">
+            <span style="color:var(--mid);font-size:10px">none</span>
+          </div>
+          <div style="flex:1">
+            <button type="button" class="btn btn-secondary" onclick="uploadFavicon()">📁 Upload favicon</button>
+            <button type="button" class="btn btn-secondary" id="favicon-clear-btn" onclick="clearFavicon()" style="display:none;margin-left:6px">Remove</button>
+            <div class="form-hint" style="margin-top:4px">.ico file, max 64 KB. Appears as the browser tab icon.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Theme colors -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);font-weight:700;margin-bottom:8px">Theme Colors</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--black);margin-bottom:6px;display:flex;align-items:center;gap:5px">☀️ Light Mode</div>
+            <div class="theme-color-row"><label>Accent</label><input type="color" id="theme-light-accent" /></div>
+            <div class="theme-color-row"><label>Background</label><input type="color" id="theme-light-bg" /></div>
+            <div class="theme-color-row"><label>Text</label><input type="color" id="theme-light-text" /></div>
+            <div class="theme-color-row"><label>Sidebar BG</label><input type="color" id="theme-light-sidebar" /></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--black);margin-bottom:6px;display:flex;align-items:center;gap:5px">🌙 Dark Mode</div>
+            <div class="theme-color-row"><label>Accent</label><input type="color" id="theme-dark-accent" /></div>
+            <div class="theme-color-row"><label>Background</label><input type="color" id="theme-dark-bg" /></div>
+            <div class="theme-color-row"><label>Text</label><input type="color" id="theme-dark-text" /></div>
+            <div class="theme-color-row"><label>Sidebar BG</label><input type="color" id="theme-dark-sidebar" /></div>
+          </div>
+        </div>
+        <div class="form-hint" style="margin-top:8px">Changes preview live in the open tab. Save to apply for everyone (via Firestore).</div>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-secondary" onclick="resetSiteSettings()">↺ Reset to Defaults</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSiteSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CATEGORY EDITOR MODAL (admin) ── -->
+<div id="cat-modal-overlay" class="admin-modal-overlay" onclick="maybeCloseCat(event)">
+  <div class="admin-modal" style="max-width:480px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title"><span id="cat-modal-title-text">New Category</span> <span class="admin-tag">Admin</span></div>
+      <button class="admin-modal-close" onclick="closeCatModal()">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <div class="form-field">
+        <label class="form-label">Category Label</label>
+        <input class="form-input" id="cat-label-input" type="text" placeholder="e.g. Onboarding, Tech Stack, Pipeline Specs" />
+        <span class="form-hint">Shown in the sidebar as a top-level group, like Handbook or Projects.</span>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-danger" id="delete-cat-btn" onclick="deleteCurrentCategory()" style="display:none">Delete Category</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-secondary" onclick="closeCatModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveCategory()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BACK-TO-HOME FAB ── -->
+<button id="back-to-home-fab" onclick="showHome()" title="Back to home">
+  <span class="fab-tooltip">Back to home</span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 12 L12 3 L21 12"/>
+    <path d="M5 10 V20 a1 1 0 0 0 1 1 H10 V14 H14 V21 H18 a1 1 0 0 0 1 -1 V10"/>
+  </svg>
+</button>
+
+<!-- ── TOAST ── -->
+<div id="save-toast">Changes saved</div>
+<div id="save-indicator"><span class="si-dot"></span><span class="si-label">Saving…</span></div>
+
+<!-- ── UNDER MAINTENANCE overlay (blocks the GUI while Firebase is unreachable) ── -->
+<div id="maint-overlay">
+  <div class="maint-box">
+    <div class="maint-spinner" aria-hidden="true"></div>
+    <div class="maint-title">LOADING…</div>
+    <div class="maint-sub" id="maint-sub">Connecting to the dashboard…</div>
+    <button id="maint-skip" class="maint-skip" title="Admin: skip this screen" onclick="maintShowPwd()">⏭</button>
+    <div id="maint-pwd-wrap" class="maint-pwd-wrap">
+      <input id="maint-pwd" type="password" placeholder="Admin password" autocomplete="off"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();maintTryPwd();}" />
+      <button class="btn btn-primary" onclick="maintTryPwd()">Enter</button>
+      <div id="maint-pwd-err" class="maint-pwd-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOGIN overlay (passkey gate, first gate before the dashboard) ── -->
+<!-- Shown on every load until a team-member passkey OR the admin password is
+     entered. Successful entry → "Welcome, [Slack Name]!" fade → maintenance/
+     loading overlay → home. -->
+<div id="login-overlay" role="dialog" aria-label="Sign in">
+  <div class="login-box">
+    <div class="login-logo" id="login-site-name">Dashboard</div>
+    <div class="login-sub-logo" id="login-studio-name">Your Studio</div>
+    <div class="login-title">Enter your passkey to sign in</div>
+    <!-- Passkeys are short shared 8-char codes, not user-private secrets — they
+         live in the admin's "All Passkeys" lookup. Showing the characters as
+         the user types makes login easier and avoids the usual typo-in-a-
+         masked-field frustration. -->
+    <input id="login-pwd" type="text" placeholder="Your passkey" autocomplete="off"
+      autocapitalize="characters" spellcheck="false" maxlength="64"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();loginTry();}" />
+    <div class="login-err" id="login-err"></div>
+    <label class="login-remember">
+      <input type="checkbox" id="login-remember" checked />
+      Stay signed in for this session
+    </label>
+    <button class="btn btn-primary" id="login-submit" onclick="loginTry()">Sign in</button>
+    <div class="login-or"><span>or</span></div>
+    <button class="btn btn-secondary" id="login-guest" onclick="loginAsGuest()">Sign in as guest</button>
+    <div class="login-helper">
+      No passkey yet? Ask your direct report to add you to the directory.<br>
+      Guest access is read-only — for previewing the dashboard.
+    </div>
+  </div>
+</div>
+
+<!-- ── SIGN-IN progress (dim backdrop shown while a sign-in is in flight, so the
+     transition never looks like the click failed) ── -->
+<div id="login-busy" aria-hidden="true">
+  <div class="login-busy-card">
+    <div class="login-busy-spinner" aria-hidden="true"></div>
+    <div class="login-busy-text" id="login-busy-text">Signing you in…</div>
+  </div>
+</div>
+
+<!-- ── WELCOME fade (post-login transition) ── -->
+<div id="welcome-overlay" aria-hidden="true">
+  <div class="welcome-msg" id="welcome-msg">Welcome!</div>
+  <div class="welcome-sub" id="welcome-sub"></div>
+</div>
+
+<!-- ── CUSTOM ALERT / CONFIRM / PROMPT MODAL ──
+     Single shared modal element that replaces the browser's native alert(),
+     confirm(), and prompt() dialogs. Coherent with the dashboard styling
+     (reuses .admin-modal*) and supports keyboard-driven flow (Enter = OK,
+     Esc = Cancel). The body innerHTML is set via the helper so callers can
+     pass minimal HTML (e.g. <strong>) — they should NOT pass user-controlled
+     strings unsanitized; the helper auto-escapes plain-text messages. -->
+<div id="custom-modal-overlay" class="admin-modal-overlay" onclick="_customModalBackdropClick(event)">
+  <div class="admin-modal" style="max-width:440px">
+    <div class="admin-modal-header">
+      <div class="admin-modal-title" id="custom-modal-title">Confirm</div>
+      <button class="admin-modal-close" onclick="_customModalResolve(null)" type="button">✕</button>
+    </div>
+    <div class="admin-modal-body" style="padding-top:14px;padding-bottom:14px">
+      <div id="custom-modal-message" style="font-size:13.5px;line-height:1.55;color:var(--text-body);white-space:pre-wrap"></div>
+      <input class="form-input" id="custom-modal-input" type="text" style="display:none;margin-top:12px"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_customModalResolve(true);}"/>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn btn-secondary" id="custom-modal-cancel" onclick="_customModalResolve(null)" type="button">Cancel</button>
+      <button class="btn btn-primary"   id="custom-modal-ok"     onclick="_customModalResolve(true)" type="button">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── NEW PROFILE PASSKEY notice (one-time, shown after profile creation) ── -->
+<div id="new-pk-overlay" role="dialog" aria-modal="true" aria-labelledby="new-pk-title-el">
+  <div class="new-pk-card">
+    <div class="new-pk-title" id="new-pk-title-el">🔑 Save This Passkey!</div>
+    <div class="new-pk-intro" id="new-pk-intro">Profile saved.</div>
+    <div class="new-pk-code" id="new-pk-code">— — — — — — — —</div>
+    <div class="new-pk-warn">
+      This is the ONLY way to edit your profile later. <strong>Copy it somewhere safe</strong> — a password manager,
+      a note to yourself, anywhere. If you lose it, an admin will need to regenerate it for you.
+    </div>
+    <div class="new-pk-actions">
+      <button id="new-pk-copy-btn" class="btn btn-primary" onclick="copyNewPasskey()">📋 Copy passkey</button>
+      <button class="btn btn-secondary" onclick="closeNewPasskey()">I saved it</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Rich-text editor engine: a vendored, fully-offline Tiptap bundle built from
+     esm.sh. Defines window.__TIPTAP_BUNDLE. If this file is absent, the editor
+     transparently falls back to loading Tiptap from the CDN (needs internet). -->
+<script src="tiptap-bundle.js?v=2"></script>
+<script src="src/util/escape.js"></script>
+<script src="src/util/dom.js"></script>
+<script src="src/ui/modal.js"></script>
+<script src="src/ui/dark-mode.js"></script>
+<script src="src/kpi/quarter.js"></script>
+<script src="src/kpi/csv-parser.js?v=3"></script>
+<script src="firebase-config.js"></script>
+<script src="src/firebase.js"></script>
+<script src="src/data/model.js"></script>
+<script src="src/admin/data-tools.js"></script>
+<script src="src/admin/admin-tools.js"></script>
+<script src="src/auth/session.js"></script>
+<script src="src/auth/access.js"></script>
+<script src="src/auth/admin-password.js"></script>
+<script src="src/auth/bind.js"></script>
+<script src="src/search/embeddings.js"></script>
+<script src="src/search/engine.js"></script>
+<script src="src/search/modal-ui.js"></script>
+<script src="src/ui/lightbox.js"></script>
+<script src="src/ui/keyboard.js"></script>
+<script src="src/ui/sidebar.js"></script>
+<script src="src/editor/rich-text.js"></script>
+<script src="src/modals/editors.js"></script>
+<script src="src/modals/announcements.js"></script>
+<script src="src/modals/synonyms.js"></script>
+<script src="src/modals/settings.js"></script>
+<script src="src/modals/category.js"></script>
+<script src="src/data/backup.js"></script>
+<script src="src/team/team-directory.js"></script>
+<script src="src/views/navigation.js"></script>
+<script src="src/views/docview.js"></script>
+<script src="src/ui/login.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

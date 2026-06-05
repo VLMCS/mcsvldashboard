@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — First-time Setup</title>
+<!-- Optional: load the firebase-config.js that ships in this folder so the
+     wizard can auto-detect an already-filled config. Failing to load is fine. -->
+<script src="firebase-config.js" onerror="window.__cfgFileMissing=true"></script>
+<style>
+  :root{ --acc:#2563eb; --bg:#f5f6f8; --card:#fff; --text:#0d0d0d; --mid:#5b6370; --border:#e2e5ea; --ok:#15803d; --err:#b91c1c; --warn:#b45309; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+  .wrap{ max-width:760px; margin:0 auto; padding:32px 20px 80px; }
+  h1{ font-size:26px; margin:0 0 4px; letter-spacing:-0.02em; }
+  h2{ font-size:19px; margin:0 0 14px; }
+  .sub{ color:var(--mid); margin:0 0 24px; font-size:14px; }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .steps{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px; }
+  .pill{ font-size:11.5px; padding:5px 11px; border-radius:999px; background:#eef0f4; color:var(--mid); border:1px solid transparent; }
+  .pill.active{ background:var(--acc); color:#fff; }
+  .pill.done{ background:#e7f3ec; color:var(--ok); border-color:#cce7d6; }
+  label{ display:block; font-weight:600; font-size:13px; margin:14px 0 5px; }
+  .hint{ font-weight:400; color:var(--mid); font-size:12px; margin:3px 0 0; }
+  input[type=text],input[type=password],textarea,select{ width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:9px; font-size:14px; font-family:inherit; background:#fff; color:var(--text); }
+  textarea{ min-height:140px; font-family:"Consolas","SF Mono",monospace; font-size:12.5px; }
+  input[type=color]{ width:52px; height:36px; padding:2px; border:1px solid var(--border); border-radius:8px; vertical-align:middle; background:#fff; }
+  .row{ display:flex; gap:16px; flex-wrap:wrap; }
+  .row>div{ flex:1; min-width:200px; }
+  .colorgrid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 22px; }
+  .colorgrid .cf{ display:flex; align-items:center; gap:10px; }
+  .colorgrid .cf span{ font-size:13px; }
+  .btnrow{ display:flex; justify-content:space-between; margin-top:24px; gap:12px; }
+  button{ font:inherit; cursor:pointer; border-radius:9px; padding:10px 18px; border:1px solid var(--border); background:#fff; color:var(--text); font-weight:600; }
+  button.primary{ background:var(--acc); color:#fff; border-color:var(--acc); }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .check{ background:#f8f9fb; border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin:12px 0; }
+  .check ol{ margin:6px 0 0; padding-left:20px; } .check li{ margin:7px 0; font-size:14px; }
+  code,kbd{ background:#eef0f4; border-radius:5px; padding:1px 6px; font-family:"Consolas",monospace; font-size:12.5px; }
+  pre{ background:#0f1115; color:#e6e9ef; border-radius:10px; padding:14px; overflow:auto; max-height:260px; font-size:11.5px; }
+  .note{ font-size:13px; border-radius:10px; padding:12px 14px; margin:12px 0; }
+  .note.warn{ background:#fef6ec; border:1px solid #f5d9a8; color:var(--warn); }
+  .note.ok{ background:#e7f3ec; border:1px solid #cce7d6; color:var(--ok); }
+  .note.err{ background:#fdeaea; border:1px solid #f3c0c0; color:var(--err); }
+  .secret{ font-family:"Consolas",monospace; font-size:20px; letter-spacing:2px; background:#0f1115; color:#fff; padding:14px 16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; gap:12px; margin:8px 0; }
+  .secret button{ background:#2a2f3a; color:#fff; border-color:#3a4150; font-size:12px; padding:6px 12px; }
+  .log{ font-family:"Consolas",monospace; font-size:12px; white-space:pre-wrap; background:#f8f9fb; border:1px solid var(--border); border-radius:10px; padding:12px; margin-top:14px; max-height:240px; overflow:auto; }
+  .hidden{ display:none !important; }
+  a{ color:var(--acc); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Dashboard — First-time Setup</h1>
+  <p class="sub">This wizard connects your dashboard to <b>your own</b> Firebase project, applies your branding, and creates your admin account. Run it <b>once</b>, on your <b>live (deployed) URL</b>.</p>
+
+  <div class="steps" id="steps"></div>
+
+  <!-- STEP 0 — Prerequisites -->
+  <section class="card wiz-step" data-step="0">
+    <h2>1 · Before you start</h2>
+    <p class="sub">You need a free Firebase project. Do these in the <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase console</a> first:</p>
+    <div class="check">
+      <b>Firebase console checklist</b>
+      <ol>
+        <li><b>Create a project</b> (Add project → name it → you can disable Analytics).</li>
+        <li><b>Build → Firestore Database → Create database</b> → start in <b>Production mode</b> (you'll paste rules next), pick a region.</li>
+        <li><b>Build → Authentication → Get started → Sign-in method →</b> enable <b>Anonymous</b>.</li>
+        <li><b>Authentication → Settings → Authorized domains →</b> add the domain you'll host on (e.g. <code>yourname.github.io</code>).</li>
+        <li><b>Firestore → Rules tab →</b> paste the rules below and <b>Publish</b>.</li>
+        <li><b>Project settings ⚙ → General → Your apps → <kbd>&lt;/&gt;</kbd> Web →</b> register an app and copy the <code>firebaseConfig</code> object (you'll paste it on the next step).</li>
+      </ol>
+    </div>
+    <label>Security rules to paste into the Firestore "Rules" tab
+      <span class="hint">This is the <code>firestore.rules</code> file shipped in this folder.</span>
+    </label>
+    <button id="copyRules" type="button">📋 Copy rules</button>
+    <button id="showRules" type="button">Show rules</button>
+    <pre id="rulesBox" class="hidden">Loading firestore.rules…</pre>
+    <div class="note warn"><b>Important order:</b> deploy these files to your host first, then open <code>setup.html</code> at your <b>live URL</b> and run this wizard there. Your admin account is tied to the browser + domain you run it on.</div>
+    <div class="btnrow"><span></span><button class="primary" data-next>I've done these →</button></div>
+  </section>
+
+  <!-- STEP 1 — Connect -->
+  <section class="card wiz-step hidden" data-step="1">
+    <h2>2 · Connect to your Firebase</h2>
+    <p class="sub">Paste the <code>firebaseConfig</code> object from the Firebase console. (If <code>firebase-config.js</code> in this folder is already filled in, it's detected automatically.)</p>
+    <label>firebaseConfig</label>
+    <textarea id="cfgInput" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;...&quot;,&#10;  authDomain: &quot;...&quot;,&#10;  projectId: &quot;...&quot;,&#10;  storageBucket: &quot;...&quot;,&#10;  messagingSenderId: &quot;...&quot;,&#10;  appId: &quot;...&quot;&#10;};"></textarea>
+    <div class="btnrow">
+      <button data-prev>← Back</button>
+      <button class="primary" id="connectBtn">Connect & verify</button>
+    </div>
+    <div id="connectMsg"></div>
+  </section>
+
+  <!-- STEP 2 — Branding -->
+  <section class="card wiz-step hidden" data-step="2">
+    <h2>3 · Branding</h2>
+    <div class="row">
+      <div><label>Dashboard name<input type="text" id="b_site" placeholder="Acme Handbook" /></label></div>
+      <div><label>Studio / company name<input type="text" id="b_studio" placeholder="Acme Games" /></label></div>
+    </div>
+    <div class="row">
+      <div><label>Department name<input type="text" id="b_dept" placeholder="Engineering" /></label></div>
+      <div><label>First category name (sidebar)<input type="text" id="b_cat" placeholder="Handbook" /><span class="hint">The top-level group in the sidebar. You can add more later.</span></label></div>
+    </div>
+    <label>Home page subtitle<input type="text" id="b_sub" placeholder="Browse from the sidebar, or search for anything below." /></label>
+    <label>Favicon <span class="hint">optional · PNG/ICO · ≤ 64 KB</span><input type="file" id="b_favicon" accept="image/png,image/x-icon,image/vnd.microsoft.icon,.ico" /></label>
+    <div id="faviconMsg" class="hint"></div>
+    <label style="margin-top:18px">Theme colors</label>
+    <div class="colorgrid">
+      <div class="cf"><input type="color" id="t_light_acc" value="#2563eb" /><span>Light accent</span></div>
+      <div class="cf"><input type="color" id="t_dark_acc" value="#60a5fa" /><span>Dark accent</span></div>
+      <div class="cf"><input type="color" id="t_light_bg" value="#f5f6f8" /><span>Light background</span></div>
+      <div class="cf"><input type="color" id="t_dark_bg" value="#161616" /><span>Dark background</span></div>
+    </div>
+    <div class="btnrow"><button data-prev>← Back</button><button class="primary" data-next>Next →</button></div>
+  </section>
+
+  <!-- STEP 3 — Admin profile -->
+  <section class="card wiz-step hidden" data-step="3">
+    <h2>4 · Your admin profile</h2>
+    <p class="sub">You'll be created as the first team member <b>and</b> the first admin. You'll get a personal passkey (to sign in) and a master recovery key (to manage admin access).</p>
+    <div class="row">
+      <div><label>Your name<input type="text" id="a_real" placeholder="Jane Doe" /></label></div>
+      <div><label>Display / handle<input type="text" id="a_slack" placeholder="@jane" /></label></div>
+    </div>
+    <div class="row">
+      <div><label>Role / expertise <span class="hint">optional</span><input type="text" id="a_exp" placeholder="Department Lead" /></label></div>
+      <div><label>Timezone <span class="hint">optional</span><input type="text" id="a_tz" placeholder="America/New_York" /></label></div>
+    </div>
+    <label>Admin-mode password<input type="password" id="a_pw" placeholder="Choose an admin password" /><span class="hint">Used to enter Admin Mode. You'll also get a one-time recovery key.</span></label>
+    <label>Confirm password<input type="password" id="a_pw2" placeholder="Re-enter password" /></label>
+    <div class="btnrow"><button data-prev>← Back</button><button class="primary" data-next>Review →</button></div>
+  </section>
+
+  <!-- STEP 4 — Review -->
+  <section class="card wiz-step hidden" data-step="4">
+    <h2>5 · Review &amp; create</h2>
+    <div id="review"></div>
+    <div class="note warn">This writes initial data to your Firestore and makes <b>this browser</b> the first admin. Run it only once per project.</div>
+    <div class="btnrow"><button data-prev>← Back</button><button class="primary" id="createBtn">Create my dashboard</button></div>
+    <div id="createLog" class="log hidden"></div>
+  </section>
+
+  <!-- STEP 5 — Done -->
+  <section class="card wiz-step hidden" data-step="5">
+    <h2>🎉 All set</h2>
+    <div class="note ok">Your dashboard is seeded and you're the admin. <b>Save the two codes below now</b> — they are shown only once.</div>
+    <label>Your personal passkey <span class="hint">sign in with this on the dashboard</span></label>
+    <div class="secret"><span id="out_passkey">—</span><button data-copy="out_passkey">Copy</button></div>
+    <label>Master recovery key <span class="hint">needed to change the admin password / recover access</span></label>
+    <div class="secret"><span id="out_recovery">—</span><button data-copy="out_recovery">Copy</button></div>
+    <div class="check" style="margin-top:18px">
+      <b>Last steps</b>
+      <ol>
+        <li>If you haven't already, make sure <code>firebase-config.js</code> in this folder holds your config. <button id="dlCfg" type="button" style="padding:4px 10px;font-size:12px">⬇ Download firebase-config.js</button> and place it next to <code>index.html</code>, then redeploy.</li>
+        <li>Open <a href="index.html">index.html</a> and sign in with your passkey.</li>
+        <li>Enter Admin Mode (your password) to add sections, entries, team members, and quick links.</li>
+        <li>Delete <code>setup.html</code> from your host when you're done (optional, tidy).</li>
+      </ol>
+    </div>
+    <div class="btnrow"><span></span><a href="index.html"><button class="primary">Go to my dashboard →</button></a></div>
+  </section>
+</div>
+
+<script type="module">
+const SDK = 'https://www.gstatic.com/firebasejs/10.13.2/';
+const STEP_TITLES = ['Prereqs','Connect','Branding','Admin','Review','Done'];
+let step = 0, maxStep = 0;
+let fb = null;            // { app, db, auth, uid, fns }
+let cfg = null;           // parsed firebase config
+const state = { favicon:'' };
+const out = { passkey:'', recovery:'' };
+
+/* ── helpers ─────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+async function sha256Hex(str){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+function randomHex(bytes){ const a=new Uint8Array(bytes); crypto.getRandomValues(a); return [...a].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function generatePasskey(){ const a=new Uint8Array(8); crypto.getRandomValues(a); let s=''; for(let i=0;i<8;i++) s+=ALPHA[a[i]%ALPHA.length]; return s; }
+function genRecoveryKey(){ const grp=()=>{ const a=new Uint8Array(5); crypto.getRandomValues(a); let s=''; for(let i=0;i<5;i++) s+=ALPHA[a[i]%ALPHA.length]; return s; }; return [grp(),grp(),grp(),grp()].join('-'); }
+function normKey(k){ return String(k).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function encodeSynonyms(groups){ return groups.map(g=>({terms:Array.isArray(g)?g:[]})); }
+
+/* ── step navigation ─────────────────────────────────────── */
+function renderSteps(){
+  $('steps').innerHTML = STEP_TITLES.map((t,i)=>{
+    const cls = i===step ? 'active' : (i<step?'done':'');
+    return `<span class="pill ${cls}">${i+1}. ${t}</span>`;
+  }).join('');
+}
+function show(n){
+  step = n; maxStep = Math.max(maxStep,n);
+  document.querySelectorAll('.wiz-step').forEach(s=> s.classList.toggle('hidden', +s.dataset.step!==n));
+  renderSteps(); window.scrollTo(0,0);
+}
+document.querySelectorAll('[data-next]').forEach(b=> b.onclick=()=>{ if(validateStep(step)) show(step+1); if(step===4) fillReview(); });
+document.querySelectorAll('[data-prev]').forEach(b=> b.onclick=()=> show(step-1));
+
+function validateStep(n){
+  if(n===2){
+    if(!$('b_site').value.trim()){ alert('Please enter a dashboard name.'); return false; }
+    if(!$('b_cat').value.trim()){ alert('Please enter a first category name.'); return false; }
+  }
+  if(n===3){
+    if(!$('a_real').value.trim()){ alert('Please enter your name.'); return false; }
+    const pw=$('a_pw').value, pw2=$('a_pw2').value;
+    if(pw.length<4){ alert('Choose an admin password of at least 4 characters.'); return false; }
+    if(pw!==pw2){ alert('Passwords do not match.'); return false; }
+  }
+  return true;
+}
+
+/* ── rules box ───────────────────────────────────────────── */
+let rulesText = '';
+fetch('firestore.rules').then(r=>r.ok?r.text():Promise.reject()).then(t=>{ rulesText=t; $('rulesBox').textContent=t; })
+  .catch(()=>{ rulesText=''; $('rulesBox').textContent='Could not load firestore.rules automatically — open the firestore.rules file in this folder and copy its contents.'; });
+$('showRules').onclick=()=> $('rulesBox').classList.toggle('hidden');
+$('copyRules').onclick=async()=>{ try{ await navigator.clipboard.writeText(rulesText||$('rulesBox').textContent); $('copyRules').textContent='✓ Copied'; setTimeout(()=>$('copyRules').textContent='📋 Copy rules',1500);}catch(e){ $('rulesBox').classList.remove('hidden'); alert('Copy failed — the rules are shown below; select and copy manually.'); } };
+
+/* ── config parsing + connect ────────────────────────────── */
+function parseConfig(text){
+  text = (text||'').trim();
+  if(!text) return null;
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if(a<0||b<0) return null;
+  try{ return (new Function('return ('+text.slice(a,b+1)+')'))(); }catch(e){ return null; }
+}
+// Pre-fill if firebase-config.js already set a real config
+if(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && window.FIREBASE_CONFIG.apiKey!=='PASTE_YOUR_CONFIG_HERE'){
+  $('cfgInput').value = JSON.stringify(window.FIREBASE_CONFIG, null, 2);
+}
+$('connectBtn').onclick = async ()=>{
+  const msg = $('connectMsg'); msg.innerHTML='';
+  const parsed = parseConfig($('cfgInput').value);
+  if(!parsed || !parsed.apiKey || !parsed.projectId || !parsed.appId){
+    msg.innerHTML='<div class="note err">Could not read a valid config. Make sure you pasted the whole <code>firebaseConfig = { … }</code> object including apiKey, projectId and appId.</div>'; return;
+  }
+  $('connectBtn').disabled=true; msg.innerHTML='<div class="note">Connecting…</div>';
+  try{
+    const { initializeApp } = await import(SDK+'firebase-app.js');
+    const fs = await import(SDK+'firebase-firestore.js');
+    const au = await import(SDK+'firebase-auth.js');
+    const app = initializeApp(parsed, 'setup-'+Date.now());
+    const db  = fs.getFirestore(app);
+    const auth= au.getAuth(app);
+    const uid = await new Promise((resolve,reject)=>{
+      let done=false;
+      au.onAuthStateChanged(auth, u=>{ if(u&&!done){ done=true; resolve(u.uid); } });
+      au.signInAnonymously(auth).catch(reject);
+    });
+    cfg = parsed;
+    fb = { app, db, auth, uid, fs };
+    // Connection test: is it already bootstrapped?
+    const boot = await fs.getDoc(fs.doc(db,'system','adminsBootstrapped'));
+    if(boot.exists()){
+      msg.innerHTML='<div class="note warn"><b>Heads-up:</b> this project already has an admin (it was set up before). Continuing will add a SECOND admin (this browser) but won\'t wipe anything. If that\'s not what you want, stop here.</div>'+
+        '<div class="btnrow"><span></span><button class="primary" id="contAnyway">Continue anyway →</button></div>';
+      $('contAnyway').onclick=()=> show(2);
+    } else {
+      msg.innerHTML='<div class="note ok">Connected to <b>'+parsed.projectId+'</b> ✓ — Anonymous Auth working, no admin yet.</div>';
+      setTimeout(()=> show(2), 600);
+    }
+  }catch(e){
+    let hint='';
+    const m = String(e&&e.message||e);
+    if(/auth\/operation-not-allowed/.test(m)) hint=' — enable <b>Anonymous</b> sign-in (Authentication → Sign-in method).';
+    else if(/auth\/unauthorized-domain|requests-from-referer|domain/i.test(m)) hint=' — add this page\'s domain under <b>Authentication → Settings → Authorized domains</b>.';
+    msg.innerHTML='<div class="note err">Connection failed: '+m+hint+'</div>';
+  }finally{ $('connectBtn').disabled=false; }
+};
+
+/* ── favicon ─────────────────────────────────────────────── */
+$('b_favicon').onchange = e=>{
+  const f = e.target.files[0]; if(!f){ state.favicon=''; $('faviconMsg').textContent=''; return; }
+  if(f.size > 64*1024){ $('faviconMsg').innerHTML='<span style="color:var(--err)">Too large ('+Math.round(f.size/1024)+' KB). Max 64 KB.</span>'; e.target.value=''; return; }
+  const r=new FileReader(); r.onload=ev=>{ state.favicon=ev.target.result; $('faviconMsg').innerHTML='<span style="color:var(--ok)">Loaded ✓</span>'; }; r.readAsDataURL(f);
+};
+
+/* ── review ──────────────────────────────────────────────── */
+function collect(){
+  return {
+    site:  $('b_site').value.trim(),
+    studio:$('b_studio').value.trim() || 'Your Studio',
+    dept:  $('b_dept').value.trim() || '',
+    cat:   $('b_cat').value.trim() || 'Handbook',
+    sub:   $('b_sub').value.trim() || 'Browse from the sidebar, or search for anything below.',
+    favicon: state.favicon || '',
+    theme:{
+      light:{ accent:$('t_light_acc').value, bg:$('t_light_bg').value, text:'#0d0d0d', sidebarBg:'#fafafa' },
+      dark: { accent:$('t_dark_acc').value,  bg:$('t_dark_bg').value,  text:'#ededeb', sidebarBg:'#111111' }
+    },
+    realName:$('a_real').value.trim(),
+    slackName:$('a_slack').value.trim() || $('a_real').value.trim(),
+    expertise:$('a_exp').value.trim(),
+    timezone:$('a_tz').value.trim() || 'America/New_York',
+    password:$('a_pw').value
+  };
+}
+function fillReview(){
+  const d = collect();
+  $('review').innerHTML =
+    `<div class="check"><b>Dashboard</b><ol style="list-style:none;padding-left:0">
+      <li><b>Name:</b> ${esc(d.site)}</li>
+      <li><b>Studio:</b> ${esc(d.studio)}</li>
+      <li><b>Department:</b> ${esc(d.dept||'—')}</li>
+      <li><b>First category:</b> ${esc(d.cat)}</li>
+      <li><b>Subtitle:</b> ${esc(d.sub)}</li>
+      <li><b>Favicon:</b> ${d.favicon?'set ✓':'default'}</li>
+      <li><b>Project:</b> ${esc(cfg?cfg.projectId:'?')}</li>
+    </ol></div>
+    <div class="check"><b>Admin (you)</b><ol style="list-style:none;padding-left:0">
+      <li><b>Name:</b> ${esc(d.realName)}</li>
+      <li><b>Handle:</b> ${esc(d.slackName)}</li>
+      <li><b>Role:</b> ${esc(d.expertise||'—')}</li>
+      <li><b>Admin password:</b> set ✓</li>
+    </ol></div>`;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ── create ──────────────────────────────────────────────── */
+$('createBtn').onclick = async ()=>{
+  if(!fb){ alert('Not connected. Go back to step 2.'); return; }
+  const d = collect();
+  const logEl = $('createLog'); logEl.classList.remove('hidden'); logEl.textContent='';
+  const log = m => { logEl.textContent += m+'\n'; logEl.scrollTop = logEl.scrollHeight; };
+  $('createBtn').disabled = true;
+  const { db, uid, fs } = fb;
+  const setDoc = fs.setDoc, doc = fs.doc, serverTimestamp = fs.serverTimestamp;
+  try{
+    // 1) Bootstrap admin FIRST (rules: allowed only while no admin exists), then marker.
+    log('Promoting this device to admin…');
+    await setDoc(doc(db,'admins',uid), { promotedAt: serverTimestamp(), promotedBy:'bootstrap' });
+    await setDoc(doc(db,'system','adminsBootstrapped'), { at: serverTimestamp(), by: uid });
+
+    // 2) Branding singleton (site/main) — shape = SITE_SETTINGS.
+    log('Writing site settings…');
+    await setDoc(doc(db,'site','main'), {
+      siteName:d.site, studioName:d.studio, departmentName:d.dept,
+      heroSub:d.sub, handbookLabel:d.cat, quicklinksLabel:'Quick Links', projectsLabel:'Projects',
+      favicon:d.favicon, keywordSearchEnabled:true, aiSearchEnabled:true, theme:d.theme
+    });
+
+    // 3) Sidebar + synonyms singletons.
+    log('Writing sidebar + synonyms…');
+    await setDoc(doc(db,'sidebar','main'), { items:[ { id:'quicklinks', label:'Quick Links', items:[] } ] });
+    await setDoc(doc(db,'synonyms','main'), { groups: encodeSynonyms([
+      ['handbook','guide','docs','documentation','manual'],
+      ['team','staff','people','members','directory'],
+      ['onboarding','getting started','setup','orientation','first day'],
+      ['search','find','lookup','look up'],
+      ['settings','config','configuration','preferences','options']
+    ]) });
+
+    // 4) Starter section + entry (base 'handbook'). Doc ids are namespaced base__id.
+    log('Adding a starter section + welcome entry…');
+    await setDoc(doc(db,'sections','handbook__1'), { num:'1', title:'Getting Started', description:'Your first section — edit or replace it in Admin Mode.', base:'handbook' });
+    await setDoc(doc(db,'entries','handbook__1.1'), {
+      id:'1.1', section:'1. Getting Started', title:'Welcome',
+      keywords:['welcome','getting started','intro','help'],
+      content:'<p>This is your dashboard’s first entry. Enter <strong>Admin Mode</strong> to edit or delete it and start building out your content.</p>',
+      base:'handbook', sectionNum:'1'
+    });
+
+    // 5) Admin team profile (passkey lives in team-secrets, NOT on the profile).
+    log('Creating your team profile + passkey…');
+    const tmId = 'tm-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
+    const passkey = generatePasskey();
+    const now = Date.now();
+    await setDoc(doc(db,'team',tmId), {
+      id:tmId, image:'', slackName:d.slackName, realName:d.realName,
+      projects:[], schedule:{ signIn:'', signOut:'', timezone:d.timezone },
+      badges:'', expertise:d.expertise, artStyle:'', favoriteGenre:'', favoriteGames:'',
+      portfolio:'', kpi:{}, kpiNotes:{}, _createdAt:now, _updatedAt:now
+    });
+    await setDoc(doc(db,'team-secrets',tmId), { passkey });
+
+    // 6) Admin password + master recovery key (system/adminAuth).
+    log('Setting admin password + recovery key…');
+    const recovery = genRecoveryKey();
+    const pwSalt = randomHex(16), recSalt = randomHex(16);
+    await setDoc(doc(db,'system','adminAuth'), {
+      pwHash: await sha256Hex(pwSalt + d.password), pwSalt,
+      recoveryHash: await sha256Hex(recSalt + normKey(recovery)), recoverySalt: recSalt,
+      updatedAt: now
+    });
+
+    out.passkey = passkey; out.recovery = recovery;
+    $('out_passkey').textContent = passkey;
+    $('out_recovery').textContent = recovery;
+    log('Done ✓');
+    show(5);
+  }catch(e){
+    log('ERROR: ' + (e&&e.message||e));
+    log('If this says permission-denied, re-check that you published the rules and that no admin already exists.');
+    $('createBtn').disabled = false;
+  }
+};
+
+/* ── copy + download config ─────────────────────────────── */
+document.querySelectorAll('[data-copy]').forEach(b=> b.onclick=async()=>{ try{ await navigator.clipboard.writeText($(b.dataset.copy).textContent); b.textContent='✓'; setTimeout(()=>b.textContent='Copy',1200);}catch(e){ alert('Copy failed — select the value manually.'); } });
+$('dlCfg').onclick = ()=>{
+  if(!cfg) return alert('No config to download.');
+  const body = '/* Firebase config generated by setup.html */\nwindow.FIREBASE_CONFIG = ' + JSON.stringify(cfg, null, 2) + ';\n';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([body], {type:'application/javascript'}));
+  a.download = 'firebase-config.js'; a.click(); URL.revokeObjectURL(a.href);
+};
+
+renderSteps(); show(0);
+</script>
+</body>
+</html>

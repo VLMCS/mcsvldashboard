@@ -1,0 +1,245 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard — Firestore security rules
+//
+// Auth model: Anonymous Firebase Auth gives each device a UID. A device becomes
+// "bound" to a team member by writing /users/{uid} after a successful passkey
+// check (passkey hashes live in /team-secrets, readable only to NOT-YET-BOUND
+// signed-in clients so the bind step works without exposing hashes long-term).
+//
+// Admin model: /admins/{uid} doc presence == admin. Bootstrap path lets the
+// very first user self-promote (one-shot, gated by /system/adminsBootstrapped).
+// All subsequent admin grants must come from an existing admin.
+//
+// Data model: per-entity collections (entries, sections, team, etc.). Three
+// small config docs (site/main, sidebar/main, synonyms/main) stay single-doc.
+//
+// Spark-plan caveats:
+//   - No Cloud Functions, so passkey verification happens client-side. Rules
+//     can only check "did the client write to its own UID prefix" and trust
+//     the client's passkey comparison. Same threat model as before, but with
+//     hashed passkeys + Anonymous Auth gating reads of those hashes.
+//   - Each rule eval that uses get() costs 1 Firestore read against the 50k/day
+//     Spark cap. Helpers below are designed to hit get() at most twice per call.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function bound() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Who may READ shared content: any passkey-bound device, OR an admin
+    // (a bootstrap admin has /admins but no /users, so isn't "bound").
+    function canRead() {
+      return bound() || isAdmin();
+    }
+
+    function myTmId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tmId;
+    }
+
+    function noAdminsExistYet() {
+      return !exists(/databases/$(database)/documents/system/adminsBootstrapped);
+    }
+
+    function hasUnlocked(sectionId) {
+      return exists(
+        /databases/$(database)/documents/project-unlocks/$(request.auth.uid + '__' + sectionId)
+      );
+    }
+
+    // ─── Auth binding: /users/{uid} ──────────────────────────────────────────
+    // One doc per device. Self-claimed on first successful passkey login.
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+
+      // Bind: signed-in caller writes its own UID, references a real team member,
+      // does NOT claim isAdmin via this doc, stamps boundAt with server time.
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['tmId', 'slackName', 'boundAt'])
+        && request.resource.data.tmId is string
+        && exists(/databases/$(database)/documents/team/$(request.resource.data.tmId))
+        && request.resource.data.boundAt == request.time;
+
+      // Update: only admins (e.g., to fix mistakes or re-bind a stale doc).
+      allow update: if isAdmin();
+
+      // Delete: self (sign-out) or admin (revoke).
+      allow delete: if isAdmin() || request.auth.uid == uid;
+    }
+
+    // ─── Admin flags: /admins/{uid} ──────────────────────────────────────────
+    // Presence of the doc == admin. Bootstrap allows the first user to self-grant
+    // as long as the bootstrap marker hasn't been written yet.
+    match /admins/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Bootstrap path: very first admin self-promotes. Race-window mitigation:
+      // do the bootstrap immediately after deploying rules, in a private session.
+      // Regular path: existing admins can promote others.
+      allow create: if signedIn()
+        && (
+          (noAdminsExistYet() && request.auth.uid == uid)
+          || isAdmin()
+        );
+
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── Bootstrap marker + future system flags: /system/{docId} ─────────────
+    // The bootstrap admin writes /system/adminsBootstrapped immediately after
+    // /admins/{theirUid} (use a writeBatch to make both atomic).
+    match /system/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Team profiles: /team/{tmId} ─────────────────────────────────────────
+    // Public-within-team profile info. Passkeys are NOT stored here.
+    match /team/{tmId} {
+      allow read: if canRead();
+      allow update: if isAdmin() || myTmId() == tmId;
+      allow create, delete: if isAdmin();
+    }
+
+    // ─── Passkeys: /team-secrets/{tmId} ──────────────────────────────────────
+    // VIEWABLE model: stores plaintext { passkey }. Readable by (a) NOT-YET-BOUND
+    // signed-in clients — needed for the login bind step — and (b) admins, who
+    // view/copy passkeys in the All-Passkeys page. Bound NON-admins cannot read
+    // these (so a regular team member can't dump everyone's passkeys). Weaker
+    // than hashing, but far better than the original fully-public dashboard doc.
+    match /team-secrets/{tmId} {
+      allow read: if (signedIn() && !bound()) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ─── Project section passkeys: /project-secrets/{sectionId} ──────────────
+    // sectionId format: '<base>__<num>'  (e.g., 'projects__3'). Bound users may
+    // read for the unlock flow; admins write.
+    match /project-secrets/{sectionId} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    // ─── Per-uid project unlocks: /project-unlocks/{lockId} ──────────────────
+    // lockId format: '<uid>__<sectionId>'. Created when a user enters the right
+    // project passkey. NOTE: Spark can't verify the passkey server-side (no
+    // Functions), so this is client-trust — same level of enforcement as the
+    // pre-refactor app. Admins can revoke by deleting.
+    match /project-unlocks/{lockId} {
+      allow read: if isAdmin() || (signedIn() && lockId.matches('^' + request.auth.uid + '__.+'));
+      allow create: if signedIn()
+        && lockId.matches('^' + request.auth.uid + '__.+')
+        && request.resource.data.keys().hasOnly(['unlockedAt'])
+        && request.resource.data.unlockedAt == request.time;
+      allow delete: if isAdmin()
+        || (signedIn() && lockId.matches('^' + request.auth.uid + '__.+'));
+      allow update: if false; // immutable; recreate to "refresh"
+    }
+
+    // ─── Sections: /sections/{sectionId} ─────────────────────────────────────
+    // sectionId format: '<base>__<num>'. Create/delete are admin-only. A
+    // project-section's title/description may also be UPDATED by a device that
+    // holds the unlock for it (base/num immutable).
+    match /sections/{sectionId} {
+      allow read:   if canRead();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          resource.data.base == 'projects'
+          && hasUnlocked(resource.data.base + '__' + resource.data.num)
+          && request.resource.data.base == resource.data.base
+          && request.resource.data.num == resource.data.num
+        );
+    }
+
+    // ─── Entries: /entries/{entryId} ─────────────────────────────────────────
+    // One doc per handbook/project/custom entry. Handbook + custom: admin-only.
+    // Projects: admin OR the requester holds an unlock for that section.
+    match /entries/{entryId} {
+      allow read: if canRead();
+
+      allow create: if isAdmin()
+        || (
+          request.resource.data.base == 'projects'
+          && hasUnlocked(request.resource.data.base + '__' + request.resource.data.sectionNum)
+        );
+
+      allow update: if isAdmin()
+        || (
+          resource.data.base == 'projects'
+          && hasUnlocked(resource.data.base + '__' + resource.data.sectionNum)
+          // Disallow changing base or sectionNum via update — those need delete+recreate.
+          && request.resource.data.base == resource.data.base
+          && request.resource.data.sectionNum == resource.data.sectionNum
+        );
+
+      allow delete: if isAdmin()
+        || (
+          resource.data.base == 'projects'
+          && hasUnlocked(resource.data.base + '__' + resource.data.sectionNum)
+        );
+    }
+
+    // ─── Announcements: /announcements/{annId} ───────────────────────────────
+    match /announcements/{annId} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    // ─── Custom categories: /categories/{catId} ──────────────────────────────
+    match /categories/{catId} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    // ─── KPI imports: /kpis/{kpiId} ──────────────────────────────────────────
+    // kpiId format: '<tmId>__<year>_Q<q>'. Each team member can read their own
+    // KPIs; admins can read everyone's. Writes are admin-only (only admins
+    // import quarterly KPI CSVs).
+    match /kpis/{kpiId} {
+      allow read: if isAdmin()
+        || (bound() && kpiId.matches('^' + myTmId() + '__.+'));
+      allow write: if isAdmin();
+    }
+
+    // ─── Small singleton config docs ─────────────────────────────────────────
+    match /site/{docId} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    match /sidebar/{docId} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    match /synonyms/{docId} {
+      allow read: if canRead();
+      allow write: if isAdmin();
+    }
+
+    // ─── Default deny ────────────────────────────────────────────────────────
+    // Anything not matched above is denied.
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
