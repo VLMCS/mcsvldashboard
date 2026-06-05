@@ -77,21 +77,25 @@ function mergeImportData(e) {
       if (!present.length) { alert('No recognizable data in file (expected handbook, sections, team, etc.).'); return; }
       if (!await customConfirm('Merge ' + present.join(', ') + ' from this file?\n\nMatching IDs are updated, new records are added, and nothing is deleted.', { confirmLabel: 'Merge' })) return;
 
-      if (data.handbook       !== undefined) HANDBOOK          = _mergeByKey(HANDBOOK,        data.handbook,       x => String(x.id));
-      if (data.projectEntries !== undefined) PROJECT_ENTRIES   = _mergeByKey(PROJECT_ENTRIES, data.projectEntries, x => String(x.id));
-      if (data.sections       !== undefined) SECTIONS          = _mergeByKey(SECTIONS,        data.sections,       x => String(x.num));
-      if (data.projects       !== undefined) PROJECTS          = _mergeByKey(PROJECTS,        data.projects,       x => String(x.num));
-      if (data.announcements  !== undefined) ANNOUNCEMENTS     = _mergeByKey(ANNOUNCEMENTS,   data.announcements,  x => String(x.id));
-      if (data.team           !== undefined) TEAM_DIRECTORY    = _mergeByKey(TEAM_DIRECTORY,  data.team,           x => String(x.id));
-      if (data.customCategories !== undefined) CUSTOM_CATEGORIES = _mergeCategories(CUSTOM_CATEGORIES, data.customCategories);
-      if (data.settings       !== undefined) SITE_SETTINGS     = Object.assign({}, SITE_SETTINGS, data.settings);
-      if (data.sidebar        !== undefined) SIDEBAR_CFG       = data.sidebar;   // singleton: replace-if-present
-      if (data.synonyms       !== undefined) SYNONYMS          = data.synonyms;  // singleton: replace-if-present
+      // Lock the sidebar (scrim + spinner + no controls, can't leave admin)
+      // until the import's writes settle — same UX as drag-reorder.
+      await withSidebarSaving(async () => {
+        if (data.handbook       !== undefined) HANDBOOK          = _mergeByKey(HANDBOOK,        data.handbook,       x => String(x.id));
+        if (data.projectEntries !== undefined) PROJECT_ENTRIES   = _mergeByKey(PROJECT_ENTRIES, data.projectEntries, x => String(x.id));
+        if (data.sections       !== undefined) SECTIONS          = _mergeByKey(SECTIONS,        data.sections,       x => String(x.num));
+        if (data.projects       !== undefined) PROJECTS          = _mergeByKey(PROJECTS,        data.projects,       x => String(x.num));
+        if (data.announcements  !== undefined) ANNOUNCEMENTS     = _mergeByKey(ANNOUNCEMENTS,   data.announcements,  x => String(x.id));
+        if (data.team           !== undefined) TEAM_DIRECTORY    = _mergeByKey(TEAM_DIRECTORY,  data.team,           x => String(x.id));
+        if (data.customCategories !== undefined) CUSTOM_CATEGORIES = _mergeCategories(CUSTOM_CATEGORIES, data.customCategories);
+        if (data.settings       !== undefined) SITE_SETTINGS     = Object.assign({}, SITE_SETTINGS, data.settings);
+        if (data.sidebar        !== undefined) SIDEBAR_CFG       = data.sidebar;   // singleton: replace-if-present
+        if (data.synonyms       !== undefined) SYNONYMS          = data.synonyms;  // singleton: replace-if-present
 
-      saveAll('Merge complete');
-      // Edited entries may carry stale/missing embeddings — backfill in the background.
-      setTimeout(() => runBackfillEmbeddings(), 500);
-      applyAllSettings(); renderSidebar(); renderAnnouncements(); showHome();
+        saveAll('Merge complete');
+        // Edited entries may carry stale/missing embeddings — backfill in the background.
+        setTimeout(() => runBackfillEmbeddings(), 500);
+        applyAllSettings(); renderSidebar(); renderAnnouncements(); showHome();
+      });
     } catch(err) { alert('Could not parse file: ' + err.message); }
   };
   r.readAsText(file); e.target.value = '';
@@ -105,21 +109,25 @@ function importData(e) {
       const data = JSON.parse(ev.target.result);
       if (!data.handbook) { alert('Invalid backup file.'); return; }
       if (!await customConfirm('This will replace all data (handbook, projects, sidebar, announcements, synonyms, team). Continue?', { danger: true, confirmLabel: 'Replace all data' })) return;
-      SECTIONS = data.sections || clone(DEFAULT_SECTIONS);
-      HANDBOOK = data.handbook;
-      PROJECTS = data.projects || [];
-      PROJECT_ENTRIES = data.projectEntries || [];
-      CUSTOM_CATEGORIES = data.customCategories || [];
-      SITE_SETTINGS = data.settings ? Object.assign({}, DEFAULT_SITE_SETTINGS, data.settings) : clone(DEFAULT_SITE_SETTINGS);
-      SIDEBAR_CFG = data.sidebar || clone(DEFAULT_SIDEBAR_CFG);
-      ANNOUNCEMENTS = data.announcements || [];
-      SYNONYMS = data.synonyms || clone(DEFAULT_SYNONYMS);
-      TEAM_DIRECTORY = data.team || [];
-      dismissedAnns = new Set();
-      saveAll('Import complete');
-      // Imported entries likely lack current-version embeddings — backfill in the background.
-      setTimeout(() => runBackfillEmbeddings(), 500);
-      applyAllSettings(); renderSidebar(); renderAnnouncements(); showHome();
+      // Lock the sidebar (scrim + spinner + no controls, can't leave admin)
+      // until the import's writes settle — same UX as drag-reorder.
+      await withSidebarSaving(async () => {
+        SECTIONS = data.sections || clone(DEFAULT_SECTIONS);
+        HANDBOOK = data.handbook;
+        PROJECTS = data.projects || [];
+        PROJECT_ENTRIES = data.projectEntries || [];
+        CUSTOM_CATEGORIES = data.customCategories || [];
+        SITE_SETTINGS = data.settings ? Object.assign({}, DEFAULT_SITE_SETTINGS, data.settings) : clone(DEFAULT_SITE_SETTINGS);
+        SIDEBAR_CFG = data.sidebar || clone(DEFAULT_SIDEBAR_CFG);
+        ANNOUNCEMENTS = data.announcements || [];
+        SYNONYMS = data.synonyms || clone(DEFAULT_SYNONYMS);
+        TEAM_DIRECTORY = data.team || [];
+        dismissedAnns = new Set();
+        saveAll('Import complete');
+        // Imported entries likely lack current-version embeddings — backfill in the background.
+        setTimeout(() => runBackfillEmbeddings(), 500);
+        applyAllSettings(); renderSidebar(); renderAnnouncements(); showHome();
+      });
     } catch(err) { alert('Could not parse file: ' + err.message); }
   };
   r.readAsText(file); e.target.value = '';

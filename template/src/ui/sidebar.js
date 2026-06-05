@@ -385,18 +385,58 @@ function _commitEntryMove(srcEntry, oldParent, newParent, newSiblings, base) {
   });
 }
 
-// Toggle the sidebar's "saving in progress" overlay. Hides the sidebar
-// behind a dimmed scrim + spinner and blocks pointer events on its rows
-// until the in-flight writes settle. Used by onDropSection — a section
-// reorder rewrites every entry doc under that section and we don't want
-// the user starting a second drag while the first is mid-flight.
-function showSidebarSaving() {
+// ── Sidebar "busy" lock ──────────────────────────────────────────────────
+// While locked, the sidebar shows a dimmed scrim + spinner, every sidebar
+// control is non-interactive (CSS: .sidebar-saving > * { pointer-events:none }),
+// and EXITING Admin Mode is blocked (see exitAdminMode). Used whenever the
+// sidebar list is rewritten in a batch — drag-reorder, JSON import, and
+// incoming remote (team) updates — so the user can't act on, or get knocked
+// out of admin by, a list that's changing under them.
+//
+// Two kinds of hold, OR'd together by isSidebarBusy():
+//   • _sbLockCount — balanced show/hide pairs for operations with a known end
+//     (reorder, import). Counted so overlapping ops don't unlock each other.
+//   • _sbFlashTimer — a brief, self-coalescing lock for transient updates
+//     (a burst of remote snapshots), auto-released after a quiet period.
+let _sbLockCount = 0;
+let _sbFlashTimer = null;
+
+function isSidebarBusy() { return _sbLockCount > 0 || _sbFlashTimer !== null; }
+
+function _applySidebarSaving() {
   const sb = document.getElementById('sidebar');
-  if (sb) sb.classList.add('sidebar-saving');
+  if (sb) sb.classList.toggle('sidebar-saving', isSidebarBusy());
 }
-function hideSidebarSaving() {
-  const sb = document.getElementById('sidebar');
-  if (sb) sb.classList.remove('sidebar-saving');
+
+// Balanced pair (kept by these names for the existing reorder call sites).
+function showSidebarSaving() { _sbLockCount++; _applySidebarSaving(); }
+function hideSidebarSaving() { _sbLockCount = Math.max(0, _sbLockCount - 1); _applySidebarSaving(); }
+
+// Briefly lock the sidebar, coalescing rapid calls (e.g. several remote
+// snapshots landing during a teammate's import). Auto-releases after `ms`
+// of quiet. Safe to interleave with the counted lock above.
+function flashSidebarSaving(ms) {
+  if (_sbFlashTimer) clearTimeout(_sbFlashTimer);
+  _sbFlashTimer = setTimeout(() => { _sbFlashTimer = null; _applySidebarSaving(); }, ms || 500);
+  _applySidebarSaving();
+}
+
+// Run an async, sidebar-mutating operation behind the saving overlay: lock,
+// run fn, then keep the overlay up until Firestore writes settle (10s ceiling)
+// with a small minimum so it doesn't flash out on a cache hit. Mirrors the
+// drag-reorder UX. Used by JSON import.
+async function withSidebarSaving(fn) {
+  showSidebarSaving();
+  const start = Date.now();
+  try {
+    await fn();
+    const idleP = (typeof fbWritesIdle === 'function') ? fbWritesIdle() : Promise.resolve();
+    await Promise.race([idleP, new Promise(r => setTimeout(r, 10000))]);
+    const wait = Math.max(0, 350 - (Date.now() - start));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+  } finally {
+    hideSidebarSaving();
+  }
 }
 
 /* "Just moved" highlight — kept in module state so it survives the

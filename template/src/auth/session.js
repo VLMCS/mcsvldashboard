@@ -85,6 +85,14 @@ function enterAdminMode() {
   showToast('Admin mode active');
 }
 function exitAdminMode() {
+  // Don't let the user drop out of Admin Mode while the sidebar is mid-update
+  // (reorder / import / incoming team change) — the list is being rewritten and
+  // leaving admin now can strand them on a half-rendered or stale view. Blocks
+  // both the in-sidebar banner and the top-bar lock button.
+  if (typeof isSidebarBusy === 'function' && isSidebarBusy()) {
+    if (typeof showToast === 'function') showToast('Please wait — the sidebar is updating…');
+    return;
+  }
   isAdminMode = false;
   document.body.classList.remove('admin-mode');
   _swapAdminIcons(false);
@@ -158,6 +166,12 @@ function loadCurrentUser() {
 }
 
 async function signOut() {
+  // Block sign-out (which exits admin + reloads the page) while the sidebar is
+  // mid-update — reloading now could interrupt an in-flight import's writes.
+  if (typeof isSidebarBusy === 'function' && isSidebarBusy()) {
+    if (typeof showToast === 'function') showToast('Please wait — the sidebar is updating…');
+    return;
+  }
   // NEW DATA MODEL: drop this device's binding (/users/{uid}) so the next load
   // returns to the login screen instead of silently resuming.
   if (USE_NEW_DATA_MODEL) {
