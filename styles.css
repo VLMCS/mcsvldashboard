@@ -938,6 +938,24 @@
   #maint-pwd.error { border-color: #c0392b; animation: shake 0.3s; }
   .maint-pwd-err { font-size: 11.5px; color: #c0392b; min-height: 14px; }
 
+  /* ── BOOT GATE overlay ──
+     Shown from first paint, removed only once the live Firestore data has
+     loaded, so a refresh never flashes localStorage/default content. Sits
+     BELOW login (100000), maintenance (99999) and welcome (99998) so those
+     still take precedence; it only covers the resume path where the dashboard
+     would otherwise be visible (and stale) while syncing. */
+  #boot-overlay {
+    position: fixed; inset: 0; z-index: 90000;
+    background: var(--white); color: var(--black);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    transition: opacity 0.3s ease;
+  }
+  #boot-overlay.dismissed { opacity: 0; pointer-events: none; visibility: hidden; }
+  .boot-box { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 420px; }
+  .boot-title { font-size: 18px; font-weight: 700; color: var(--text-body); letter-spacing: 0.01em; }
+  .boot-sub { font-size: 13px; color: var(--mid); max-width: 320px; line-height: 1.5; }
+
   /* ── LOGIN overlay (passkey gate before the dashboard loads) ── */
   /* Sits ABOVE the maintenance overlay (z-index 100000 > 99999). On load it
      covers the whole page until the user enters a valid team-member passkey
@@ -1726,6 +1744,33 @@
   #save-indicator.show { opacity: 1; transform: translateY(0); }
   #save-indicator.saved { background: #2c7a3e; color: #fff; }
   body.dark #save-indicator.saved { background: #6cc886; color: #0a0a0a; }
+  /* Persistent red "Not synced" state — click to open the Not-synced panel. */
+  #save-indicator.failed { background: #c0392b; color: #fff; }
+  body.dark #save-indicator.failed { background: #e15c4c; color: #0a0a0a; }
+  #save-indicator.failed .si-dot { background: currentColor; animation: none; }
+
+  /* ── SAVE LOCK overlay (blocks ALL interaction while a save is in flight) ── */
+  #save-lock-overlay {
+    display: none; position: fixed; inset: 0; z-index: 99997;
+    background: rgba(13,13,13,0.62);
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; cursor: wait;
+  }
+  #save-lock-overlay.open { display: flex; }
+  .save-lock-box {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    max-width: 440px; padding: 30px 34px; border-radius: 16px;
+    background: var(--white); color: var(--black);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+  }
+  .save-lock-title { font-size: 18px; font-weight: 700; color: var(--text-body); }
+  .save-lock-warn {
+    font-size: 13px; font-weight: 800; letter-spacing: 0.03em; line-height: 1.45;
+    color: #c0392b; text-transform: uppercase;
+    border: 1.5px solid #c0392b; border-radius: 8px; padding: 10px 14px;
+    background: rgba(192,57,43,0.08);
+  }
+  body.dark .save-lock-warn { color: #ff7a6b; border-color: #ff7a6b; background: rgba(255,122,107,0.12); }
   #save-indicator .si-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: #ffcc44; animation: siPulse 1s ease-in-out infinite;

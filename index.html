@@ -4,9 +4,23 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>VL Dashboard — MCS</title>
-<link rel="stylesheet" href="styles.css?v=20260603c" />
+<link rel="stylesheet" href="styles.css?v=20260608a" />
 </head>
 <body>
+
+<!-- ── BOOT GATE ──
+     Visible from the very first paint and lifted only once the LIVE Firestore
+     data has loaded (see _onFirestoreHydrated). The dashboard behind it boots
+     from localStorage/defaults for speed; this overlay hides that placeholder
+     so a refresh never flashes stale/default content — the user only ever sees
+     the version that actually lives in Firestore. -->
+<div id="boot-overlay">
+  <div class="boot-box">
+    <div class="maint-spinner" aria-hidden="true"></div>
+    <div class="boot-title">Loading the latest version…</div>
+    <div class="boot-sub">Syncing with the shared dashboard.</div>
+  </div>
+</div>
 
 <!-- ── SIDEBAR ── -->
 <aside id="sidebar">
@@ -603,6 +617,16 @@
 <div id="save-toast">Changes saved</div>
 <div id="save-indicator"><span class="si-dot"></span><span class="si-label">Saving…</span></div>
 
+<!-- ── SAVE LOCK (blocks ALL interaction while a save is in flight, so a click
+     or fast refresh can't drop the edit before it reaches Firestore) ── -->
+<div id="save-lock-overlay" role="alertdialog" aria-live="assertive">
+  <div class="save-lock-box">
+    <div class="maint-spinner" aria-hidden="true"></div>
+    <div class="save-lock-title">Saving your changes…</div>
+    <div class="save-lock-warn">⚠ DO NOT REFRESH OR CLOSE THE BROWSER TO SAVE YOUR ENTRY</div>
+  </div>
+</div>
+
 <!-- ── UNDER MAINTENANCE overlay (blocks the GUI while Firebase is unreachable) ── -->
 <div id="maint-overlay">
   <div class="maint-box">
@@ -718,10 +742,10 @@
 <script src="src/ui/dark-mode.js"></script>
 <script src="src/kpi/quarter.js"></script>
 <script src="src/kpi/csv-parser.js?v=3"></script>
-<script src="src/firebase.js"></script>
-<script src="src/data/model.js"></script>
+<script src="src/firebase.js?v=20260608a"></script>
+<script src="src/data/model.js?v=20260608a"></script>
 <script src="src/admin/data-tools.js"></script>
-<script src="src/admin/admin-tools.js"></script>
+<script src="src/admin/admin-tools.js?v=20260608a"></script>
 <script src="src/auth/session.js"></script>
 <script src="src/auth/access.js"></script>
 <script src="src/auth/admin-password.js"></script>
@@ -742,7 +766,7 @@
 <script src="src/team/team-directory.js"></script>
 <script src="src/views/navigation.js"></script>
 <script src="src/views/docview.js"></script>
-<script src="src/ui/login.js"></script>
-<script src="src/app.js"></script>
+<script src="src/ui/login.js?v=20260608a"></script>
+<script src="src/app.js?v=20260608a"></script>
 </body>
 </html>

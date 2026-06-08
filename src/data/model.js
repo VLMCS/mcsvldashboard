@@ -121,6 +121,10 @@ async function dataActivate() {
   _seedSyncBaseline();   // capture last-persisted state for change detection
   dataSubscribe();
   _dataActivated = true;
+  // Live collections are now loaded — repaint from the authoritative data and
+  // lift the boot gate (we're confirmed showing the Firestore version, not the
+  // localStorage/default placeholder the dashboard booted with).
+  if (typeof _onFirestoreHydrated === 'function') _onFirestoreHydrated();
 }
 
 async function dataLoadAll() {
@@ -238,9 +242,10 @@ function _seedSyncBaseline() {
 // collection (e.g. entries with base 'handbook'). idFn → doc id; docFn → data.
 // Diffs against the baseline pre-seeded by _seedSyncBaseline. (Extra trailing
 // args from older call sites are ignored.)
-async function _syncSubset(collName, subsetKey, items, idFn, docFn) {
+async function _syncSubset(collName, subsetKey, items, idFn, docFn, silent) {
   const cache = _dataSyncCache[subsetKey] || (_dataSyncCache[subsetKey] = new Map());
   const seen = new Set();
+  let firstErr = null;
   _fbWriting = true;
   try {
     for (const it of items) {
@@ -249,68 +254,110 @@ async function _syncSubset(collName, subsetKey, items, idFn, docFn) {
       const data = docFn(it);
       const json = _canon(data);
       if (cache.get(id) === json) continue;   // unchanged → skip write
-      await _fb_setDoc(_fb_doc(_fbDb, collName, id), data);
-      cache.set(id, json);
+      try {
+        await _fb_setDoc(_fb_doc(_fbDb, collName, id), data);
+        cache.set(id, json);
+        if (typeof clearNotSynced === 'function') clearNotSynced(collName, id);
+      } catch (e) {
+        // Silent/background sync (e.g. embedding backfill): abort on the first
+        // failure as before — don't fire a storm of doomed writes, and don't
+        // pollute the user-facing registry. User saves: record EVERY failed doc
+        // so the "Not synced" panel is complete, and keep going.
+        if (silent) throw e;
+        firstErr = firstErr || e;
+        if (typeof recordNotSynced === 'function') recordNotSynced(collName, id, _docLabel(collName, data, id), e);
+      }
     }
     for (const id of [...cache.keys()]) {
       if (!seen.has(id)) {
-        await _fb_deleteDoc(_fb_doc(_fbDb, collName, id));
-        cache.delete(id);
+        try {
+          await _fb_deleteDoc(_fb_doc(_fbDb, collName, id));
+          cache.delete(id);
+          if (typeof clearNotSynced === 'function') clearNotSynced(collName, id);
+        } catch (e) {
+          if (silent) throw e;
+          firstErr = firstErr || e;
+          if (typeof recordNotSynced === 'function') recordNotSynced(collName, id, _docLabel(collName, null, id) + ' (removal)', e);
+        }
       }
     }
   } finally {
     setTimeout(() => { _fbWriting = false; }, 200);
   }
+  if (firstErr) throw firstErr;   // keep the caller's .catch (toast) firing
 }
 
-async function _syncSingleton(coll, data) {
+// Friendly label for a not-synced doc — entry/section titles when available.
+function _docLabel(coll, data, id) {
+  const raw = String(id).split(_DSEP).pop() || id;
+  if (data && data.title) return data.title + '  (' + raw + ')';
+  if (coll === 'entries')    return 'Entry ' + raw;
+  if (coll === 'sections')   return 'Section ' + raw;
+  if (coll === 'categories') return 'Category ' + raw;
+  if (coll === 'site')       return 'Site settings';
+  if (coll === 'sidebar')    return 'Quick Links / sidebar';
+  if (coll === 'synonyms')   return 'Search synonyms';
+  if (coll === 'team')       return 'Team member ' + raw;
+  if (coll === 'announcements') return 'Announcement ' + raw;
+  return coll + ' · ' + raw;
+}
+
+async function _syncSingleton(coll, data, silent) {
   // Skip if unchanged — important under strict rules so a non-admin save
   // doesn't fire denied writes at these admin-only docs every time.
   const k = '__singleton:' + coll;
   const json = _canon(data);
   if (_dataSyncCache[k] === json) return;
   _fbWriting = true;
-  try { await _fb_setDoc(_fb_doc(_fbDb, coll, 'main'), data); _dataSyncCache[k] = json; }
-  finally { setTimeout(() => { _fbWriting = false; }, 200); }
+  try {
+    await _fb_setDoc(_fb_doc(_fbDb, coll, 'main'), data);
+    _dataSyncCache[k] = json;
+    if (typeof clearNotSynced === 'function') clearNotSynced(coll, 'main');
+  } catch (e) {
+    if (!silent && typeof recordNotSynced === 'function') recordNotSynced(coll, 'main', _docLabel(coll, null, 'main'), e);
+    throw e;
+  } finally { setTimeout(() => { _fbWriting = false; }, 200); }
 }
 
 // strip a passkey field from section/profile docs (passkeys live in *-secrets)
 function _stripPasskey(obj) { const o = Object.assign({}, obj); delete o.passkey; return o; }
 
 // Route a whole-array sync (the existing fbSyncKey keys) to collection writes.
-async function dataSyncKey(key, value) {
+// `silent` flows down so background syncs don't surface as user-facing "Not
+// synced" warnings (see _syncSubset).
+async function dataSyncKey(key, value, silent) {
   try {
     switch (key) {
       case 'handbook':
-        return _syncSubset('entries', 'entries:handbook', value || [],
-          e => _entryDocId('handbook', e.id), e => _entryDocData(e, 'handbook'), _rawEntries('handbook'));
+        return await _syncSubset('entries', 'entries:handbook', value || [],
+          e => _entryDocId('handbook', e.id), e => _entryDocData(e, 'handbook'), silent);
       case 'projectEntries':
-        return _syncSubset('entries', 'entries:projects', value || [],
-          e => _entryDocId('projects', e.id), e => _entryDocData(e, 'projects'), _rawEntries('projects'));
+        return await _syncSubset('entries', 'entries:projects', value || [],
+          e => _entryDocId('projects', e.id), e => _entryDocData(e, 'projects'), silent);
       case 'sections':
-        return _syncSubset('sections', 'sections:handbook', value || [],
-          s => _sectionDocId('handbook', s.num), s => Object.assign(_stripPasskey(s), { base: 'handbook', num: String(s.num) }), _rawSections('handbook'));
+        return await _syncSubset('sections', 'sections:handbook', value || [],
+          s => _sectionDocId('handbook', s.num), s => Object.assign(_stripPasskey(s), { base: 'handbook', num: String(s.num) }), silent);
       case 'projects':
-        return _syncSubset('sections', 'sections:projects', value || [],
-          s => _sectionDocId('projects', s.num), s => Object.assign(_stripPasskey(s), { base: 'projects', num: String(s.num) }), _rawSections('projects'));
+        return await _syncSubset('sections', 'sections:projects', value || [],
+          s => _sectionDocId('projects', s.num), s => Object.assign(_stripPasskey(s), { base: 'projects', num: String(s.num) }), silent);
       case 'announcements':
-        return _syncSubset('announcements', 'announcements', value || [],
-          a => String(a.id), a => Object.assign({}, a), _dataRaw.announcements || []);
+        return await _syncSubset('announcements', 'announcements', value || [],
+          a => String(a.id), a => Object.assign({}, a), silent);
       case 'team':
-        return _syncSubset('team', 'team', value || [],
-          m => String(m.id), m => _stripPasskey(m), _dataRaw.team || []);
+        return await _syncSubset('team', 'team', value || [],
+          m => String(m.id), m => _stripPasskey(m), silent);
       case 'customCategories': {
         const cats = value || [];
         const catMeta = c => { const o = Object.assign({}, c); delete o.sections; delete o.entries; return o; };
         // category metadata docs (without the nested sections/entries arrays)
         await _syncSubset('categories', 'categories', cats,
-          c => String(c.id), catMeta, _dataRaw.categories || []);
+          c => String(c.id), catMeta, silent);
         // each surviving category's sections + entries, namespaced by base=catId
         for (const c of cats) {
           await _syncSubset('sections', 'sections:' + c.id, c.sections || [],
-            s => _sectionDocId(c.id, s.num), s => Object.assign(_stripPasskey(s), { base: c.id, num: String(s.num) }), _rawSections(c.id));
+            s => _sectionDocId(c.id, s.num), s => Object.assign(_stripPasskey(s), { base: c.id, num: String(s.num) }), silent);
           await _syncSubset('entries', 'entries:' + c.id, c.entries || [],
-            e => _entryDocId(c.id, e.id), e => _entryDocData(e, c.id), _rawEntries(c.id));
+            e => _entryDocId(c.id, e.id), e => _entryDocData(e, c.id), silent);
         }
         // Clean up sections/entries belonging to REMOVED categories (their
         // subsets aren't visited by the loop above, so sync them empty to
@@ -320,24 +367,51 @@ async function dataSyncKey(key, value) {
           .map(c => String(c.id)).filter(id => !liveIds.has(id));
         for (const rid of removedIds) {
           await _syncSubset('sections', 'sections:' + rid, [],
-            s => _sectionDocId(rid, s.num), s => Object.assign(_stripPasskey(s), { base: rid, num: String(s.num) }), _rawSections(rid));
+            s => _sectionDocId(rid, s.num), s => Object.assign(_stripPasskey(s), { base: rid, num: String(s.num) }), silent);
           await _syncSubset('entries', 'entries:' + rid, [],
-            e => _entryDocId(rid, e.id), e => _entryDocData(e, rid), _rawEntries(rid));
+            e => _entryDocId(rid, e.id), e => _entryDocData(e, rid), silent);
         }
         return;
       }
       case 'settings':
-        return _syncSingleton('site', Object.assign({}, value));
+        return await _syncSingleton('site', Object.assign({}, value), silent);
       case 'sidebar':
-        return _syncSingleton('sidebar', { items: value || [] });
+        return await _syncSingleton('sidebar', { items: value || [] }, silent);
       case 'synonyms':
-        return _syncSingleton('synonyms', { groups: encodeForFirestore('synonyms', value || []) });
+        return await _syncSingleton('synonyms', { groups: encodeForFirestore('synonyms', value || []) }, silent);
       default:
         console.warn('dataSyncKey: unknown key', key);
     }
   } catch (e) {
     console.error('dataSyncKey failed for', key, e);
+    throw e;   // propagate so fbSyncKey's .catch can surface the "Not synced" warning
   }
+}
+
+/* ── Not-synced recovery (used by the Admin Tools panel) ──────────────────── */
+// Discard local changes that never reached Firestore: revert in-memory state to
+// the last authoritative snapshot (_dataRaw), re-persist localStorage to match,
+// and clear the registry — so a ghost (never-synced) entry stops reappearing.
+function fbDiscardNotSynced() {
+  _dataRebuildArrays();                                              // in-memory ⇐ server truth
+  if (typeof _persistLocal === 'function') _persistLocal();          // localStorage ⇐ reverted state
+  if (typeof clearAllNotSynced === 'function') clearAllNotSynced();
+  if (typeof _markPending === 'function') _markPending([]);
+  try { if (typeof applyAllSettings === 'function') applyAllSettings(); } catch (e) {}
+  try { if (typeof renderSidebar === 'function') renderSidebar(); } catch (e) {}
+  try { if (typeof renderAnnouncements === 'function') renderAnnouncements(); } catch (e) {}
+  try {
+    if (currentView === 'entry' && currentEntryId) showEntry(currentEntryId, currentBase);
+    else if (currentView === 'section' && currentSectionNum) showSection(currentSectionNum, currentBase);
+    else if (currentView === 'docview' && typeof renderDocView === 'function') renderDocView();
+    else if (typeof showHome === 'function') showHome();
+  } catch (e) {}
+}
+// Retry: re-attempt syncing the CURRENT local state. _syncSubset re-tries any
+// doc whose last write wasn't confirmed (its cache entry still holds the old
+// value), so this safely pushes the not-synced changes again.
+function fbRetryNotSynced() {
+  if (typeof saveAll === 'function') saveAll('Retrying sync…');
 }
 
 /* ════════════════ Passkeys (VIEWABLE plaintext model) ════════════════

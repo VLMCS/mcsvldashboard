@@ -236,18 +236,21 @@ async function initFirebase() {
 }
 let _fb_setDoc, _fb_onSnapshot, _fb_getDoc, _fb_doc, _fb_deleteDoc, _fb_collection, _fb_getDocs, _fb_serverTimestamp;
 
-function fbSync() {
+// `silent` marks background syncs (e.g. AI-embedding backfill) so their
+// failures don't pollute the "Not synced" registry / lock the UI — only
+// user-initiated saves surface as not-synced.
+function fbSync(silent) {
   if (!_fbReady) return;
-  fbSyncKey('sections', SECTIONS);
-  fbSyncKey('handbook', HANDBOOK);
-  fbSyncKey('projects', PROJECTS);
-  fbSyncKey('projectEntries', PROJECT_ENTRIES);
-  fbSyncKey('customCategories', CUSTOM_CATEGORIES);
-  fbSyncKey('settings', SITE_SETTINGS);
-  fbSyncKey('sidebar', SIDEBAR_CFG);
-  fbSyncKey('announcements', ANNOUNCEMENTS);
-  fbSyncKey('synonyms', SYNONYMS);
-  fbSyncKey('team', TEAM_DIRECTORY);
+  fbSyncKey('sections', SECTIONS, silent);
+  fbSyncKey('handbook', HANDBOOK, silent);
+  fbSyncKey('projects', PROJECTS, silent);
+  fbSyncKey('projectEntries', PROJECT_ENTRIES, silent);
+  fbSyncKey('customCategories', CUSTOM_CATEGORIES, silent);
+  fbSyncKey('settings', SITE_SETTINGS, silent);
+  fbSyncKey('sidebar', SIDEBAR_CFG, silent);
+  fbSyncKey('announcements', ANNOUNCEMENTS, silent);
+  fbSyncKey('synonyms', SYNONYMS, silent);
+  fbSyncKey('team', TEAM_DIRECTORY, silent);
 }
 
 // Track which keys have edits that haven't yet landed in Firestore. This
@@ -263,13 +266,23 @@ function _markPending(keys) {
   _renderSaveIndicator(keys && keys.length > 0, false);
 }
 
-function _renderSaveIndicator(saving, justSaved) {
+function _renderSaveIndicator(saving, justSaved, failed) {
   const el = document.getElementById('save-indicator');
   if (!el) return;
   const label = el.querySelector('.si-label');
+  el.classList.remove('saved', 'failed');
+  el.onclick = null; el.style.cursor = '';
   if (saving) {
     if (label) label.textContent = 'Saving…';
-    el.classList.add('show'); el.classList.remove('saved');
+    el.classList.add('show');
+    clearTimeout(el._t);
+  } else if (failed) {
+    // Persistent red state — stays until the change syncs or is discarded.
+    // Click it to open the "Not synced" panel.
+    if (label) label.textContent = '⚠️ Not synced';
+    el.classList.add('show', 'failed');
+    el.style.cursor = 'pointer';
+    el.onclick = () => { if (typeof openNotSyncedPanel === 'function') openNotSyncedPanel(); };
     clearTimeout(el._t);
   } else if (justSaved) {
     if (label) label.textContent = 'Saved';
@@ -277,7 +290,50 @@ function _renderSaveIndicator(saving, justSaved) {
     clearTimeout(el._t);
     el._t = setTimeout(() => el.classList.remove('show'), 1500);
   } else {
-    el.classList.remove('show', 'saved');
+    el.classList.remove('show');
+  }
+}
+
+/* ── NOT-SYNCED registry ──────────────────────────────────────────────────────
+   Writes that Firestore REJECTED (permission-denied, offline, etc.) for a
+   user-initiated save. Each lives only in this browser's localStorage until it
+   syncs — so it can flicker into the sidebar then vanish on the next reconcile.
+   We track them per collection+doc, surface a persistent "Not synced" warning,
+   and expose them in Admin Tools so they can be retried or discarded (kept out
+   of the live site). A later successful write for the same doc clears it. */
+let _notSynced = [];   // [{ coll, id, label, ts, error }]
+function _nsKey(coll, id) { return coll + '/' + id; }
+function recordNotSynced(coll, id, label, error) {
+  const k = _nsKey(coll, id);
+  const rec = { coll, id, label: label || id, ts: Date.now(),
+    error: String((error && error.message) || error || 'unknown') };
+  const i = _notSynced.findIndex(r => _nsKey(r.coll, r.id) === k);
+  if (i === -1) _notSynced.push(rec); else _notSynced[i] = rec;
+  _renderNotSyncedState();
+}
+function clearNotSynced(coll, id) {
+  const before = _notSynced.length;
+  const k = _nsKey(coll, id);
+  _notSynced = _notSynced.filter(r => _nsKey(r.coll, r.id) !== k);
+  if (_notSynced.length !== before) _renderNotSyncedState();
+}
+function clearAllNotSynced() { _notSynced = []; _renderNotSyncedState(); }
+function notSyncedList()  { return _notSynced.slice(); }
+function notSyncedCount() { return _notSynced.length; }
+// Reflect the registry into the indicator + (if open) the admin panel/badge.
+function _renderNotSyncedState() {
+  if (_notSynced.length) _renderSaveIndicator(false, false, true);
+  else                   _renderSaveIndicator(false, false, false);
+  if (typeof _refreshNotSyncedPanel === 'function') _refreshNotSyncedPanel();
+}
+let _nsToastAt = 0;
+function _showNotSyncedToast() {
+  // Coalesce: a single save can fail many docs at once — one toast is enough.
+  const now = Date.now();
+  if (now - _nsToastAt < 1500) return;
+  _nsToastAt = now;
+  if (typeof showToast === 'function') {
+    showToast('⚠️ Not synced — your change did not reach the server. Open Admin Tools → Not synced.');
   }
 }
 
@@ -322,16 +378,26 @@ function fbWritesIdle() {
   return new Promise(resolve => _fbIdleResolvers.push(resolve));
 }
 
-function fbSyncKey(key, value) {
+function fbSyncKey(key, value, silent) {
   if (!_fbReady) return;
   // NEW DATA MODEL (Phase B): route whole-array saves to per-doc collection
   // writes. Dormant today (flag false). Keeps the save indicator behaviour.
   if (USE_NEW_DATA_MODEL) {
     _markPending([key]);
     _fbWriteBegin();
-    dataSyncKey(key, value)
-      .then(() => { _markPending([]); _renderSaveIndicator(false, true); })
-      .catch(err => console.error('dataSyncKey failed:', err))
+    dataSyncKey(key, value, silent)
+      .then(() => {
+        _markPending([]);
+        // Only flash "Saved" if nothing is sitting unsynced (don't paint over
+        // a real "Not synced" warning from another key that just failed).
+        if (!notSyncedCount()) _renderSaveIndicator(false, true);
+      })
+      .catch(err => {
+        console.error('dataSyncKey failed:', err);
+        // _syncSubset has already recorded the specific failed docs (unless
+        // this was a silent/background sync). Surface a one-shot warning toast.
+        if (!silent) _showNotSyncedToast();
+      })
       .finally(() => _fbWriteEnd());
     return;
   }

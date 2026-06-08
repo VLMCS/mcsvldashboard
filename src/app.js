@@ -402,7 +402,9 @@ function loadFromStorage() {
   _ensureTeamPasskeys();
 }
 
-function saveAll(label, opts) {
+// Write the full in-memory state to localStorage (no network). Shared by
+// saveAll and the not-synced "discard" path (which reverts then re-persists).
+function _persistLocal() {
   localStorage.setItem('vl_sections', JSON.stringify(SECTIONS));
   localStorage.setItem('vl_hb',       JSON.stringify(HANDBOOK));
   localStorage.setItem('vl_projects', JSON.stringify(PROJECTS));
@@ -415,8 +417,50 @@ function saveAll(label, opts) {
   localStorage.setItem('vl_team',     JSON.stringify(TEAM_DIRECTORY));
   localStorage.setItem('vl_dis',      JSON.stringify([...dismissedAnns]));
   localStorage.setItem('vl_exp',      JSON.stringify([...expandedSections]));
-  fbSync(); // push to Firebase if configured
-  if (!opts || !opts.silent) showToast(label || 'Changes saved');
+}
+
+function saveAll(label, opts) {
+  _persistLocal();
+  const silent = !!(opts && opts.silent);
+  fbSync(silent); // push to Firebase if configured
+  if (!silent) {
+    showToast(label || 'Changes saved');
+    _runSaveLock();   // block ALL interaction until the write lands (or fails)
+  }
+}
+
+/* ── SAVE LOCK ────────────────────────────────────────────────────────────────
+   While a user-initiated save is in flight, block the entire UI behind
+   #save-lock-overlay with a "DO NOT REFRESH OR CLOSE THE BROWSER" warning, so
+   a click or fast refresh can't drop the just-made edit before it reaches
+   Firestore. (The beforeunload guard in _fbHandleUnload catches refresh/close;
+   this catches everything else.) Hidden once writes settle — including failed
+   ones, which then surface as the "Not synced" warning. */
+function _showSavingLock() {
+  const o = document.getElementById('save-lock-overlay');
+  if (o) o.classList.add('open');
+}
+function _hideSavingLock() {
+  const o = document.getElementById('save-lock-overlay');
+  if (o) o.classList.remove('open');
+}
+function _runSaveLock() {
+  // Nothing to wait on (offline / cache-only / Firestore not ready) → no lock.
+  if (typeof _fbInFlight !== 'number' || _fbInFlight === 0) return;
+  // Don't flash on instant / no-op saves: only show if writes are still in
+  // flight after a short beat. Real content saves take longer than this.
+  let shown = false;
+  const showTimer = setTimeout(() => { shown = true; _showSavingLock(); }, 250);
+  const settle = () => {
+    const idleP = (typeof fbWritesIdle === 'function') ? fbWritesIdle() : Promise.resolve();
+    // 15s ceiling so a hung write can never trap the user behind the lock.
+    Promise.race([idleP, new Promise(r => setTimeout(r, 15000))]).then(() => {
+      if (typeof _fbInFlight === 'number' && _fbInFlight > 0) { settle(); return; }  // more queued — keep waiting
+      clearTimeout(showTimer);
+      if (shown) _hideSavingLock();
+    });
+  };
+  settle();
 }
 
 function saveSynonymsOnly() {
@@ -748,6 +792,41 @@ function applyAllSettings() {
      5. loginTry awaits the Firebase fetch when the local lookup misses, so
         cross-browser logins always see the latest team list.
    ══════════════════════════════════════════ */
+
+// ── BOOT GATE ────────────────────────────────────────────────────────────────
+// The dashboard boots instantly from localStorage/defaults (below), but under
+// the new data model that content is just a placeholder until the live
+// Firestore collections load. The #boot-overlay (visible from first paint)
+// hides that placeholder so a refresh never flashes stale/default content; we
+// lift it only once we've CONFIRMED we're showing the version in Firestore
+// (_onFirestoreHydrated), or once we've determined Firestore won't load (not
+// configured / unreachable / timed out) and cached data is the best we can do.
+let _firestoreHydrated = false;
+let _bootGateDismissed = false;
+function _dismissBootGate() {
+  if (_bootGateDismissed) return;
+  _bootGateDismissed = true;
+  const o = document.getElementById('boot-overlay');
+  if (o) o.classList.add('dismissed');
+}
+// Called from dataActivate() once the live collections have loaded. Repaints
+// every surface from the now-authoritative data, then lifts the gate.
+function _onFirestoreHydrated() {
+  _firestoreHydrated = true;
+  try { hideMaintenance(); } catch (e) {}
+  try { applyAllSettings(); } catch (e) {}
+  try { renderSidebar(); } catch (e) {}
+  try { renderAnnouncements(); } catch (e) {}
+  try {
+    if (currentView === 'entry' && currentEntryId) showEntry(currentEntryId, currentBase);
+    else if (currentView === 'section' && currentSectionNum) showSection(currentSectionNum, currentBase);
+    else if (currentView === 'docview' && typeof renderDocView === 'function') renderDocView();
+    else if (currentView === 'category' && currentCategoryId && typeof showCategoryOverview === 'function') showCategoryOverview(currentCategoryId, currentCategoryType);
+    else showHome();
+  } catch (e) {}
+  _dismissBootGate();
+}
+
 loadFromStorage();
 if (sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');
 applyDark(isDark);
@@ -774,6 +853,9 @@ function _startFirebaseInBackground() {
 
   if (!fbConfigured()) {
     _fbInitResult = false;
+    // No backend → cached/default data is all we have; lift the gate so the
+    // user isn't stuck behind a spinner that will never resolve.
+    _dismissBootGate();
     if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Running offline (no Firebase config). See FIREBASE_CONFIG in the file to enable sharing.'; }
     // Surface the "down" overlay shortly after boot so the user understands
     // why nothing is syncing — but don't BLOCK the page on it.
@@ -797,6 +879,9 @@ function _startFirebaseInBackground() {
       // Backfill any entries missing embeddings, deferred so boot stays snappy.
       setTimeout(() => runBackfillEmbeddings(), 1500);
     } else {
+      // Unreachable → fall back to cached data and lift the gate (the
+      // maintenance overlay below handles the "we're offline" messaging).
+      _dismissBootGate();
       if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Cannot reach the shared dashboard.'; }
       // Give the user a moment with whatever local data we have, then surface
       // the down overlay so it's clear something's wrong. Admin can bypass.
@@ -805,6 +890,7 @@ function _startFirebaseInBackground() {
     return ok;
   }).catch(e => {
     _fbInitResult = false;
+    _dismissBootGate();
     if (_fbDot) { _fbDot.classList.add('offline'); _fbDot.title = 'Firebase init error.'; }
     return false;
   });
@@ -821,6 +907,14 @@ function _startFirebaseInBackground() {
 // Kick off Firebase NOW — non-blocking. The login screen will show
 // immediately on top while this loads in the background.
 _startFirebaseInBackground();
+
+// Old data model has no separate Firestore-collection hydration step, so the
+// boot gate would never lift on its own — drop it immediately for that path.
+if (typeof USE_NEW_DATA_MODEL === 'undefined' || !USE_NEW_DATA_MODEL) _dismissBootGate();
+// Safety net: never leave the gate stuck. If Firestore hasn't confirmed within
+// 12s (matching the hang→maintenance timeout), lift it so the user at least
+// sees cached data (with the maintenance overlay messaging if it's down).
+setTimeout(() => { if (!_firestoreHydrated) _dismissBootGate(); }, 12000);
 
 // Tracks whether this device's UID is a bound admin (new model). Set during
 // resume + after admin bootstrap/promote.
@@ -916,9 +1010,23 @@ function _runMainBootstrap() {
 // network round-trip completes) drops the queued edit on the floor, and
 // the next session re-pulls the stale remote doc — making the just-added
 // entry vanish until the user waits long enough for the write to land.
-function _fbHandleUnload() {
+function _fbHandleUnload(e) {
+  // OLD single-doc model: flush the debounced write synchronously so a refresh
+  // during the 300ms debounce window can't drop the queued edit.
   if (_fbWriteTimer || Object.keys(_fbPendingWrite).length) {
     _fbFlushNow();
+  }
+  // NEW per-collection model: edits fire async setDoc() calls that CANNOT be
+  // flushed synchronously during unload. If any are still in flight, warn the
+  // user — otherwise a "refresh super fast" right after editing drops the
+  // just-made change before it ever reaches Firestore (it survives only in
+  // this browser's localStorage, then vanishes on the next reconcile). The
+  // prompt only fires during the brief in-flight window; once the "Saving…"
+  // indicator clears, refreshing is safe and silent.
+  if (typeof _fbInFlight === 'number' && _fbInFlight > 0) {
+    e.preventDefault();
+    e.returnValue = '';   // required for the native "Leave site?" confirm
+    return '';
   }
 }
 window.addEventListener('pagehide',     _fbHandleUnload);

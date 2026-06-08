@@ -58,6 +58,11 @@ async function maintTryPwd() {
    or the admin password (no specific identity, just turns Admin Mode on).
    ══════════════════════════════════════════ */
 function showLogin() {
+  // The login overlay (z 100000) now covers everything and is the visible gate,
+  // so the boot overlay behind it is redundant — lift it. (After sign-in,
+  // dataActivate repaints from Firestore behind the welcome fade, so there's
+  // still no stale flash.)
+  if (typeof _dismissBootGate === 'function') _dismissBootGate();
   // Sync the dashboard/studio name to whatever SITE_SETTINGS currently has so
   // the login screen reflects renames the admin made.
   const nameEl   = document.getElementById('login-site-name');
