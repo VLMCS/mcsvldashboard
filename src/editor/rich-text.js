@@ -115,14 +115,20 @@ function _rtVideoWatchUrl(src) {
   if (m) return 'https://www.youtube.com/watch?v=' + m[1];
   m = (src || '').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/);
   if (m) return 'https://drive.google.com/file/d/' + m[1] + '/view';
+  // Google Slides: published (/d/e/ID) → /pub, shared (/d/ID) → /edit.
+  m = (src || '').match(/presentation\/d\/e\/([A-Za-z0-9_-]+)/);
+  if (m) return 'https://docs.google.com/presentation/d/e/' + m[1] + '/pub';
+  m = (src || '').match(/presentation\/d\/([A-Za-z0-9_-]+)/);
+  if (m) return 'https://docs.google.com/presentation/d/' + m[1] + '/edit';
   return src || '#';
 }
 // A clickable poster shown instead of the iframe when inline playback is blocked
 // (e.g. opened from file:// — YouTube/Drive reject embeds with a "config error").
 // `asLink` true → a real <a> (read-only views); false → a non-navigating <div> (editor).
 function _rtVideoPoster(src, asLink) {
+  const isSlides = /docs\.google\.com\/presentation/.test(src || '');
   const isDrive = /drive\.google\.com/.test(src || '');
-  const label = (isDrive ? 'Watch on Google Drive' : 'Watch on YouTube') + ' ↗';
+  const label = (isSlides ? 'Open Google Slides' : isDrive ? 'Watch on Google Drive' : 'Watch on YouTube') + ' ↗';
   const el = document.createElement(asLink ? 'a' : 'div');
   el.className = 'rt-video-poster';
   if (asLink) { el.href = _rtVideoWatchUrl(src); el.target = '_blank'; el.rel = 'noopener'; }
@@ -489,7 +495,7 @@ function rtTableCellColor(editorId, color) {
   e.chain().focus().setCellAttribute('backgroundColor', color || null).run();
 }
 
-/* ── Video embeds (YouTube + Google Drive → responsive iframe) ── */
+/* ── Media embeds (YouTube + Google Drive + Google Slides → responsive iframe) ── */
 function _rtVideoEmbedSrc(url) {
   url = (url || '').trim(); if (!url) return null;
   let m;
@@ -499,16 +505,24 @@ function _rtVideoEmbedSrc(url) {
   // Google Drive: /file/d/ID/... or ?id=ID
   m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([A-Za-z0-9_-]{10,})/);
   if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+  // Google Slides → interactive read-only player at /embed. Two URL shapes:
+  // published-to-web (/presentation/d/e/ID/...) and shared (/presentation/d/ID/...).
+  // The /d/e/ form MUST be checked first (it also superficially matches /d/).
+  // The presentation must be public ("Publish to web" or "Anyone with the link").
+  m = url.match(/docs\.google\.com\/presentation\/d\/e\/([A-Za-z0-9_-]+)/);
+  if (m) return 'https://docs.google.com/presentation/d/e/' + m[1] + '/embed?start=false&loop=false&delayms=3000';
+  m = url.match(/docs\.google\.com\/presentation\/d\/([A-Za-z0-9_-]{10,})/);
+  if (m) return 'https://docs.google.com/presentation/d/' + m[1] + '/embed?start=false&loop=false&delayms=3000';
   return null;
 }
 async function rtInsertVideo(editorId) {
   const e = RT_EDITORS[editorId]; if (!e) return;
-  const url = await customPrompt('Paste a YouTube or Google Drive link:', '', {
-    title: 'Embed video', placeholder: 'https://youtu.be/… or https://drive.google.com/…', confirmLabel: 'Embed'
+  const url = await customPrompt('Paste a YouTube, Google Drive, or public Google Slides link:', '', {
+    title: 'Embed video or slides', placeholder: 'youtu.be/… · drive.google.com/… · docs.google.com/presentation/…', confirmLabel: 'Embed'
   });
   if (url === null) return;
   const src = _rtVideoEmbedSrc(url);
-  if (!src) { alert('Could not recognize that as a YouTube or Google Drive video link.'); return; }
+  if (!src) { alert('Could not recognize that link. Paste a YouTube, Google Drive, or public Google Slides URL.'); return; }
   e.chain().focus().setVideoEmbed({ src }).run();
 }
 
@@ -572,7 +586,7 @@ function rtBuildToolbar(toolbarId, editorId) {
     rtBtn(editorId,'align','⇥','Align right','right') +
     rtBtn(editorId,'align','☰','Justify','justify') + sep +
     `<button class="rt-btn" type="button" title="Insert image (or paste from clipboard)" onmousedown="event.preventDefault()" onclick="rtPickImage('${ed}')">🖼</button>` +
-    `<button class="rt-btn" type="button" title="Embed a YouTube or Google Drive video" onmousedown="event.preventDefault()" onclick="rtInsertVideo('${ed}')">▶</button>` +
+    `<button class="rt-btn" type="button" title="Embed media — YouTube / Google Drive video or Google Slides" onmousedown="event.preventDefault()" onclick="rtInsertVideo('${ed}')">▶</button>` +
     tableMenu + sep +
     rtBtn(editorId,'clear','⌫','Clear formatting');
   const tb = document.getElementById(toolbarId);
