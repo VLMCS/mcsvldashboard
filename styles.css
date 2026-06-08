@@ -23,7 +23,9 @@
     background: var(--white); color: var(--black);
     display: flex; min-height: 100vh; font-size: 15px; line-height: 1.55;
     transition: background 0.2s, color 0.2s;
+    --sb-w: 260px;   /* live sidebar width — used to size full-width embeds */
   }
+  body:has(#sidebar.collapsed) { --sb-w: 48px; }
 
   /* ── SIDEBAR ── */
   #sidebar {
@@ -867,6 +869,20 @@
   }
   .rt-embed-size-btn:hover { background: rgba(255,255,255,0.18); }
   .rt-embed-size-btn.active { background: var(--admin-accent); border-color: var(--admin-accent); color: #fff; }
+
+  /* "Full" embeds — ~20% wider than the 860px text column and centered,
+     breaking out into the side margins. Width is capped at the available space
+     (viewport minus the live sidebar) so it can never create a horizontal
+     scrollbar, and it still auto-shrinks on smaller windows. */
+  .entry-content .rt-video[data-size="full"] {
+    width: min(1040px, calc(100vw - var(--sb-w, 260px) - 48px));
+    max-width: none;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  /* Editor preview / doc view / section blurb: just fill the column (these
+     contexts aren't a centered full-width column, so skip the breakout). */
+  :is(.rt-prose, .dv-entry-content, .section-desc) .rt-video[data-size="full"] { max-width: none; }
   /* Clickable poster shown instead of an iframe when inline playback is blocked (file://) */
   .rt-video-poster {
     position: absolute; inset: 0; display: flex; flex-direction: column;

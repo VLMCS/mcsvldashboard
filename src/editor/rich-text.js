@@ -286,9 +286,12 @@ function _rtMediaNodeView(kind) {
     dom.appendChild(bar);
 
     const applyMax = w => {
-      if (w === 'full') dom.style.maxWidth = 'none';
-      else if (typeof w === 'number' && w > 0) dom.style.maxWidth = w + 'px';
-      else dom.style.maxWidth = '';   // null → base CSS default (720)
+      // 'full' is driven by the [data-size="full"] CSS rule (centered breakout
+      // in read-only views; fills the column elsewhere). Numeric sizes use an
+      // inline max-width. Never a fixed width — always responsive.
+      if (w === 'full') { dom.setAttribute('data-size', 'full'); dom.style.maxWidth = ''; }
+      else if (typeof w === 'number' && w > 0) { dom.setAttribute('data-size', String(w)); dom.style.maxWidth = w + 'px'; }
+      else { dom.removeAttribute('data-size'); dom.style.maxWidth = ''; }
       dom.style.width = '';            // never a fixed width — stay responsive
     };
     const refreshActive = w => {
@@ -378,8 +381,9 @@ function _rtVideoNode(T) {
       const src = node.attrs.src || '';
       const w = node.attrs.width;
       const attrs = { 'data-video-embed': '', 'data-src': src, class: 'rt-video' };
-      // Store size as max-width (responsive) + a data-size hint for clean re-parsing.
-      if (w === 'full') { attrs['data-size'] = 'full'; attrs.style = 'max-width:none'; }
+      // 'full' sizing lives in the [data-size="full"] CSS rule; numeric sizes
+      // use a responsive max-width. (data-size also lets us re-parse cleanly.)
+      if (w === 'full') { attrs['data-size'] = 'full'; }
       else if (typeof w === 'number' && w > 0) { attrs['data-size'] = String(w); attrs.style = `max-width:${w}px`; }
       return ['div', attrs,
         ['iframe', { src, frameborder: '0', allowfullscreen: 'true', allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen' }]];
