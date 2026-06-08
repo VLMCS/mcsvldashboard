@@ -173,15 +173,42 @@ function pauseInlineVideos() {
   });
 }
 
-// Shared resize NodeView for media (image / video). Aspect ratio is preserved:
-// width drives layout, height follows (img height:auto; video box is 16:9).
+// Size presets for video / slide embeds. `max` = max-width in px (the embed
+// fills its column up to this, then SHRINKS responsively on narrower windows);
+// `max:null` = Full = fill the whole column. Stored on the node's `width` attr
+// as the number, or the string 'full'. The content column is ~860px wide, so
+// Large (720) ≈ the old default and Full (≈860) is the new "a bit bigger".
+const RT_EMBED_SIZES = [
+  { key: 's',    label: 'S',    max: 420,  title: 'Small' },
+  { key: 'm',    label: 'M',    max: 560,  title: 'Medium' },
+  { key: 'l',    label: 'L',    max: 720,  title: 'Large (default)' },
+  { key: 'full', label: 'Full', max: null, title: 'Full width — fills the column' }
+];
+const RT_EMBED_DEFAULT_W = 720;   // matches the .rt-video base max-width (= "L")
+
+// Read an embed's saved size from its DOM: data-size ('full' or px), else a
+// legacy inline max-width/width (old fixed-width embeds), else null (default).
+function _rtParseEmbedSize(el) {
+  const ds = el && el.getAttribute ? el.getAttribute('data-size') : null;
+  if (ds === 'full') return 'full';
+  if (ds && !isNaN(parseInt(ds, 10))) return parseInt(ds, 10);
+  if (el && el.style && el.style.maxWidth) { const n = parseInt(el.style.maxWidth, 10); if (!isNaN(n)) return n; }
+  if (el && el.style && el.style.width)    { const n = parseInt(el.style.width, 10);    if (!isNaN(n)) return n; }
+  return null;
+}
+
+// Shared NodeView for media. Images keep the drag-to-resize corner handle.
+// Video / slide embeds get a preset size bar (S / M / L / Full) shown when the
+// embed is selected, with the CURRENT size highlighted; size is stored as a
+// responsive max-width so embeds always shrink to fit a smaller window.
 function _rtMediaNodeView(kind) {
+  const isVideo = kind !== 'img';
   return ({ node, editor, getPos }) => {
     let current = node;
-    const dom = document.createElement(kind === 'img' ? 'span' : 'div');
-    dom.className = 'rt-resizable ' + (kind === 'img' ? 'rt-resizable-img' : 'rt-video');
+    const dom = document.createElement(isVideo ? 'div' : 'span');
+    dom.className = 'rt-resizable ' + (isVideo ? 'rt-video' : 'rt-resizable-img');
     let media;
-    if (kind === 'img') {
+    if (!isVideo) {
       media = document.createElement('img');
       media.src = current.attrs.src || '';
       if (current.attrs.alt) media.alt = current.attrs.alt;
@@ -201,34 +228,89 @@ function _rtMediaNodeView(kind) {
       }
     }
     dom.appendChild(media);
-    const handle = document.createElement('span');
-    handle.className = 'rt-resize-handle';
-    handle.title = 'Drag to resize';
-    dom.appendChild(handle);
-    const applyWidth = w => { dom.style.width = w ? (w + 'px') : ''; };
-    applyWidth(current.attrs.width);
-    handle.addEventListener('mousedown', e => {
-      e.preventDefault(); e.stopPropagation();
-      const startX = e.clientX, startW = dom.offsetWidth;
-      const maxW = dom.parentElement ? dom.parentElement.clientWidth : 1600;
-      const onMove = ev => { let w = startW + (ev.clientX - startX); w = Math.max(48, Math.min(w, maxW)); dom.style.width = Math.round(w) + 'px'; };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
-        const w = Math.round(dom.offsetWidth);
-        if (typeof getPos === 'function') {
-          editor.chain().command(({ tr }) => { tr.setNodeMarkup(getPos(), undefined, Object.assign({}, current.attrs, { width: w })); return true; }).run();
-        }
+
+    // ── IMAGE: drag-to-resize corner handle (fixed px width, unchanged) ──
+    if (!isVideo) {
+      const handle = document.createElement('span');
+      handle.className = 'rt-resize-handle';
+      handle.title = 'Drag to resize';
+      dom.appendChild(handle);
+      const applyWidth = w => { dom.style.width = w ? (w + 'px') : ''; };
+      applyWidth(current.attrs.width);
+      handle.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        const startX = e.clientX, startW = dom.offsetWidth;
+        const maxW = dom.parentElement ? dom.parentElement.clientWidth : 1600;
+        const onMove = ev => { let w = startW + (ev.clientX - startX); w = Math.max(48, Math.min(w, maxW)); dom.style.width = Math.round(w) + 'px'; };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+          const w = Math.round(dom.offsetWidth);
+          if (typeof getPos === 'function') {
+            editor.chain().command(({ tr }) => { tr.setNodeMarkup(getPos(), undefined, Object.assign({}, current.attrs, { width: w })); return true; }).run();
+          }
+        };
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      });
+      return {
+        dom,
+        update(updated) {
+          if (updated.type.name !== current.type.name) return false;
+          current = updated;
+          if (media.tagName === 'IMG') media.src = current.attrs.src || '';
+          applyWidth(current.attrs.width);
+          return true;
+        },
+        ignoreMutation() { return true; }
       };
-      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    }
+
+    // ── VIDEO / SLIDES: preset size bar (responsive max-width, no fixed width) ──
+    const bar = document.createElement('div');
+    bar.className = 'rt-embed-sizes';
+    bar.setAttribute('contenteditable', 'false');
+    const setSize = val => {
+      if (typeof getPos !== 'function') return;
+      editor.chain().command(({ tr }) => { tr.setNodeMarkup(getPos(), undefined, Object.assign({}, current.attrs, { width: val })); return true; }).run();
+    };
+    const btns = RT_EMBED_SIZES.map(s => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'rt-embed-size-btn'; b.textContent = s.label;
+      b.title = 'Resize embed — ' + s.title;
+      b.setAttribute('data-size', s.key);
+      // Don't let the press steal/clear the node selection; just apply the size.
+      b.addEventListener('mousedown', ev => { ev.preventDefault(); ev.stopPropagation(); });
+      b.addEventListener('click',     ev => { ev.preventDefault(); ev.stopPropagation(); setSize(s.max === null ? 'full' : s.max); });
+      bar.appendChild(b);
+      return b;
     });
+    dom.appendChild(bar);
+
+    const applyMax = w => {
+      if (w === 'full') dom.style.maxWidth = 'none';
+      else if (typeof w === 'number' && w > 0) dom.style.maxWidth = w + 'px';
+      else dom.style.maxWidth = '';   // null → base CSS default (720)
+      dom.style.width = '';            // never a fixed width — stay responsive
+    };
+    const refreshActive = w => {
+      const eff = (w == null) ? RT_EMBED_DEFAULT_W : w;   // null behaves as the default size
+      btns.forEach(b => {
+        const s = RT_EMBED_SIZES.find(x => x.key === b.getAttribute('data-size'));
+        const match = (s.max === null) ? (eff === 'full') : (s.max === eff);
+        b.classList.toggle('active', !!match);
+      });
+    };
+    applyMax(current.attrs.width);
+    refreshActive(current.attrs.width);
+
     return {
       dom,
       update(updated) {
         if (updated.type.name !== current.type.name) return false;
         current = updated;
-        if (media.tagName === 'IMG' || media.tagName === 'IFRAME') media.src = current.attrs.src || '';
-        if (kind === 'video') dom.setAttribute('data-src', current.attrs.src || '');
-        applyWidth(current.attrs.width);
+        if (media.tagName === 'IFRAME') media.src = current.attrs.src || '';
+        dom.setAttribute('data-src', current.attrs.src || '');
+        applyMax(current.attrs.width);
+        refreshActive(current.attrs.width);
         return true;
       },
       ignoreMutation() { return true; }
@@ -281,18 +363,24 @@ function _rtVideoNode(T) {
     addAttributes() {
       return {
         src: { default: null },
+        // Size as a responsive max-width: a px number (S/M/L) or the string
+        // 'full' (fill the column), or null (default = L). Rendering is handled
+        // by the node-level renderHTML below, so this attr's renderHTML is a no-op.
         width: {
           default: null,
-          parseHTML: el => (el.style && el.style.width ? parseInt(el.style.width, 10) : null) || null,
-          renderHTML: attrs => attrs.width ? { style: `width:${attrs.width}px;max-width:${attrs.width}px` } : {}
+          parseHTML: el => _rtParseEmbedSize(el),
+          renderHTML: () => ({})
         }
       };
     },
-    parseHTML() { return [{ tag: 'div[data-video-embed]', getAttrs: el => ({ src: el.getAttribute('data-src') || (el.querySelector('iframe') ? el.querySelector('iframe').getAttribute('src') : ''), width: el.style && el.style.width ? parseInt(el.style.width, 10) : null }) }]; },
+    parseHTML() { return [{ tag: 'div[data-video-embed]', getAttrs: el => ({ src: el.getAttribute('data-src') || (el.querySelector('iframe') ? el.querySelector('iframe').getAttribute('src') : ''), width: _rtParseEmbedSize(el) }) }]; },
     renderHTML({ node }) {
       const src = node.attrs.src || '';
+      const w = node.attrs.width;
       const attrs = { 'data-video-embed': '', 'data-src': src, class: 'rt-video' };
-      if (node.attrs.width) attrs.style = `width:${node.attrs.width}px;max-width:${node.attrs.width}px`;
+      // Store size as max-width (responsive) + a data-size hint for clean re-parsing.
+      if (w === 'full') { attrs['data-size'] = 'full'; attrs.style = 'max-width:none'; }
+      else if (typeof w === 'number' && w > 0) { attrs['data-size'] = String(w); attrs.style = `max-width:${w}px`; }
       return ['div', attrs,
         ['iframe', { src, frameborder: '0', allowfullscreen: 'true', allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen' }]];
     },

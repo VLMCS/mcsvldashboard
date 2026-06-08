@@ -852,6 +852,21 @@
   .rt-prose .rt-resizable.ProseMirror-selectednode .rt-resize-handle { display: block; }
   /* In the editor, clicks select the video node instead of being swallowed by the iframe */
   .rt-prose .rt-resizable.rt-video iframe { pointer-events: none; }
+  /* Preset size bar — overlaid on the embed, shown only when it's selected.
+     The CURRENT size is highlighted so you can see where you left it. */
+  .rt-embed-sizes {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    display: none; gap: 4px; padding: 4px; z-index: 7;
+    background: rgba(15,15,15,0.82); border-radius: 9px;
+  }
+  .rt-prose .rt-resizable.rt-video.ProseMirror-selectednode .rt-embed-sizes { display: flex; }
+  .rt-embed-size-btn {
+    border: 1px solid rgba(255,255,255,0.28); background: transparent; color: #fff;
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 6px;
+    cursor: pointer; line-height: 1.5; transition: background .12s, border-color .12s;
+  }
+  .rt-embed-size-btn:hover { background: rgba(255,255,255,0.18); }
+  .rt-embed-size-btn.active { background: var(--admin-accent); border-color: var(--admin-accent); color: #fff; }
   /* Clickable poster shown instead of an iframe when inline playback is blocked (file://) */
   .rt-video-poster {
     position: absolute; inset: 0; display: flex; flex-direction: column;
