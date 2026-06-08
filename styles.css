@@ -510,6 +510,8 @@
   .entry-actions { display: flex; gap: 8px; margin-bottom: 22px; }
   .entry-actions .btn { display: none; }
   body.admin-mode .entry-actions .btn { display: inline-flex; align-items: center; gap: 4px; }
+  /* "Copy link" is for sharing — visible to everyone (members + guests), not just admins. */
+  .entry-actions .btn.entry-share-btn { display: inline-flex; align-items: center; gap: 4px; }
   .entry-content {
     font-size: 14.5px; line-height: 1.7; color: var(--text-body);
   }

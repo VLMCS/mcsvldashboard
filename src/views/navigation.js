@@ -17,6 +17,8 @@ function setView(name) {
   // Show back-to-home FAB only when reading content (not on home or doc view)
   const fab = document.getElementById('back-to-home-fab');
   if (fab) fab.classList.toggle('visible', name === 'section' || name === 'entry' || name === 'category');
+  // Mirror the current view into the URL hash so it's shareable / bookmarkable.
+  if (typeof _syncUrlToView === 'function') _syncUrlToView();
 }
 
 function updateBreadcrumb() {

@@ -818,7 +818,10 @@ function _onFirestoreHydrated() {
   try { renderSidebar(); } catch (e) {}
   try { renderAnnouncements(); } catch (e) {}
   try {
-    if (currentView === 'entry' && currentEntryId) showEntry(currentEntryId, currentBase);
+    // A deep link in the URL (e.g. #/handbook/14.2.a) wins — this is how a
+    // shared link lands on the right entry after sign-in + the boot/sync gate.
+    if (_applyDeepLink()) { /* navigated to the shared target */ }
+    else if (currentView === 'entry' && currentEntryId) showEntry(currentEntryId, currentBase);
     else if (currentView === 'section' && currentSectionNum) showSection(currentSectionNum, currentBase);
     else if (currentView === 'docview' && typeof renderDocView === 'function') renderDocView();
     else if (currentView === 'category' && currentCategoryId && typeof showCategoryOverview === 'function') showCategoryOverview(currentCategoryId, currentCategoryType);
@@ -826,6 +829,73 @@ function _onFirestoreHydrated() {
   } catch (e) {}
   _dismissBootGate();
 }
+
+/* ── DEEP LINKS / SHAREABLE URLS ───────────────────────────────────────────────
+   The URL hash mirrors the current view so an entry can be shared by link:
+     #/<base>/<entryId>   e.g. #/handbook/14.2.a   (an article)
+     #/<base>/<sectionNum> e.g. #/handbook/14       (a section)
+     #/<base>             e.g. #/handbook           (a category overview)
+   We write it with replaceState (no history spam, no reload), and a fresh load
+   re-applies it AFTER login + Firestore sync (see _onFirestoreHydrated). Until
+   then _syncUrlToView is a no-op so the boot's showHome() can't clobber an
+   incoming link before we've had a chance to honor it. */
+function _viewHash() {
+  const base = encodeURIComponent(currentBase || 'handbook');
+  if (currentView === 'entry'    && currentEntryId)    return '#/' + base + '/' + encodeURIComponent(currentEntryId);
+  if (currentView === 'section'  && currentSectionNum) return '#/' + base + '/' + encodeURIComponent(currentSectionNum);
+  if (currentView === 'category' && currentCategoryId) return '#/' + encodeURIComponent(currentCategoryId);
+  return '#/';
+}
+function _syncUrlToView() {
+  if (!_firestoreHydrated) return;   // don't overwrite an incoming deep link pre-hydration
+  try { history.replaceState(null, '', _viewHash()); } catch (e) {}
+}
+// Navigate to the view encoded in the URL hash. Returns true if it navigated.
+function _applyDeepLink(hash) {
+  if (!_firestoreHydrated) return false;   // data not loaded yet — boot will retry
+  let h = (hash != null ? hash : (location.hash || '')).replace(/^#\/?/, '');
+  const parts = h.split('/').filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
+  if (!parts.length) return false;
+  const base = parts[0];
+  if (parts.length >= 2) {
+    const idOrNum = parts[1];
+    // Entry ids contain a dot (14.2.a); section nums don't — but just let the
+    // data decide: try entry first, then section.
+    if (typeof findEntry === 'function' && findEntry(idOrNum, base)) { showEntry(idOrNum, base); return true; }
+    if (typeof findSection === 'function' && findSection(idOrNum, base)) { showSection(idOrNum, base); return true; }
+    return false;
+  }
+  if (typeof showCategoryOverview === 'function') {
+    const isKb = (base === 'handbook' || base === 'projects'
+      || (typeof CUSTOM_CATEGORIES !== 'undefined' && (CUSTOM_CATEGORIES || []).some(c => c.id === base)));
+    if (isKb) { showCategoryOverview(base, 'kb'); return true; }
+    if (typeof SIDEBAR_CFG !== 'undefined' && (SIDEBAR_CFG || []).some(s => s.id === base)) { showCategoryOverview(base, 'links'); return true; }
+  }
+  return false;
+}
+// Absolute, shareable URL for whatever's on screen now.
+function _buildShareUrl() { return location.origin + location.pathname + _viewHash(); }
+function _fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    showToast('🔗 Link copied');
+  } catch (e) { showToast('Copy this link: ' + text); }
+}
+function copyEntryLink() {
+  const url = _buildShareUrl();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(
+      () => showToast('🔗 Link copied — opens this entry after sign-in'),
+      () => _fallbackCopy(url)
+    );
+  } else { _fallbackCopy(url); }
+}
+// Honor the hash if the user edits the URL / pastes a link into this open tab.
+// (Our own navigation uses replaceState, which doesn't fire hashchange, so this
+// only runs for genuinely external changes — no feedback loop.)
+window.addEventListener('hashchange', () => { _applyDeepLink(); });
 
 loadFromStorage();
 if (sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>VL Dashboard — MCS</title>
-<link rel="stylesheet" href="styles.css?v=20260608d" />
+<link rel="stylesheet" href="styles.css?v=20260608e" />
 </head>
 <body>
 
@@ -142,6 +142,7 @@
       <div class="entry-id-label" id="ev-id">Entry</div>
       <h1 class="entry-title" id="ev-title">Title</h1>
       <div class="entry-actions">
+        <button class="btn btn-secondary entry-share-btn" type="button" onclick="copyEntryLink()" title="Copy a shareable link to this entry">🔗 Copy link</button>
         <button class="btn btn-secondary" onclick="openEntryEditor(currentEntryId, currentBase)">✎ Edit Entry</button>
       </div>
       <div class="entry-content" id="ev-content"></div>
@@ -764,9 +765,9 @@
 <script src="src/modals/category.js"></script>
 <script src="src/data/backup.js"></script>
 <script src="src/team/team-directory.js"></script>
-<script src="src/views/navigation.js"></script>
+<script src="src/views/navigation.js?v=20260608e"></script>
 <script src="src/views/docview.js"></script>
 <script src="src/ui/login.js?v=20260608a"></script>
-<script src="src/app.js?v=20260608a"></script>
+<script src="src/app.js?v=20260608e"></script>
 </body>
 </html>
